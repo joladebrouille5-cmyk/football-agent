@@ -558,6 +558,16 @@ input[type=range]::-moz-range-thumb{width:18px; height:18px; border-radius:50%; 
 .region-card.active{border-color:var(--accent); background:linear-gradient(160deg, rgba(215,255,60,.18), rgba(215,255,60,.04)); color:var(--accent);}
 .region-card.active .small{color:var(--accent-soft);}
 .region-card .flag{font-size:24px; display:block; margin-bottom:5px;}
+/* très petits écrans (320-360 px) : la barre du haut coupait la pastille de réputation (audit 8.3) */
+@media (max-width:360px){
+  .topbar{padding:0 10px; gap:8px;}
+  .topbar-date, .topbar-date .num{font-size:14px;}
+  .topbar-date .season{max-width:132px; overflow:hidden; text-overflow:ellipsis;}
+  .chip{padding:6px 9px; font-size:12px;}
+  .chip .ico{display:none;}
+  .career-hero .tier{font-size:24px;}
+  .fab-advance{font-size:15px; letter-spacing:.04em;}
+}
 /* écrans tactiles : cibles d'au moins 44 px (audit : 6 à 13 boutons trop petits par écran) */
 @media (pointer:coarse){
   .btn-sm{min-height:44px; padding:8px 14px;}
@@ -1013,12 +1023,18 @@ function seasonIdx(state) { return Math.floor(state.date.absMonth / 12); }
 function seasonStartYear(state) { return state.startYear + seasonIdx(state); }
 function calYear(state) { const m = calMonth(state); return seasonStartYear(state) + (m < 8 ? 1 : 0); }
 function seasonLabel(state) { const y = seasonStartYear(state); return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; }
-function monthsUntilNextMercato(state) {
-  const cur = state.date.absMonth % 12; // index dans SEASON_MONTH_ORDER : 5 = mercato d'hiver, 11 = mercato d'été
-  let best = 12;
-  for (const t of [5, 11]) best = Math.min(best, (t - cur + 12) % 12);
-  return best;
+// Fenêtres de transferts (V8.4) : janvier, et l'été de juillet à août (un seul mois d'été laissait 10 mois sur 12
+// sans aucune opération possible). Indices dans SEASON_MONTH_ORDER : 0 = août, 5 = janvier, 11 = juillet.
+function mercatoOpenAt(abs) { const i = abs % 12; return i === 0 || i === 5 || i === 11; }
+// Fenêtre en cours (si ouverte à `abs`) ou prochaine : mois absolus de début et de fin inclus.
+function mercatoWindowFrom(abs) {
+  let start = abs;
+  while (!mercatoOpenAt(start)) start++;
+  let end = start;
+  while (mercatoOpenAt(end + 1)) end++;
+  return { start, end };
 }
+function monthsUntilNextMercato(state) { return mercatoWindowFrom(state.date.absMonth).start - state.date.absMonth; }
 // Prochaines échéances (addictivité) : rassemble, sans nouvel état à maintenir, tout ce qui mérite un coup d'œil
 // prochainement — contrats qui arrivent à échéance, prêts qui se terminent, promesses à tenir, objectif de saison
 // tout proche — pour donner une vraie raison concrète de revenir avancer d'un mois plutôt que de refermer l'appli.
@@ -1712,6 +1728,7 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
   player.contractUntil = seasonStartYear(state) + randInt(2, 5);
   player.parentClub = null; player.loanUntil = null; // un transfert ferme met fin à un éventuel prêt en cours
   player.lastTransferMonth = state.date.absMonth; // V8.2, chasse aux exploits : voir evaluateTransferCooldown
+  player.lastPermanentMove = state.date.absMonth; // V8.4 : le souhait de s'installer ne suit qu'un transfert définitif
   buyerClub.squad.push(player.id);
   state.transferListed = (state.transferListed || []).filter(id => id !== player.id);
   checkRecord(state, 'biggestTransfer', player, fee, { fromClub: sellerClub ? sellerClub.name : 'Libre', toClub: buyerClub.name });
@@ -1992,6 +2009,7 @@ function checkReleaseClauses(state, news) {
 }
 function officeRent(state) { const lvl = OFFICE_LEVELS[state.agent.officeLevel - 1]; return lvl ? (lvl.rent || 0) : 0; }
 function clientFollowUpCost(state) {
+  if (state.date.absMonth < 12) return 0; // première saison offerte : le temps de lancer l'agence (V8.4)
   return state.agent.portfolio.reduce((s, id) => { const p = state.players[id]; return s + (p ? 1000 + Math.round((p.wage || 0) * 0.04) : 0); }, 0);
 }
 // Impôt sur les bénéfices de l'agence (V8.3, audit P1-4) : prélevé en fin de saison sur les commissions de la
@@ -2018,6 +2036,22 @@ function monthlyAgencyIncomeExpense(state, news) {
   const invest = investmentsUpkeep(state);
   state.agent.cash -= staffCost + rent + invest;
   state.agent.monthLedger = { sponsor, staff: staffCost, rent, invest };
+  // Faillite (V8.4, audit 8.3 : une dette sans fond ne menait à rien) : six mois d'affilée sous -250 k€ et la banque
+  // impose une restructuration — retour au petit bureau, personnel et investissements supprimés, portefeuille réduit
+  // à trois joueurs, réputation entamée, dette épongée. Une vraie sanction, mais on peut repartir.
+  state.agent.debtMonths = state.agent.cash < -250000 ? (state.agent.debtMonths || 0) + 1 : 0;
+  if (state.agent.debtMonths >= 6) {
+    const a = state.agent;
+    a.debtMonths = 0;
+    a.careerStats.bankruptcies = (a.careerStats.bankruptcies || 0) + 1;
+    a.cash = 20000; a.officeLevel = 1; a.investments = {};
+    for (const k of Object.keys(a.staff)) a.staff[k] = 0;
+    a.reputation = clamp(a.reputation - 8, 0, 100);
+    const keep = a.portfolio.map(id => state.players[id]).filter(Boolean).sort((x, y) => y.value - x.value);
+    for (const p of keep.slice(OFFICE_LEVELS[0].cap)) resolveDropClient(state, p.id);
+    if (news) news.push({ text: `Faillite évitée de justesse : la banque restructure votre agence. Retour au petit bureau, personnel licencié, seuls vos trois meilleurs clients restent.`, tag: 'finance', breaking: true });
+    return;
+  }
   // dette durable (audit B-21) : au-delà de 100 k€ de découvert, la profession le sait — la réputation s'effrite
   if (state.agent.cash < -100000) {
     gainReputation(state, -0.4);
@@ -2115,7 +2149,16 @@ function bumpRivalry(state, ra, delta, text) {
 }
 // Taille d'écurie visée par un rival, selon sa réputation (V8.3, audit P2-2) : sans plafond ni objectif, les rivaux
 // signaient ~1 joueur par saison et ne pesaient rien face à l'agent du joueur.
-function rivalPortfolioCap(ra) { return Math.round(6 + ra.reputation / 3); }
+function isChallenger(state, ra) { return ra.challengerUntil != null && seasonIdx(state) <= ra.challengerUntil; }
+function rivalPortfolioCap(ra, state) { return Math.round(6 + ra.reputation / 3) + (state && isChallenger(state, ra) ? 12 : 0); }
+// Le challenger débauche à chaque mercato un de vos clients les moins attachés (confiance < 60), s'il en trouve.
+function runChallengerPoaching(state, news) {
+  for (const ra of state.rivalAgents) {
+    if (!isChallenger(state, ra) || Math.random() > (hasInvestment(state, 'fondation') ? 0.25 : 0.55)) continue;
+    const target = state.agent.portfolio.map(id => state.players[id]).filter(p => p && !p.retired && (p.agentTrust ?? 50) < 60).sort((a, b) => b.value - a.value)[0];
+    if (target) poachClient(state, target, ra, news);
+  }
+}
 // Les rivaux font aussi des affaires (V8.3, audit P2-2) : à chaque mercato, un rival peut placer un de ses clients
 // dans un club à sa mesure et toucher sa commission — jusqu'ici leurs clients ne bougeaient jamais et leur
 // indice de classement restait figé, ce qui rendait la course à l'agent de l'année jouée d'avance.
@@ -2139,9 +2182,9 @@ function runRivalDeals(state, news) {
   }
 }
 function runRivalAgentsAI(state, isMercato, news) {
-  if (isMercato) runRivalDeals(state, news);
+  if (isMercato) { runRivalDeals(state, news); runChallengerPoaching(state, news); }
   for (const ra of state.rivalAgents) {
-    if (ra.portfolio.length >= rivalPortfolioCap(ra)) continue;
+    if (ra.portfolio.length >= rivalPortfolioCap(ra, state)) continue;
     if (Math.random() > (isMercato ? 0.8 : 0.25)) continue;
     const focus = rivalFocus(state, ra);
     const pool = Object.values(state.players).filter(p => !p.retired && !p.agentId && p.ovr >= rivalTasteThreshold(ra));
@@ -2310,6 +2353,8 @@ function computeAgentInterest(state, player) {
   // pouce, tant que la fenêtre d'exclusivité n'est pas passée — sans quoi la recommandation n'aurait aucun poids.
   if (player.referralUntil && state.date.absMonth <= player.referralUntil) score += 35;
   if (hasInvestment(state, 'recrutement')) score += 10;
+  // un joueur sans club cherche justement quelqu'un pour lui en trouver un (V8.4, audit 8.3 : début de partie)
+  if (!player.club) score += 12;
   return clamp(Math.round(score), 1, 96);
 }
 // Objectifs personnels (V9.3, plan « fiche joueur »: un joueur avec une vraie marge de progression vise un
@@ -2400,13 +2445,43 @@ function idealTierForOvr(ovr) {
   if (ovr >= 60) return 2;
   return 1;
 }
+// Point d'entrée unique des offres de clubs (V8.4, audit 8.3 C-1/C-2) : six endroits créaient des offres avec des
+// règles différentes — 85 % des offres affichées ne pouvaient pas être acceptées (hors mercato, joueur tout juste
+// transféré). Désormais : un joueur libre reçoit une offre valable deux mois ; pour un joueur sous contrat, l'offre
+// n'apparaît qu'à l'ouverture de la fenêtre et expire à sa fermeture, et elle n'est pas créée du tout si le délai
+// après un transfert ou le souhait du joueur de s'installer l'empêcheraient d'aboutir.
+// `seenFrom` : le mois où le joueur-agent la verra (le mois suivant quand elle naît pendant le passage de mois).
+function createIncomingOffer(state, p, club, fee, wage, seenFrom) {
+  if (!p || !club || club.id === p.club) return { ok: false, reason: 'Offre impossible.' };
+  state.incomingOffers = state.incomingOffers || [];
+  if (state.incomingOffers.some(o => o.playerId === p.id && o.clubId === club.id)) return { ok: false, dup: true, reason: `${club.name} a déjà une offre sur la table pour ${p.name}.` };
+  const from = seenFrom === undefined ? state.date.absMonth : seenFrom;
+  let visibleFrom = from, expires = from + 2;
+  if (p.club) {
+    const w = mercatoWindowFrom(from);
+    visibleFrom = w.start; expires = w.end;
+    const since = p.lastTransferMonth == null ? Infinity : visibleFrom - p.lastTransferMonth;
+    if (since < 6) return { ok: false, reason: `${p.name} vient de changer de club : aucun club ne se positionnera avant ${6 - since} mois.` };
+    const cur = state.clubs[p.club];
+    const settled = p.lastPermanentMove == null ? Infinity : visibleFrom - p.lastPermanentMove;
+    if (p.agentId === 'player' && settled < SETTLE_MONTHS && !(cur && club.tier > cur.tier)) return { ok: false, reason: `${p.name} veut s'installer à ${cur ? cur.name : 'son club'} : seul un club plus huppé pourrait le convaincre de partir.` };
+  }
+  const offer = { id: nextId(state, 'off'), playerId: p.id, clubId: club.id, fee, wage, visibleFrom, expires };
+  state.incomingOffers.push(offer);
+  return { ok: true, offer, later: visibleFrom > state.date.absMonth + (seenFrom === undefined ? 0 : 1) };
+}
+// Offres que le joueur-agent peut voir (et donc accepter) ce mois-ci.
+function visibleOffers(state) {
+  const now = state.date.absMonth;
+  return (state.incomingOffers || []).filter(o => (o.visibleFrom == null || o.visibleFrom <= now) && o.expires >= now);
+}
 function generateIncomingOffers(state, news) {
   state.incomingOffers = state.incomingOffers || [];
   if (state.incomingOffers.length <= 8) {
     for (const pid of state.agent.portfolio) {
       const p = state.players[pid];
       if (!p || p.retired) continue;
-      if (p.club && monthsUntilNextMercato(state) > 1) continue; // V8.3 : hors mercato, les clubs attendent la fenêtre
+      if (p.club && monthsUntilNextMercato(state) > 1) continue; // hors mercato, les clubs attendent la fenêtre
       if (Math.random() > (!p.club ? 0.22 : 0.18)) continue;
       const maxOffers = p.ovr >= 75 ? 2 : 1; // les joueurs très courtisés peuvent recevoir plusieurs offres à la fois
       if (state.incomingOffers.filter(o => o.playerId === pid).length >= maxOffers) continue;
@@ -2419,7 +2494,7 @@ function generateIncomingOffers(state, news) {
       const fee = p.club ? Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000) : 0;
       if (fee > buyer.budget * 1.3) continue;
       const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
-      state.incomingOffers.push({ id: nextId(state, 'off'), playerId: pid, clubId: buyer.id, fee, wage, expires: state.date.absMonth + 2 });
+      if (!createIncomingOffer(state, p, buyer, fee, wage, state.date.absMonth + 1).ok) continue;
       if (news) news.push({ text: `${buyer.name} formule une offre pour ${p.name} (${p.club ? fmtMoneyShort(fee) : 'joueur libre, sans indemnité'}).`, tag: 'mercato', playerId: pid });
     }
   }
@@ -2429,6 +2504,7 @@ function acceptIncomingOffer(state, offerId) {
   const idx = (state.incomingOffers || []).findIndex(o => o.id === offerId);
   if (idx < 0) return { ok: false };
   const offer = state.incomingOffers[idx];
+  if (offer.visibleFrom != null && offer.visibleFrom > state.date.absMonth) return { ok: false, reason: 'Cette offre ne sera valable qu\u2019à l\u2019ouverture du mercato.' };
   const p = state.players[offer.playerId];
   const buyer = state.clubs[offer.clubId];
   const news = [];
@@ -2510,10 +2586,7 @@ function makeClubOfferFor(state, p, club) {
   const fee = p.club ? Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000) : 0;
   if (fee > club.budget * 1.3) return { ok: false, reason: `${club.name} botte en touche : le budget ne suit pas pour l'instant.` };
   const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
-  state.incomingOffers = state.incomingOffers || [];
-  const offer = { id: nextId(state, 'off'), playerId: p.id, clubId: club.id, fee, wage, expires: state.date.absMonth + 2 };
-  state.incomingOffers.push(offer);
-  return { ok: true, offer };
+  return createIncomingOffer(state, p, club, fee, wage);
 }
 // Proposer un client à un club (V9.4, audit « marché dynamique ») : l'agent devient acteur du marché au lieu
 // d'attendre les offres. Garde-fous dans l'esprit de l'anti-triche V8 : un seul démarchage par joueur et par mois,
@@ -2551,7 +2624,7 @@ function pitchPlayerToClub(state, playerId, clubId) {
   }
   const r = makeClubOfferFor(state, p, club);
   if (!r.ok) { if (!r.dup) p.pitchLog[clubId] = state.date.absMonth; return r; }
-  pushNews(state, [{ text: `Votre démarchage paie : ${club.name} formule une offre pour ${p.name} (${fmtMoneyShort(r.offer.fee)}).`, tag: 'mercato', playerId: p.id }]);
+  pushNews(state, [{ text: r.later ? `Votre démarchage paie : ${club.name} déposera une offre pour ${p.name} (${fmtMoneyShort(r.offer.fee)}) à l'ouverture du mercato.` : `Votre démarchage paie : ${club.name} formule une offre pour ${p.name} (${fmtMoneyShort(r.offer.fee)}).`, tag: 'mercato', playerId: p.id }]);
   return { ok: true, offer: r.offer };
 }
 // Le club acheteur a aussi son mot à dire (V8, chasse aux exploits) : jusqu'ici, une négociation de transfert
@@ -2604,19 +2677,19 @@ function evaluateTransferCooldown(state, player) {
 // Mercato (V8.3, audit P1-1 / B-14) : les fenêtres de janvier et de juillet ne s'appliquaient qu'à l'IA — l'agent
 // pouvait transférer ou prêter n'importe quel mois. Un joueur libre peut toujours signer à tout moment, comme
 // en vrai ; un joueur sous contrat ne change de club que mercato ouvert.
-function isMercatoOpen(state) { const m = calMonth(state); return m === 1 || m === 7; }
+function isMercatoOpen(state) { return mercatoOpenAt(state.date.absMonth); }
 function evaluateMercatoWindow(state, player) {
   if (!player.club || isMercatoOpen(state)) return { ok: true };
-  const inM = monthsUntilNextMercato(state);
-  return { ok: false, reason: `Le mercato est fermé : ${player.name} ne peut pas changer de club avant ${MONTH_NAMES[calMonth(state) >= 2 && calMonth(state) <= 6 ? 7 : 1].toLowerCase()} (dans ${inM} mois).` };
+  const w = mercatoWindowFrom(state.date.absMonth);
+  return { ok: false, reason: `Le mercato est fermé : ${player.name} ne peut pas changer de club avant ${MONTH_NAMES[SEASON_MONTH_ORDER[w.start % 12]].toLowerCase()} (dans ${w.start - state.date.absMonth} mois).` };
 }
 // Le client a son mot à dire (V8.3, suite de l'audit P1-4) : un joueur qui vient de poser ses valises ne veut
 // pas repartir dans l'année, sauf pour un vrai pas en avant (club d'un standing supérieur). Sans ça, accepter
 // chaque offre à chaque mercato restait la stratégie dominante — et le moteur de la richesse sans limite.
 const SETTLE_MONTHS = 12;
 function evaluateClientConsent(state, player, targetClub) {
-  if (player.agentId !== 'player' || !player.club || player.lastTransferMonth == null || !targetClub) return { ok: true };
-  const since = state.date.absMonth - player.lastTransferMonth;
+  if (player.agentId !== 'player' || !player.club || player.lastPermanentMove == null || !targetClub) return { ok: true };
+  const since = state.date.absMonth - player.lastPermanentMove;
   const cur = state.clubs[player.club];
   if (since < SETTLE_MONTHS && !(cur && targetClub.tier > cur.tier)) {
     return { ok: false, reason: `${player.name} vient d'arriver à ${cur ? cur.name : 'son club'} et veut s'y installer : il ne partira pas avant ${SETTLE_MONTHS - since} mois, sauf pour un club plus huppé.` };
@@ -2811,13 +2884,18 @@ function registerRejectedOffer(state, player, offer) {
 // qui ferait franchir le seuil d'acceptation. Rien n'est accepté d'office : seule une offre proche (score ≥ 30,
 // zone « risqué » plutôt que « très improbable ») déclenche une recherche de contre-offre.
 const ROLE_LABELS = { titulaire: 'Titulaire indiscutable', rotation: 'Rotation', reserve: 'Réserve / développement' };
+// V8.4 (audit 8.3 C-3) : la contre-offre sauvait 100 % des négociations — proposée dès 30 de score, trouvée à
+// coup sûr (salaire jusqu'à +50 %) et acceptée d'office. Désormais : proposée seulement pour une offre proche (score
+// ≥ 45), hausse de salaire limitée à +25 %, votre commission baisse toujours de 2 points (vous lâchez aussi quelque
+// chose), et le joueur peut encore se raviser selon les chances affichées.
+const COUNTER_MIN_SCORE = 45;
 function generateCounterOffer(state, player, offer) {
   const tries = [];
   for (const ys of [0, 1, 2]) {
-    for (const ss of [0, 0.08, 0.15, 0.25, 0.35, 0.5]) {
+    for (const ss of [0, 0.08, 0.15, 0.25]) {
       for (const role of ['titulaire', 'rotation', 'reserve']) {
         const salary = Math.round((offer.salary * (1 + ss)) / 500) * 500;
-        const commissionPct = ss > 0 ? Math.max(5, offer.commissionPct - 2) : offer.commissionPct;
+        const commissionPct = Math.max(5, offer.commissionPct - 2);
         tries.push({
           candidate: { ...offer, salary, years: clamp((offer.years || 1) + ys, 1, 5), roleProm: role, commissionPct },
           cost: ss * 3 + ys + (role !== offer.roleProm ? 0.3 : 0),
@@ -2828,9 +2906,13 @@ function generateCounterOffer(state, player, offer) {
   tries.sort((a, b) => a.cost - b.cost);
   for (const t of tries) {
     const ev = evaluateOffer(state, player, t.candidate);
-    if (ev.score >= 62 && evaluateNegotiationGate(state, player, t.candidate).ok) return { offer: t.candidate, ev };
+    if (ev.score >= 55 && evaluateNegotiationGate(state, player, t.candidate).ok) return { offer: t.candidate, ev };
   }
   return null;
+}
+// Le joueur tient-il parole sur sa contre-offre ? Tirage stable (resoumettre ne change rien) selon ses chances.
+function counterOfferHolds(state, player, candidate, ev) {
+  return stableRand(`counter:${player.id}:${candidate.targetClubId || player.club || '-'}:${state.date.absMonth}`) < acceptanceChance(ev.score);
 }
 // l'indemnité de transfert se règle entre les deux clubs, l'agent n'a pas la main dessus (il gère le contrat du joueur)
 function estimateTransferFee(player, buyerClub, state) {
@@ -2934,7 +3016,7 @@ function checkLoanReturns(state, news) {
       // plutôt qu'un retour silencieux qui ne change jamais rien.
       const gained = (p.careerMinutes || 0) - (p.loanStartMinutes || 0);
       const verdict = gained >= 500 ? 'réussi' : (gained < 150 ? 'raté' : 'mitigé');
-      let offerNews = false;
+      let offerNews = false, keepOffer = null;
       if (verdict === 'réussi') {
         p.value = Math.round(p.value * 1.06);
         p.morale = clamp(p.morale + 6, 0, 100);
@@ -2943,12 +3025,7 @@ function checkLoanReturns(state, news) {
         // normal des offres entrantes, comme n'importe quelle autre proposition de transfert.
         if (loanClub && p.agentId === 'player' && Math.random() < 0.45) {
           const fee = Math.max(50000, Math.round(p.value * (0.8 + Math.random() * 0.4) / 5000) * 5000);
-          if (fee <= loanClub.budget * 1.3) {
-            state.incomingOffers = state.incomingOffers || [];
-            state.incomingOffers.push({ id: nextId(state, 'off'), playerId: p.id, clubId: loanClub.id, fee, wage: p.wage, expires: state.date.absMonth + 3 });
-            news.push({ text: `Séduit par son prêt réussi, ${loanClub.name} propose de conserver ${p.name} définitivement.`, tag: 'mercato', playerId: p.id });
-            offerNews = true;
-          }
+          if (fee <= loanClub.budget * 1.3) keepOffer = { club: loanClub, fee };
         }
       } else if (verdict === 'raté') {
         p.morale = clamp(p.morale - 6, 0, 100);
@@ -2959,6 +3036,10 @@ function checkLoanReturns(state, news) {
       p.loanUntil = null;
       p.loanStartMinutes = null;
       if (parent) parent.squad.push(p.id);
+      if (keepOffer && createIncomingOffer(state, p, keepOffer.club, keepOffer.fee, p.wage, state.date.absMonth + 1).ok) {
+        news.push({ text: `Séduit par son prêt réussi, ${keepOffer.club.name} veut conserver ${p.name} : son offre sera sur la table au mercato.`, tag: 'mercato', playerId: p.id });
+        offerNews = true;
+      }
       if (!offerNews && isNewsworthy(state, p)) news.push({ text: `${p.name} termine son prêt (${verdict}) et retourne à ${parent ? parent.name : 'son club'}.`, tag: 'mercato', playerId: p.id });
     }
   }
@@ -3251,6 +3332,8 @@ function generateSeasonGoals(state) {
   if (tier >= 3) pool.push({ id: 'trophee', label: 'Un de vos clients remporte un trophée individuel', type: 'delta', metric: 'individualAwardsWon', amount: 1 });
   const picked = [{ id: 'commissions', label: `Encaissez ${fmtMoneyShort(commTarget)} de commissions`, type: 'delta', metric: 'totalCommissions', amount: commTarget }];
   const rest = [...pool].sort(() => Math.random() - 0.5);
+  // agent débutant : le défi « signer » est toujours proposé, c'est la base du métier (V8.4)
+  if (tier === 0) { const i = rest.findIndex(g => g.id === 'signer'); if (i > 0) rest.unshift(rest.splice(i, 1)[0]); }
   while (picked.length < 3 && rest.length) picked.push(rest.shift());
   state.seasonGoals = picked.map(g => ({ ...g, startVal: g.type === 'delta' ? (c[g.metric] || 0) : 0, reward: { cash: g.id === 'rang' ? cash * 2 : cash, rep: g.id === 'rang' ? 2 : 1 } }));
 }
@@ -3285,12 +3368,15 @@ function agentSeasonScore(a, state, seasonComm, seasonTitles) {
   const portfolioValue = (a.portfolio || []).reduce((s, pid) => { const p = state.players[pid]; return s + (p ? p.value : 0); }, 0);
   return Math.round(a.reputation * 10 + portfolioValue / 400000 + (seasonComm || 0) / 200000 + (seasonTitles || 0) * 25 + (a.portfolio || []).length * 4);
 }
+// Exigence du jury envers le tenant du titre (V8.4, audit 8.3 : n°1 à vie une fois en tête) : -8 % par titre
+// consécutif, jusqu'à -40 %. Une écurie de stars reste un avantage énorme, mais un règne se défend chaque saison.
+function reignFactor(state) { return 1 - 0.08 * Math.min(state.agent.careerStats.agentOfYearStreak || 0, 5); }
 function agentRankingList(state) {
   const a = state.agent, start = a.seasonStartStats || {};
   const myComm = (a.careerStats.totalCommissions || 0) - (start.commissions || 0);
   const myTitles = (a.careerStats.titlesWonAsAgent || 0) - (start.titles || 0);
   return [
-    { mine: true, score: agentSeasonScore(a, state, myComm, myTitles) },
+    { mine: true, score: Math.round(agentSeasonScore(a, state, myComm, myTitles) * reignFactor(state)) },
     ...state.rivalAgents.map(r => ({ mine: false, id: r.id, name: r.name, score: agentSeasonScore(r, state, r.seasonCommissions, r.seasonTitles) })),
   ].sort((x, y) => y.score - x.score);
 }
@@ -3310,6 +3396,18 @@ function awardAgentOfTheYear(state, news, summary) {
     gainReputation(state, 2);
     summary.agentOfYear = true;
     news.push({ text: `Vous êtes élu agent de l'année ${seasonLabel(state)}${cs.agentOfYearStreak > 1 ? ` — ${cs.agentOfYearStreak}e fois de suite !` : ' !'}`, tag: 'trophee', breaking: true });
+    // un règne attire les ambitions (V8.4, audit 8.3 : n°1 à vie une fois en tête) : dès deux titres de suite, votre
+    // dauphin devient un challenger déclaré pour la saison suivante — plus d'ambition, plus de moyens, et il vient
+    // chercher vos clients les moins attachés à vous.
+    if (cs.agentOfYearStreak >= 2 && list[1] && !list[1].mine) {
+      const ch = state.rivalAgents.find(r => r.id === list[1].id);
+      if (ch) {
+        ch.challengerUntil = seasonIdx(state) + 1;
+        ch.reputation = clamp(ch.reputation + 4, 0, 100);
+        bumpRivalry(state, ch, 15, `${ch.name} se pose en challenger de votre règne`);
+        news.push({ text: `${ch.name} annonce publiquement vouloir mettre fin à votre règne : attendez-vous à ce qu'il vienne chercher vos clients.`, tag: 'agence', breaking: true });
+      }
+    }
   } else {
     cs.agentOfYearStreak = 0;
     const winner = list[0];
@@ -3581,9 +3679,7 @@ function advanceEuropeMonth(state, news, month) {
           if (suitors.length) {
             const suitor = weightedChoice(suitors, c => c.reputation || 50);
             const fee = Math.max(200000, Math.round(breakout.value * (0.9 + Math.random() * 0.5) / 5000) * 5000);
-            if (fee <= suitor.budget * 1.3) {
-              state.incomingOffers = state.incomingOffers || [];
-              state.incomingOffers.push({ id: nextId(state, 'off'), playerId: breakout.id, clubId: suitor.id, fee, wage: breakout.wage, expires: state.date.absMonth + 3 });
+            if (fee <= suitor.budget * 1.3 && createIncomingOffer(state, breakout, suitor, fee, breakout.wage, state.date.absMonth + 1).ok) {
               news.push({ text: `${suitor.name} passe à l'attaque pour ${breakout.name} après sa performance européenne.`, tag: 'mercato', playerId: breakout.id });
             }
           }
@@ -3862,11 +3958,8 @@ const EVENTS = [
         if (candidates.length && Math.random() < 0.55) {
           const buyer = choice(candidates);
           const fee = Math.max(20000, Math.round(p.value * 0.9 / 5000) * 5000);
-          if (fee <= buyer.budget * 1.3) {
-            state.incomingOffers = state.incomingOffers || [];
-            state.incomingOffers.push({ id: nextId(state, 'off'), playerId: p.id, clubId: buyer.id, fee, wage: p.wage, expires: state.date.absMonth + 2 });
-            news.push({ text: `${buyer.name} bondit sur l'occasion pour ${p.name}.`, tag: 'mercato', playerId: p.id });
-          }
+          const r = fee <= buyer.budget * 1.3 ? createIncomingOffer(state, p, buyer, fee, p.wage) : { ok: false };
+          if (r.ok) news.push({ text: r.later ? `${buyer.name} se positionne pour ${p.name} : son offre sera sur la table à l'ouverture du mercato.` : `${buyer.name} bondit sur l'occasion pour ${p.name}.`, tag: 'mercato', playerId: p.id });
         }
       } },
     ] },
@@ -3929,12 +4022,11 @@ const EVENTS = [
         const bigClubs = Object.values(state.clubs).filter(c => c.tier >= 4 && c.id !== p.club);
         const buyer = bigClubs.length ? choice(bigClubs) : choice(Object.values(state.clubs).filter(c => c.id !== p.club));
         const fee = p.club ? Math.max(500000, Math.round(p.value * 1.25 / 5000) * 5000) : 0;
-        if (buyer && fee <= buyer.budget * 1.5) {
-          state.incomingOffers = state.incomingOffers || [];
-          state.incomingOffers.push({ id: nextId(state, 'off'), playerId: p.id, clubId: buyer.id, fee, wage: Math.round(p.wage * 1.3 / 500) * 500, expires: state.date.absMonth + 2 });
+        const r = (buyer && fee <= buyer.budget * 1.5) ? createIncomingOffer(state, p, buyer, fee, Math.round(p.wage * 1.3 / 500) * 500) : { ok: false };
+        if (r.ok) {
           gainReputation(state, 1);
-          news.push({ text: `${buyer.name} formalise une offre XXL pour ${p.name} sous vos yeux.`, tag: 'mercato', playerId: p.id });
-        }
+          news.push({ text: r.later ? `${buyer.name} promet une offre XXL pour ${p.name} dès l'ouverture du mercato.` : `${buyer.name} formalise une offre XXL pour ${p.name} sous vos yeux.`, tag: 'mercato', playerId: p.id });
+        } else news.push({ text: `L'intérêt de ${buyer ? buyer.name : 'ce club'} pour ${p.name} retombe : ${r.reason || 'le budget ne suit pas'}`, tag: 'mercato', playerId: p.id });
       } },
       { label: 'Décliner sans faire de vagues', effect: (state, p, news) => { p.morale = clamp(p.morale + 3, 0, 100); nudgeClubRelation(state, p.club, 2, `Offre surprise déclinée sans heurt pour ${p.name}`); news.push({ text: `Vous refusez discrètement l'offre surprise pour ${p.name}.`, tag: 'mercato', playerId: p.id }); } },
     ] },
@@ -4146,7 +4238,7 @@ const EVENTS = [
         const r = makeClubOfferFor(state, p, club);
         if (r.dup) { news.push({ text: `${club.name} confirme son intérêt pour ${p.name} : l'offre est déjà sur la table.`, tag: 'agence' }); return; }
         if (!r.ok) { news.push({ text: r.reason, tag: 'agence' }); return; }
-        news.push({ text: `${club.name} formalise une offre pour ${p.name} (${fmtMoneyShort(r.offer.fee)}).`, tag: 'mercato' });
+        news.push({ text: r.later ? `${club.name} déposera une offre pour ${p.name} (${fmtMoneyShort(r.offer.fee)}) à l'ouverture du mercato.` : `${club.name} formalise une offre pour ${p.name} (${fmtMoneyShort(r.offer.fee)}).`, tag: 'mercato' });
       } },
       { label: 'Décourager poliment, rester loyal au club actuel', effect: (state, p, news) => {
         const ic = computeInterestedClubs(state, p)[0]; if (!ic) return;
@@ -4634,6 +4726,7 @@ const PLAYER_SAVE_FIELDS = [
   // rechargement (objectif personnel, délai anti-spam du démarchage, séries banc/titulaire). Toujours AJOUTER en fin
   // de liste : la liste est enregistrée avec les données, les anciennes sauvegardes restent donc lisibles.
   'benchStreak', 'startStreak', 'justBrokeIn', 'lastPitchAt', 'pitchLog', 'personalGoal', 'lastStatusMsgAt',
+  'lastPermanentMove', // V8.4
 ];
 // Compaction de la sauvegarde : au-delà de l'aplatissement du joueur en tableau positionnel (PLAYER_SAVE_FIELDS),
 // les tableaux 'career' et 'trophies' sont eux aussi des tableaux d'objets répétés ~5000 fois (un par joueur actif) :
@@ -4791,10 +4884,11 @@ if (typeof module !== 'undefined') {
     evaluateTransferCooldown, evaluateTransferGate,
     computeCareerStatus, checkCareerStatusChanges, CAREER_STATUS_ORDER, resolveDropClient,
     isNewsworthy, maybeGenerateRumor, RUMOR_TEMPLATES, runAIClubTransfers,
-    maybeGenerateReferral,
+    maybeGenerateReferral, generateCounterOffer, counterOfferHolds, COUNTER_MIN_SCORE,
     // V8.3 : exports ajoutés pour les tests (tests/engine.test.js) ; newsItemHTML (fonction d'affichage) retiré :
     // il rendait le moteur impossible à charger seul dans Node (ReferenceError).
-    evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, goalProgress, agentRank, awardAgentOfTheYear,
+    evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, createIncomingOffer, visibleOffers, mercatoWindowFrom, mercatoOpenAt, goalProgress, agentRank, awardAgentOfTheYear,
+    isChallenger, runChallengerPoaching, reignFactor,
     launchImageCampaign, imageCampaignCost, signClubPartnership, clubPartnershipCost, initCups, advanceCupsMonth, CUP_DEFS, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
     neededPositionForClub, releaseToFreeAgency, updateContractsAndListings, stableRand, SQUAD_PLAN, PLAYER_SAVE_FIELDS,
   };
@@ -5302,7 +5396,7 @@ function dismissOnboarding() {
 function computeAgentActions(state) {
   const actions = [];
   const curAbs = state.date.absMonth;
-  for (const o of (state.incomingOffers || [])) {
+  for (const o of visibleOffers(state)) {
     const p = state.players[o.playerId], c = state.clubs[o.clubId];
     if (!p || !c) continue;
     actions.push({ urgency: 95 - Math.max(0, o.expires - curAbs) * 15, icon: 'mail', tone: 'blue', offerId: o.id,
@@ -5336,6 +5430,16 @@ function computeAgentActions(state) {
     title: state.agent.cash < 0 ? 'Trésorerie dans le rouge' : 'Trésorerie tendue',
     text: `Moins de 3 mois de charges fixes (${fmtMoneyShort(monthlyFixed)}/mois). Un transfert ou une prolongation renflouerait les caisses.`,
     cta: `navigate('finances')` });
+  // conseils de départ (V8.4, audit 8.3 : la stratégie viable n'était expliquée nulle part)
+  const cap = OFFICE_LEVELS[state.agent.officeLevel - 1].cap;
+  if (seasonIdx(state) <= 1 && state.agent.portfolio.length < cap && computeOnboardingStep(state) !== 'find_club') actions.push({ urgency: 35, icon: 'star', tone: 'accent',
+    title: 'Conseil : signez de jeunes joueurs libres', text: `Sans club, ils acceptent plus volontiers un agent, se placent sans indemnité et vous rapportent des frais d'agent. Marché → Joueurs libres.`,
+    cta: `setListFilter('market','young',true);navigate('market')` });
+  if (!isMercatoOpen(state) && state.agent.portfolio.some(id => state.players[id] && state.players[id].club)) {
+    const w = mercatoWindowFrom(state.date.absMonth);
+    actions.push({ urgency: 20, icon: 'calendar', tone: 'blue', title: `Mercato dans ${w.start - state.date.absMonth} mois`,
+      text: `Transferts et prêts de vos joueurs sous contrat seulement en janvier et de juillet à août. Préparez vos dossiers : les clubs annoncent leurs offres à l'approche.`, cta: `navigate('negotiations')` });
+  }
   actions.sort((x, y) => y.urgency - x.urgency);
   return actions.slice(0, 5);
 }
@@ -5611,8 +5715,8 @@ function renderPlayerDetail() {
       </div>
       ${(!isMine && p.referralUntil && G.date.absMonth <= p.referralUntil) ? `<p class="small" style="margin-top:8px;color:var(--accent);font-weight:700">${icon('star',13)} Piste exclusive via ${esc(p.referredByName || 'un de vos joueurs')} — encore valable ${Math.max(0, p.referralUntil - G.date.absMonth)} mois</p>` : ''}
     </div>
-    <div class="card">${actionsHTML}</div>
     <div class="tabs" style="margin-bottom:12px">${[['apercu', 'Aperçu'], ['stats', 'Statistiques'], ['profil', 'Profil']].map(([k, l]) => `<button class="tab-btn ${pTab === k ? 'active' : ''}" onclick="ui.playerTab='${k}';renderPage()">${l}</button>`).join('')}</div>
+    <div class="card">${actionsHTML}</div>
     ${pTab === 'apercu' ? `
     <div class="card"><div class="card-title">État</div>
       ${club ? `<div class="meter-row"><span>Relation avec le club</span><span class="num">${rel}/100</span></div>${meterHTML(rel, 100, rel >= 50 ? 'var(--emerald)' : 'var(--red)')}` : ''}
@@ -5637,7 +5741,7 @@ function renderPlayerDetail() {
           ${clubBadgeHTML(ic.club, 'sm')}
           <div><div class="name">${esc(ic.club.name)}</div><div class="sub">${esc(ic.reasons[0])}</div></div>
           <div class="right small" style="font-weight:700;color:${ic.score >= 55 ? 'var(--emerald)' : (ic.score >= 35 ? 'var(--gold)' : 'var(--ink-dim)')}">${ic.score >= 55 ? 'Très intéressé' : (ic.score >= 35 ? 'Intéressé' : `À l'écoute`)}
-            ${(G.incomingOffers || []).some(o => o.playerId === p.id && o.clubId === ic.club.id) ? `<div class="small" style="color:var(--emerald)">Offre reçue</div>` : (pitchStatus(G, p, ic.club.id).ok ? `<button class="btn btn-sm" style="margin-top:4px" onclick="event.stopPropagation();handlePitch('${p.id}','${ic.club.id}')">Proposer</button>` : `<div class="small" style="color:var(--ink-faint)">${pitchWaitLabel(G, p, ic.club.id)}</div>`)}
+            ${(G.incomingOffers || []).some(o => o.playerId === p.id && o.clubId === ic.club.id) ? `<div class="small" style="color:var(--emerald)">${visibleOffers(G).some(o => o.playerId === p.id && o.clubId === ic.club.id) ? 'Offre reçue' : 'Offre annoncée'}</div>` : (pitchStatus(G, p, ic.club.id).ok ? `<button class="btn btn-sm" style="margin-top:4px" onclick="event.stopPropagation();handlePitch('${p.id}','${ic.club.id}')">Proposer</button>` : `<div class="small" style="color:var(--ink-faint)">${pitchWaitLabel(G, p, ic.club.id)}</div>`)}
           </div>
         </div>`).join('')}
     </div>` : ''}
@@ -5890,10 +5994,13 @@ function renderMarket() {
 
 /* ---------- Négociations ---------- */
 function renderNegotiationsHub() {
-  const offers = (G.incomingOffers || []).map(o => ({ ...o, player: G.players[o.playerId], club: G.clubs[o.clubId] })).filter(o => o.player && o.club);
+  const withRefs = o => ({ ...o, player: G.players[o.playerId], club: G.clubs[o.clubId] });
+  const offers = visibleOffers(G).map(withRefs).filter(o => o.player && o.club);
+  // offres annoncées pour la prochaine fenêtre (V8.4) : visibles pour préparer le mercato, sans bouton d'action
+  const announced = (G.incomingOffers || []).filter(o => o.visibleFrom != null && o.visibleFrom > G.date.absMonth).map(withRefs).filter(o => o.player && o.club);
   const mine = G.agent.portfolio.map(id => G.players[id]).filter(p => p && !p.retired);
   const expiring = mine.filter(p => p.contractUntil && p.contractUntil - seasonStartYear(G) <= 1);
-  const nothing = !offers.length && !expiring.length;
+  const nothing = !offers.length && !expiring.length && !announced.length;
   return `<div class="page-title">Négociations</div>
     ${offers.length ? `<div class="card"><div class="card-title">Offres reçues</div>${offers.map(o => `
       <div class="list-row" style="cursor:default">
@@ -5903,6 +6010,12 @@ function renderNegotiationsHub() {
           <button class="btn btn-sm btn-emerald" onclick="handleAcceptOffer('${o.id}')">Accepter</button>
           <button class="btn btn-sm btn-danger" onclick="handleDeclineOffer('${o.id}')">Refuser</button>
         </div>
+      </div>`).join('')}</div>` : ''}
+    ${announced.length ? `<div class="card"><div class="card-title">Offres annoncées pour le mercato</div>${announced.map(o => `
+      <div class="list-row" style="cursor:default">
+        ${clubBadgeHTML(o.club, 'sm')}
+        <div><div class="name">${esc(o.player.name)}</div><div class="sub">${esc(o.club.name)} prévoit <b class="num">${o.fee ? fmtMoneyShort(o.fee) : 'sans indemnité'}</b> · ${fmtMoneyShort(o.wage)}/mois</div></div>
+        <div class="right small">${MONTH_NAMES[SEASON_MONTH_ORDER[o.visibleFrom % 12]]}</div>
       </div>`).join('')}</div>` : ''}
     <div class="card"><div class="card-title">Contrats à renouveler</div>
       ${expiring.length ? expiring.map(p => `<div class="list-row" onclick="openNegotiation('${p.id}','renew')">${clubBadgeHTML(p.club ? G.clubs[p.club] : null, 'sm')}<div><div class="name">${esc(p.name)}</div><div class="sub">Fin de contrat : ${p.contractUntil}</div></div><div class="right"><button class="btn btn-sm">Négocier</button></div></div>`).join('') : '<p class="small">Rien à renouveler pour l\u2019instant.</p>'}
@@ -6162,7 +6275,7 @@ function submitNegotiation() {
   }
   const ev = evaluateOffer(G, p, offer);
   if (ev.accept) { applyAcceptedOffer(G, p, offer, news); toast('Accord trouvé !'); pushNews(G, news); saveGame(); closeModal(); renderPage(); announceAchievements(checkAchievements(G)); return; }
-  if (ev.score >= 30 && !ev.accept) {
+  if (ev.score >= COUNTER_MIN_SCORE && !ev.accept) {
     const counter = generateCounterOffer(G, p, offer);
     if (counter) { ui.counterOffer = { original: offer, candidate: counter.offer, ev: counter.ev }; renderModal(counterOfferModalHTML()); return; }
   }
@@ -6185,17 +6298,24 @@ function counterOfferModalHTML() {
     <div class="modal-head"><h3>Contre-proposition</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     <p class="small">${esc(p.name)} (ou le club) refuse votre offre telle quelle, mais reviendrait volontiers sur ces conditions :</p>
     <div class="card">${diffs.length ? diffs.map(d => `<div class="small" style="padding:4px 0">${d}</div>`).join('') : '<p class="small">Un ajustement mineur suffirait.</p>'}</div>
-    <div class="row-between small" style="margin-top:8px"><span>Le joueur s'engage sur ces conditions</span><b class="num">Accord</b></div>
-    ${meterHTML(100, 100, 'var(--emerald)')}
+    <div class="row-between small" style="margin-top:8px"><span>Chances d'accord sur ces conditions</span><b class="num">${Math.round(acceptanceChance(ev.score) * 100)}%</b></div>
+    ${meterHTML(Math.round(acceptanceChance(ev.score) * 100), 100, 'var(--emerald)')}
     <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="acceptCounterOffer()">Accepter la contre-offre</button>
     <button class="btn btn-block" style="margin-top:8px" onclick="backToOwnOffer()">Revenir à mon offre</button>
     <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="declineCounterOffer()">Refuser et abandonner</button>
   `;
 }
 function acceptCounterOffer() {
+  if (!ui.counterOffer) return;
   const candidate = ui.counterOffer.candidate;
   const p = G.players[candidate.playerId];
   const news = [];
+  if (!counterOfferHolds(G, p, candidate, ui.counterOffer.ev)) {
+    registerRejectedOffer(G, p, ui.counterOffer.original);
+    toast(`${p.name} se ravise finalement : pas d'accord cette fois-ci.`);
+    saveGame(); ui.counterOffer = null; closeModal(); renderPage();
+    return;
+  }
   applyAcceptedOffer(G, p, candidate, news);
   toast('Accord trouvé sur la contre-offre !');
   pushNews(G, news);
@@ -6395,8 +6515,8 @@ function financeLedgerHTML(a) {
 /* ---------- Classement des agents ---------- */
 function renderRanking() {
   const list = [
-    { name: `${G.agent.name} (${G.agent.agency})`, reputation: G.agent.reputation, portfolio: G.agent.portfolio.length, mine: true, score: agentLegendScore(G.agent, G), rivalry: null },
-    ...G.rivalAgents.map(r => ({ id: r.id, name: r.name, focus: rivalFocus(G, r).label, reputation: r.reputation, portfolio: r.portfolio.length, mine: false, score: agentLegendScore(r, G), rivalry: r.rivalry || 0 })),
+    { name: `${G.agent.name} (${G.agent.agency})`, reputation: G.agent.reputation, portfolio: G.agent.portfolio.length, mine: true, score: agentLegendScore(G.agent, G), rivalry: null, honors: G.agent.careerStats.agentOfYear || 0 },
+    ...G.rivalAgents.map(r => ({ id: r.id, name: r.name, focus: rivalFocus(G, r).label + (isChallenger(G, r) ? ' · challenger' : ''), reputation: r.reputation, portfolio: r.portfolio.length, mine: false, score: agentLegendScore(r, G), rivalry: r.rivalry || 0, honors: r.honors || 0 })),
   ];
   // course à l'agent de l'année : classement sur l'indice de la saison en cours (l'indice historique reste affiché)
   const season = agentRankingList(G);
@@ -6406,8 +6526,9 @@ function renderRanking() {
     .slice(-6).reverse();
   return `<div class="page-title">Classement des agents</div>
     <p class="small">Classé sur l'indice de la saison en cours (réputation, valeur de l'écurie, commissions et titres de la saison) : le premier en fin de saison est élu agent de l'année. L'indice historique cumule toute la carrière. Touchez un rival pour voir sa fiche.</p>
+    ${reignFactor(G) < 1 ? `<p class="small" style="color:var(--gold-soft);font-weight:700">${icon('trophy',13)} Tenant du titre ×${G.agent.careerStats.agentOfYearStreak} : le jury est plus exigeant avec vous (indice de saison −${Math.round((1 - reignFactor(G)) * 100)} %).</p>` : ''}
     <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th></th><th>Agent</th><th>Saison</th><th>Historique</th><th>Répu.</th><th>Joueurs</th><th>Rivalité</th></tr></thead><tbody>
-    ${list.map((a, i) => `<tr class="${a.mine ? 'me' : ''}" ${a.id ? `style="cursor:pointer" onclick="openRivalDetail('${a.id}')"` : ''}><td class="rk">${i + 1}</td><td class="name-cell"><div>${esc(a.name)}${a.focus ? `<div class="small" style="font-weight:400;color:var(--ink-faint);line-height:1.2">${esc(a.focus)}</div>` : ''}</div></td><td class="num" style="color:var(--accent)">${a.season}</td><td class="num">${a.score}</td><td>${Math.round(a.reputation)}</td><td>${a.portfolio}</td><td class="num">${a.rivalry === null ? '—' : Math.round(a.rivalry)}</td></tr>`).join('')}
+    ${list.map((a, i) => `<tr class="${a.mine ? 'me' : ''}" ${a.id ? `style="cursor:pointer" onclick="openRivalDetail('${a.id}')"` : ''}><td class="rk">${i + 1}</td><td class="name-cell"><div>${esc(a.name)}${a.honors ? ` <span style="color:var(--gold-soft);white-space:nowrap">${icon('trophy',11)}×${a.honors}</span>` : ''}${a.focus ? `<div class="small" style="font-weight:400;color:var(--ink-faint);line-height:1.2">${esc(a.focus)}</div>` : ''}</div></td><td class="num" style="color:var(--accent)">${a.season}</td><td class="num">${a.score}</td><td>${Math.round(a.reputation)}</td><td>${a.portfolio}</td><td class="num">${a.rivalry === null ? '—' : Math.round(a.rivalry)}</td></tr>`).join('')}
     </tbody></table></div>
     ${recentRivalry.length ? `<div class="card"><div class="card-title">Derniers accrochages</div>${recentRivalry.map(e => `<div class="small" style="padding:3px 0">${esc(e.text)} — ${e.season}</div>`).join('')}</div>` : ''}
   `;
@@ -6470,7 +6591,7 @@ function renderCups() {
   ui.cupTab = G.cups[ui.cupTab] ? ui.cupTab : cups[0].id;
   const cup = G.cups[ui.cupTab];
   const winner = cup.winner && G.clubs[cup.winner];
-  const upcoming = !cup.winner && cup.ties && cup.ties.length ? `<div class="card"><div class="card-title">${esc(CUP_ROUND_LABEL[cup.round] || cup.round)} — ${MONTH_NAMES[CUP_ROUND_MONTHS[cup.round]]}</div>${cup.ties.map(([h, a]) => `<div class="row-between small" style="padding:7px 0;border-bottom:1px solid var(--line-soft)"><span>${clubBadgeHTML(G.clubs[h], 'sm')} ${esc(G.clubs[h] ? G.clubs[h].short : '?')}</span><span class="small">vs</span><span>${esc(G.clubs[a] ? G.clubs[a].short : '?')} ${clubBadgeHTML(G.clubs[a], 'sm')}</span></div>`).join('')}</div>` : '';
+  const upcoming = !cup.winner && cup.ties && cup.ties.length ? `<div class="card"><div class="card-title">${esc(CUP_ROUND_LABEL[cup.round] || cup.round)} — ${MONTH_NAMES[CUP_ROUND_MONTHS[cup.round]]}</div>${cup.ties.map(([h, a]) => { const dot = id => G.agent.portfolio.some(pid => G.players[pid] && G.players[pid].club === id) ? ` <span style="color:var(--accent)">●</span>` : ''; return `<div class="row-between small" style="padding:7px 0;border-bottom:1px solid var(--line-soft)"><span>${clubBadgeHTML(G.clubs[h], 'sm')} ${esc(G.clubs[h] ? G.clubs[h].short : '?')}${dot(h)}</span><span class="small">vs</span><span>${dot(a)}${esc(G.clubs[a] ? G.clubs[a].short : '?')} ${clubBadgeHTML(G.clubs[a], 'sm')}</span></div>`; }).join('')}</div>` : '';
   return `<div class="tabs">${cups.map(c => `<button class="tab-btn ${c.id === cup.id ? 'active' : ''}" onclick="ui.cupTab='${c.id}';renderPage()">${esc(c.name)}</button>`).join('')}</div>
     ${winner ? `<div class="card" style="text-align:center;padding:22px"><div style="display:flex;justify-content:center;color:var(--gold)">${icon('trophy', 36)}</div>${clubBadgeHTML(winner, 'lg')}<h3 style="margin-top:10px">${esc(winner.name)}</h3><p class="small">Vainqueur de la ${esc(cup.name)}</p></div>` : ''}
     ${upcoming}

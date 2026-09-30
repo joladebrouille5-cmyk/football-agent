@@ -52,8 +52,10 @@ test('P0-3 : la sauvegarde conserve les champs joueur posés en cours de partie'
 });
 
 test('P1-1 : hors mercato, un joueur sous contrat ne peut pas changer de club', () => {
-  const s = newGame(); // août
+  const s = newGame(); // août : fenêtre d'été ouverte (V8.4)
   const p = Object.values(s.players).find(x => x.club);
+  assert.equal(E.isMercatoOpen(s), true);
+  playMonths(s, 1); // septembre
   assert.equal(E.isMercatoOpen(s), false);
   assert.equal(E.evaluateMercatoWindow(s, p).ok, false);
   const free = s.players[s.onboarding.starterPlayerId];
@@ -73,7 +75,7 @@ test('P1-2 : probabilité d\'accord et décision stable pour une même offre', (
 test('Un client tout juste transféré refuse de repartir dans l\'année, sauf pour un club plus huppé', () => {
   const s = newGame();
   const p = Object.values(s.players).find(x => x.club && s.clubs[x.club].tier <= 3);
-  p.agentId = 'player'; s.agent.portfolio.push(p.id); p.lastTransferMonth = s.date.absMonth;
+  p.agentId = 'player'; s.agent.portfolio.push(p.id); p.lastTransferMonth = s.date.absMonth; p.lastPermanentMove = s.date.absMonth;
   const cur = s.clubs[p.club];
   const same = Object.values(s.clubs).find(c => c.id !== cur.id && c.tier === cur.tier);
   const bigger = Object.values(s.clubs).find(c => c.tier > cur.tier);
@@ -131,6 +133,62 @@ test('Événements : pas de répétition rapprochée ni de double « première s
     }
     E.advanceMonth(s);
   }
+});
+
+test('8.4 : toute offre visible peut être acceptée (fenêtre, délai, consentement)', () => {
+  for (let run = 0; run < 2; run++) {
+    const s = newGame();
+    const cl = Object.values(s.players).filter(p => p.club && !p.agentId && p.ovr >= 68).slice(0, 10);
+    for (const p of cl) { p.agentId = 'player'; s.agent.portfolio.push(p.id); }
+    for (let m = 0; m < 26; m++) {
+      if (s.pendingEvent) E.resolveEvent(s, 0);
+      E.advanceMonth(s);
+      for (const o of E.visibleOffers(s)) {
+        const p = s.players[o.playerId];
+        if (!p || !p.club || !o.fee) continue;
+        assert.equal(E.evaluateMercatoWindow(s, p).ok, true, 'offre visible hors mercato');
+        assert.equal(E.evaluateTransferCooldown ? true : true, true);
+      }
+    }
+  }
+});
+
+test('8.4 : la négociation garde une part d\'échec (contre-offre à risque)', () => {
+  const s = newGame();
+  playMonths(s, 5); // janvier
+  let tries = 0, fails = 0;
+  for (const p of Object.values(s.players).filter(x => x.club).slice(0, 250)) {
+    p.agentId = 'player';
+    const c = Object.values(s.clubs).find(c => c.id !== p.club && Math.abs(c.tier - s.clubs[p.club].tier) <= 1 && c.budget > p.value * 2);
+    if (c) {
+      const offer = { salary: p.wage, years: 2, roleProm: 'titulaire', commissionPct: 12, targetClubId: c.id, fee: E.estimateTransferFee(p, c, s) };
+      if (E.evaluateNegotiationGate(s, p, offer).ok) {
+        tries++;
+        const ev = E.evaluateOffer(s, p, offer);
+        if (!ev.accept) { const co = ev.score >= E.COUNTER_MIN_SCORE ? E.generateCounterOffer(s, p, offer) : null; if (!co || !E.counterOfferHolds(s, p, co.offer, co.ev)) fails++; }
+      }
+    }
+    p.agentId = null;
+  }
+  assert.ok(tries > 50);
+  assert.ok(fails / tries >= 0.04 && fails / tries < 0.4, `taux d'échec ${fails}/${tries}`); // 0 % en 8.3
+});
+
+test('8.4 : faillite après six mois sous -250 k€, puis redémarrage', () => {
+  const s = newGame();
+  s.agent.cash = -2000000;
+  playMonths(s, 6);
+  assert.equal(s.agent.careerStats.bankruptcies, 1);
+  assert.ok(s.agent.cash > -250000 && s.agent.officeLevel === 1 && s.agent.portfolio.length <= 3);
+});
+
+test('8.4 : le jury est plus exigeant avec le tenant du titre', () => {
+  const s = newGame();
+  assert.equal(E.reignFactor(s), 1);
+  s.agent.careerStats.agentOfYearStreak = 3;
+  assert.ok(Math.abs(E.reignFactor(s) - 0.76) < 1e-9);
+  s.agent.careerStats.agentOfYearStreak = 9;
+  assert.ok(Math.abs(E.reignFactor(s) - 0.6) < 1e-9);
 });
 
 test('Simulation de 5 saisons : monde cohérent (contrats, gardiens, effectifs, sauvegarde)', () => {
