@@ -6,418 +6,559 @@
 <title>Football Agent — Jeu de gestion d'agent de football</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   FOOTBALL AGENT — styles
-   Identité (V9.0) : agence de joueurs haut de gamme — soir de match plutôt
-   que tableau de bord financier. Fond bleu-nuit profond, bleu comme accent
-   principal (l'agence, l'action), émeraude pour le positif, rouge brique
-   pour l'alerte, violet pour un repère de poste supplémentaire (gardien).
-   Le doré est mis de côté : il ne réapparaît qu'aux moments de prestige
-   réels (record, trophée, transfert exceptionnel) — jamais en couleur
-   d'interface courante. Chiffres en police tabulaire façon panneau de
-   score de stade.
+   FOOTBALL AGENT — direction artistique « Nuit de match » (V8.3)
+   Un stade sous les projecteurs : fond vert-nuit presque noir strié comme
+   une pelouse tondue, halos de projecteurs, lignes de craie. Une seule
+   couleur signature, le « volt » (jaune électrique des maillots et
+   chasubles), réservée à l'action et au joueur-agent. Émeraude = positif,
+   rouge = alerte, bleu = information, or = prestige (titres, records,
+   paliers). Titres en capitales condensées façon panneau de stade,
+   chiffres tabulaires façon tableau d'affichage.
    ============================================================ */
 
 :root{
-  --bg:#080a0e; --bg-1:#11151b; --bg-2:#181e26; --bg-3:#1f2630;
-  --line:#232b37; --line-soft:#161c24;
-  --ink:#eef1f5; --ink-dim:#8d98a8; --ink-faint:#57616f;
-  --gold:#c9a227; --gold-soft:#e7cd7a; --gold-dim:#8a712a;
-  --emerald:#2e9e6b; --emerald-soft:#7fd9ac;
-  --red:#d1493f; --red-soft:#f0847a;
-  --blue:#3a63c4; --blue-soft:#8caeef; --blue-dim:#1f3564;
-  --violet:#8f7bd6; --violet-soft:#b7abe8;
-  --r-sm:6px; --r-md:11px; --r-lg:18px;
-  --sh-1:0 2px 12px rgba(0,0,0,.4);
-  --sh-2:0 10px 34px rgba(0,0,0,.5);
+  --bg:#05080a; --bg-1:#0b1114; --bg-2:#10181c; --bg-3:#172227; --bg-4:#1e2b31;
+  --line:#1d2a30; --line-soft:#131d21; --line-strong:#2a3a41;
+  --ink:#f1f5f2; --ink-dim:#9aaba7; --ink-faint:#5f716d;
+  --accent:#d7ff3c; --accent-soft:#ecff9e; --accent-dim:#5b6d10; --accent-ink:#0b1300;
+  --gold:#e4b43f; --gold-soft:#f6d982; --gold-dim:#7d611c;
+  --emerald:#1fbf7a; --emerald-soft:#7ce7b3;
+  --red:#ef4b47; --red-soft:#ff8e86;
+  --blue:#3f7cff; --blue-soft:#9dbdff; --blue-dim:#1b3268;
+  --violet:#9a86f7; --violet-soft:#c5b9fb;
+  --r-sm:8px; --r-md:14px; --r-lg:20px;
+  --sh-1:0 2px 10px rgba(0,0,0,.45);
+  --sh-2:0 18px 50px rgba(0,0,0,.6);
+  --glow:0 0 0 1px rgba(215,255,60,.35), 0 8px 28px rgba(215,255,60,.18);
   --font:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,"SF Mono","Roboto Mono",Consolas,monospace;
-  --font-display:'Oswald',var(--mono);
-  --topbar-h:56px; --fab-h:56px; --bottombar-h:64px;
+  --font-display:'Oswald',"Arial Narrow","Roboto Condensed","Helvetica Neue",Arial,sans-serif;
+  --topbar-h:60px; --fab-h:58px; --bottombar-h:66px; --sidenav-w:252px;
 }
 *{box-sizing:border-box;}
 svg{vertical-align:middle; flex-shrink:0;}
 html,body{height:100%;}
 body{
-  margin:0; background:
-    radial-gradient(1200px 800px at 15% -10%, #101826 0%, transparent 60%),
-    radial-gradient(1000px 700px at 110% 10%, #0d1420 0%, transparent 55%),
+  margin:0; color:var(--ink); font-family:var(--font); -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  background:
+    radial-gradient(900px 520px at 8% -8%, rgba(215,255,60,.07) 0%, transparent 60%),
+    radial-gradient(900px 600px at 105% -5%, rgba(120,190,255,.07) 0%, transparent 60%),
+    radial-gradient(1400px 900px at 50% 120%, rgba(31,191,122,.06) 0%, transparent 60%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 90px, transparent 90px 180px),
     var(--bg);
-  color:var(--ink); font-family:var(--font); -webkit-font-smoothing:antialiased;
-  overflow-x:hidden;
+  background-attachment:fixed;
 }
 #app{min-height:100%;}
-h1,h2,h3,h4{margin:0 0 4px; font-weight:800; letter-spacing:.01em;}
-p{margin:0 0 8px; color:var(--ink-dim); line-height:1.5;}
+h1,h2,h3,h4{margin:0 0 4px; font-family:var(--font-display); font-weight:600; letter-spacing:.01em; text-transform:uppercase;}
+p{margin:0 0 8px; color:var(--ink-dim); line-height:1.55;}
 a{color:inherit;}
 button{font-family:inherit;}
-.num{font-family:var(--font-display); font-weight:600; letter-spacing:.2px; font-variant-numeric:tabular-nums;}
+::selection{background:var(--accent); color:var(--accent-ink);}
+.num{font-family:var(--font-display); font-weight:600; letter-spacing:.3px; font-variant-numeric:tabular-nums;}
 ::-webkit-scrollbar{width:8px;height:8px;}
-::-webkit-scrollbar-thumb{background:#2a3240;border-radius:8px;}
+::-webkit-scrollbar-thumb{background:#223137;border-radius:8px;}
 ::-webkit-scrollbar-track{background:transparent;}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 
-/* ---------- Écran d'accueil / nouvelle partie ---------- */
+/* ---------- Écran de création : entrée dans le stade ---------- */
 .onboard{
-  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px 16px; position:relative; overflow:hidden;
   background:
-    radial-gradient(900px 500px at 50% -12%, rgba(63,111,214,.12) 0%, transparent 60%),
-    repeating-linear-gradient(180deg, rgba(255,255,255,.015) 0px, rgba(255,255,255,.015) 1px, transparent 1px, transparent 64px);
+    radial-gradient(700px 420px at 20% 0%, rgba(255,255,230,.10) 0%, transparent 65%),
+    radial-gradient(700px 420px at 80% 0%, rgba(255,255,230,.08) 0%, transparent 65%),
+    repeating-linear-gradient(180deg, rgba(31,191,122,.045) 0 70px, rgba(31,191,122,.015) 70px 140px),
+    linear-gradient(180deg, #050a09, #06110d 60%, #040806);
+}
+.onboard::before{ /* lignes de craie du terrain */
+  content:''; position:absolute; left:50%; top:50%; width:760px; height:760px; transform:translate(-50%,-50%);
+  border:2px solid rgba(255,255,255,.05); border-radius:50%; pointer-events:none;
+  box-shadow:0 0 0 180px transparent, inset 0 0 0 1px rgba(255,255,255,.02);
+}
+.onboard::after{
+  content:''; position:absolute; left:0; right:0; top:50%; height:2px; background:rgba(255,255,255,.05); pointer-events:none;
 }
 .onboard-card{
-  width:100%; max-width:460px; background:linear-gradient(165deg,var(--bg-2),var(--bg-1) 70%);
-  border:1px solid var(--line); border-radius:20px; padding:30px 26px; box-shadow:var(--sh-2);
-  position:relative; overflow:hidden;
+  width:100%; max-width:480px; position:relative; z-index:1; overflow:hidden;
+  background:linear-gradient(170deg, rgba(23,34,39,.92), rgba(9,14,16,.96) 70%);
+  border:1px solid var(--line-strong); border-radius:24px; padding:30px 24px 26px;
+  box-shadow:var(--sh-2), inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter:blur(8px);
 }
 .onboard-card::before{
-  content:''; position:absolute; top:-60%; right:-30%; width:260px; height:260px; border-radius:50%;
-  background:radial-gradient(circle, rgba(63,111,214,.16), transparent 70%); pointer-events:none;
+  content:''; position:absolute; top:0; left:0; right:0; height:4px;
+  background:linear-gradient(90deg, var(--accent), var(--emerald) 60%, transparent);
 }
 .onboard-crest{
-  width:52px; height:58px; margin-bottom:14px;
-  background:linear-gradient(160deg,var(--gold-soft) 50%,var(--gold) 50%);
-  clip-path:polygon(50% 0%,100% 16%,100% 66%,50% 100%,0% 66%,0% 16%);
-  display:flex; align-items:center; justify-content:center; font-size:24px; box-shadow:var(--sh-1);
+  width:58px; height:66px; margin-bottom:16px;
+  background:linear-gradient(160deg, var(--accent) 0 50%, #a8d11c 50% 100%);
+  clip-path:polygon(50% 0%,100% 15%,100% 66%,50% 100%,0% 66%,0% 15%);
+  display:flex; align-items:center; justify-content:center; font-size:26px; filter:drop-shadow(0 8px 18px rgba(215,255,60,.25));
 }
 .onboard-kicker{
-  text-transform:uppercase; letter-spacing:.18em; font-size:11px; color:var(--blue-soft); font-weight:800; margin-bottom:6px;
+  font-family:var(--font-display); text-transform:uppercase; letter-spacing:.32em; font-size:12px; color:var(--accent); font-weight:600; margin-bottom:4px;
 }
-.onboard-title{font-size:27px; margin-bottom:4px; letter-spacing:-.01em;}
-.onboard-sub{font-size:13px; margin-bottom:22px;}
+.onboard-title{font-family:var(--font-display); text-transform:uppercase; font-weight:700; font-size:38px; line-height:1; margin-bottom:8px; letter-spacing:.005em;}
+.onboard-sub{font-size:13.5px; margin-bottom:22px; color:var(--ink-dim);}
 .field{margin-bottom:16px;}
-.field label{display:block; font-size:12px; color:var(--ink-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:.06em;}
+.field label{display:block; font-family:var(--font-display); font-size:12px; color:var(--ink-dim); margin-bottom:7px; text-transform:uppercase; letter-spacing:.14em;}
 .field input[type=text], .field select{
-  width:100%; padding:11px 12px; background:var(--bg-3); border:1px solid var(--line); color:var(--ink);
-  border-radius:var(--r-sm); font-size:15px;
+  width:100%; padding:13px 14px; background:rgba(5,8,10,.6); border:1px solid var(--line-strong); color:var(--ink);
+  border-radius:var(--r-sm); font-size:15px; transition:border-color .15s, box-shadow .15s;
 }
-.field input:focus, .field select:focus{outline:none; border-color:var(--blue);}
+.field input:focus, .field select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(215,255,60,.15);}
 .spec-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
 .spec-card{
-  border:1px solid var(--line); border-radius:var(--r-sm); padding:10px; cursor:pointer; background:var(--bg-3);
-  transition:.15s;
+  border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:11px 12px; cursor:pointer; background:rgba(5,8,10,.5);
+  transition:border-color .15s, background .15s, transform .1s; position:relative;
 }
-.spec-card.sel{border-color:var(--blue); background:#141d33;}
-.spec-card b{font-size:13px; display:block; margin-bottom:2px;}
-.spec-card span{font-size:11px; color:var(--ink-faint);}
+.spec-card:hover{border-color:var(--accent-dim);}
+.spec-card.sel{border-color:var(--accent); background:linear-gradient(160deg, rgba(215,255,60,.12), rgba(215,255,60,.02)); box-shadow:inset 0 0 0 1px rgba(215,255,60,.25);}
+.spec-card.sel::after{content:''; position:absolute; top:10px; right:10px; width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent);}
+.spec-card b{font-family:var(--font-display); font-weight:600; text-transform:uppercase; letter-spacing:.04em; font-size:14px; display:block; margin-bottom:3px;}
+.spec-card span{font-size:11.5px; color:var(--ink-faint);}
 
 /* ---------- Boutons ---------- */
 .btn{
-  display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  padding:11px 16px; border-radius:var(--r-sm); border:1px solid var(--line);
-  background:var(--bg-3); color:var(--ink); font-size:14px; font-weight:600; cursor:pointer;
-  transition:transform .1s, border-color .15s, background .15s;
+  display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:42px;
+  padding:10px 16px; border-radius:var(--r-sm); border:1px solid var(--line-strong);
+  background:linear-gradient(180deg, var(--bg-4), var(--bg-3)); color:var(--ink); font-size:14px; font-weight:600; cursor:pointer;
+  transition:transform .1s, border-color .15s, background .15s, box-shadow .15s;
 }
+.btn:hover{border-color:#3a4c54;}
 .btn:active{transform:scale(.97);}
 .btn:disabled{opacity:.4; cursor:not-allowed;}
-.btn-primary{background:linear-gradient(180deg,var(--blue-soft) 0%,var(--blue) 65%); color:#f4f7ff; border-color:var(--blue);}
-.btn-emerald{background:linear-gradient(180deg,var(--emerald-soft),var(--emerald)); color:#04170e; border-color:var(--emerald);}
-.btn-danger{background:transparent; border-color:var(--red); color:var(--red-soft);}
+.btn-primary{
+  background:linear-gradient(180deg, var(--accent-soft) -40%, var(--accent) 60%); color:var(--accent-ink); border-color:var(--accent);
+  font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-weight:600; font-size:15px;
+  box-shadow:0 6px 20px rgba(215,255,60,.14);
+}
+.btn-primary:hover{box-shadow:var(--glow); border-color:var(--accent);}
+.btn-emerald{background:linear-gradient(180deg,var(--emerald-soft) -30%,var(--emerald)); color:#03170d; border-color:var(--emerald);}
+.btn-danger{background:rgba(239,75,71,.06); border-color:rgba(239,75,71,.6); color:var(--red-soft);}
+.btn-danger:hover{background:rgba(239,75,71,.12); border-color:var(--red);}
 .btn-ghost{background:transparent;}
 .btn-block{width:100%;}
-.btn-sm{padding:7px 11px; font-size:12.5px;}
+.btn-sm{min-height:34px; padding:6px 12px; font-size:12.5px;}
+.btn-primary.btn-sm{font-size:13px;}
 
-/* ---------- Structure app ---------- */
+/* ---------- Structure : barre du haut, navigation, bouton de mois ---------- */
 .topbar{
   position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:30;
-  background:rgba(10,13,18,.9); backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
-  display:flex; align-items:center; padding:0 14px; gap:10px;
+  background:linear-gradient(180deg, rgba(5,8,10,.96), rgba(5,8,10,.82)); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line); display:flex; align-items:center; padding:0 14px; gap:12px;
 }
+.topbar::after{content:''; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:linear-gradient(90deg, transparent, rgba(215,255,60,.35), transparent);}
 .topbar-brand{display:none;}
-.topbar-date{font-weight:800; font-size:13px; white-space:nowrap;}
-.topbar-date .season{display:block; font-size:10px; color:var(--ink-faint); font-weight:600;}
+.topbar-date{font-family:var(--font-display); text-transform:uppercase; font-weight:600; font-size:17px; letter-spacing:.04em; white-space:nowrap; line-height:1.05;}
+.topbar-date .num{font-size:17px; color:var(--accent);}
+.topbar-date .season{display:block; font-family:var(--font); text-transform:none; font-size:10.5px; color:var(--ink-faint); font-weight:600; letter-spacing:.02em;}
 .topbar-stats{margin-left:auto; display:flex; gap:6px;}
 .chip{
-  display:flex; align-items:center; gap:5px; background:var(--bg-2); border:1px solid var(--line);
-  border-radius:999px; padding:6px 10px; font-size:12px; font-weight:700; white-space:nowrap;
+  display:flex; align-items:center; gap:6px; background:rgba(23,34,39,.8); border:1px solid var(--line-strong);
+  border-radius:999px; padding:7px 12px; font-size:13px; font-weight:700; white-space:nowrap;
 }
 .chip .ico{display:inline-flex; align-items:center;}
-.chip.cash.neg{color:var(--red-soft); border-color:#4a2320;}
-.chip.rep{color:var(--blue-soft);}
+.chip.cash{color:var(--ink);} .chip.cash .ico{color:var(--accent);}
+.chip.cash.neg{color:var(--red-soft); border-color:#5a2522; background:rgba(239,75,71,.08);}
+.chip.rep{color:var(--gold-soft);} .chip.rep .ico{color:var(--gold);}
 
 .sidenav{
-  position:fixed; top:0; left:0; bottom:0; width:250px; background:var(--bg-1); border-right:1px solid var(--line);
-  z-index:40; transform:translateX(-100%); transition:transform .22s ease; padding:16px 10px; overflow-y:auto;
+  position:fixed; top:0; left:0; bottom:0; width:var(--sidenav-w); z-index:40; transform:translateX(-100%); transition:transform .22s ease;
+  padding:18px 12px; overflow-y:auto;
+  background:linear-gradient(180deg, #0a1013, #070b0d); border-right:1px solid var(--line);
 }
-.sidenav-brand{padding:8px 10px 18px; border-bottom:1px solid var(--line-soft); margin-bottom:10px;}
-.sidenav-brand b{display:block; font-size:15px;}
+.sidenav-brand{display:flex; align-items:center; gap:11px; padding:6px 8px 18px; border-bottom:1px solid var(--line-soft); margin-bottom:12px;}
+.sidenav-brand .crest{
+  width:38px; height:43px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--accent-ink);
+  background:linear-gradient(160deg, var(--accent) 0 50%, #a8d11c 50% 100%);
+  clip-path:polygon(50% 0%,100% 15%,100% 66%,50% 100%,0% 66%,0% 15%);
+}
+.sidenav-brand b{display:block; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-weight:600; font-size:16px; line-height:1.1;}
 .sidenav-brand span{font-size:11px; color:var(--ink-faint);}
 .nav-item{
-  display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:var(--r-sm); cursor:pointer;
-  color:var(--ink-dim); font-size:14px; font-weight:600; margin-bottom:2px;
+  position:relative; display:flex; align-items:center; gap:11px; padding:11px 12px; border-radius:var(--r-sm); cursor:pointer;
+  color:var(--ink-dim); font-size:14px; font-weight:600; margin-bottom:2px; transition:background .15s, color .15s;
 }
 .nav-item .ico{width:20px; display:inline-flex; align-items:center; justify-content:center;}
 .nav-item:hover{background:var(--bg-2); color:var(--ink);}
-.nav-item.active{background:linear-gradient(90deg,rgba(63,111,214,.18),transparent); color:var(--blue-soft);}
+.nav-item.active{background:linear-gradient(90deg, rgba(215,255,60,.13), rgba(215,255,60,0) 85%); color:var(--accent);}
+.nav-item.active::before{content:''; position:absolute; left:-12px; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:var(--accent); box-shadow:0 0 12px var(--accent);}
 
-.content{padding:calc(var(--topbar-h) + 14px) 14px calc(var(--fab-h) + var(--bottombar-h) + 34px); max-width:820px; margin:0 auto;}
-.page-title{font-size:20px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:8px;}
-.page-title small{font-size:11px; color:var(--ink-faint); font-weight:600;}
+.content{padding:calc(var(--topbar-h) + 16px) 14px calc(var(--fab-h) + var(--bottombar-h) + 36px); max-width:820px; margin:0 auto;}
+.page-title{
+  font-family:var(--font-display); text-transform:uppercase; font-weight:600; font-size:26px; letter-spacing:.02em; line-height:1.05;
+  margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.page-title small{font-family:var(--font); text-transform:none; font-size:12px; color:var(--ink-faint); font-weight:600; letter-spacing:0;}
 
 .fab-advance{
   position:fixed; left:14px; right:14px; bottom:calc(var(--bottombar-h) + 12px); z-index:25; height:var(--fab-h);
-  border-radius:var(--r-md); border:1px solid var(--blue); cursor:pointer;
-  background:linear-gradient(180deg,var(--blue-soft) 0%,var(--blue) 65%); color:#f4f7ff;
-  font-weight:800; font-size:14.5px; letter-spacing:.02em; box-shadow:var(--sh-2);
-  display:flex; align-items:center; justify-content:center; gap:8px;
+  border-radius:var(--r-md); border:1px solid var(--accent); cursor:pointer; overflow:hidden;
+  background:linear-gradient(180deg, var(--accent-soft) -50%, var(--accent) 55%, #b9e21f); color:var(--accent-ink);
+  font-family:var(--font-display); text-transform:uppercase; font-weight:600; font-size:17px; letter-spacing:.08em;
+  box-shadow:0 14px 34px rgba(0,0,0,.55), 0 0 30px rgba(215,255,60,.18);
+  display:flex; align-items:center; justify-content:center; gap:10px;
 }
-.fab-advance:active{transform:scale(.98);}
-.fab-advance:disabled{opacity:.5;}
+.fab-advance::after{ /* reflet qui balaie le bouton : l'action centrale du jeu */
+  content:''; position:absolute; top:0; bottom:0; left:-40%; width:30%; transform:skewX(-20deg);
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); animation:fabSheen 4.5s ease-in-out infinite;
+}
+@keyframes fabSheen{0%,70%{left:-40%;} 100%{left:130%;}}
+.fab-advance:hover{box-shadow:0 14px 34px rgba(0,0,0,.55), 0 0 44px rgba(215,255,60,.32);}
+.fab-advance:active{transform:scale(.985);}
+.fab-advance:disabled{opacity:1; background:var(--bg-3); color:var(--gold-soft); border-color:var(--gold-dim); box-shadow:var(--sh-1); font-size:14px;}
+.fab-advance:disabled::after{display:none;}
 
 .bottombar{
-  position:fixed; left:0; right:0; bottom:0; height:var(--bottombar-h); z-index:30;
-  background:rgba(10,13,18,.94); backdrop-filter:blur(10px); border-top:1px solid var(--line);
-  display:flex;
+  position:fixed; left:0; right:0; bottom:0; height:var(--bottombar-h); z-index:30; display:flex;
+  background:linear-gradient(180deg, rgba(8,12,14,.9), rgba(5,8,10,.98)); backdrop-filter:blur(14px); border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
 }
 .tab-item{
-  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-  background:none; border:none; color:var(--ink-faint); font-family:inherit; cursor:pointer; padding:6px 2px;
+  position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  background:none; border:none; color:var(--ink-faint); font-family:inherit; cursor:pointer; padding:6px 2px; transition:color .15s;
 }
 .tab-item .ico{display:inline-flex; align-items:center; justify-content:center;}
-.tab-item .lbl{font-size:10px; font-weight:700;}
-.tab-item.active{color:var(--blue-soft);}
-.tab-item.active .ico{transform:translateY(-1px);}
+.tab-item .lbl{font-size:10px; font-weight:700; letter-spacing:.02em;}
+.tab-item.active{color:var(--accent);}
+.tab-item.active::before{content:''; position:absolute; top:0; left:28%; right:28%; height:3px; border-radius:0 0 3px 3px; background:var(--accent); box-shadow:0 0 12px var(--accent);}
 
 @media (min-width:900px){
-  .sidenav{transform:translateX(0); position:fixed;}
-  .content{margin-left:250px; max-width:900px; padding-left:26px; padding-right:26px; padding-bottom:60px;}
-  .topbar-brand{display:block; font-weight:800; font-size:14px; color:var(--blue-soft); margin-right:8px;}
-  .fab-advance{left:266px; max-width:560px; bottom:14px;}
+  .sidenav{transform:translateX(0);}
+  .topbar{left:var(--sidenav-w); padding:0 26px;}
+  .topbar-brand{display:block; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-weight:500; font-size:13px; color:var(--ink-faint); padding-right:14px; margin-right:2px; border-right:1px solid var(--line);}
+  .content{margin-left:var(--sidenav-w); max-width:960px; padding-left:30px; padding-right:30px; padding-bottom:calc(var(--fab-h) + 44px);}
+  .fab-advance{left:calc(var(--sidenav-w) + 30px); right:auto; width:min(900px, calc(100vw - var(--sidenav-w) - 60px)); bottom:18px;}
   .bottombar{display:none;}
+  .page-title{font-size:30px;}
 }
 
-/* ---------- Cartes / listes ---------- */
+/* ---------- Cartes, grilles, KPI ---------- */
 .card{
-  background:linear-gradient(180deg,var(--bg-2),var(--bg-1)); border:1px solid var(--line);
-  border-radius:var(--r-md); padding:14px; margin-bottom:12px; position:relative;
+  position:relative; margin-bottom:12px; padding:16px;
+  background:linear-gradient(180deg, rgba(20,30,34,.92), rgba(11,17,20,.95));
+  border:1px solid var(--line); border-radius:var(--r-md);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035), var(--sh-1);
 }
-.card-title{font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-faint); font-weight:700; margin-bottom:10px;}
+.card-title{
+  display:flex; align-items:center; gap:7px; margin-bottom:12px;
+  font-family:var(--font-display); font-size:13px; text-transform:uppercase; letter-spacing:.14em; color:var(--ink-dim); font-weight:500;
+}
+.card-title::before{content:''; width:10px; height:2px; background:var(--accent); border-radius:2px; flex-shrink:0;}
+.card-title svg{color:var(--accent);}
 .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
-.kpi{background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r-sm); padding:10px; transition:border-color .15s;}
-.kpi b{display:block; font-size:17px;}
-.kpi span{font-size:10.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.06em;}
+.grid-2, .grid-3{margin-bottom:12px;}
+.card .grid-2, .card .grid-3{margin-bottom:0;}
+.kpi{
+  position:relative; overflow:hidden; background:linear-gradient(160deg, var(--bg-3), var(--bg-2)); border:1px solid var(--line);
+  border-radius:var(--r-sm); padding:11px 12px; transition:border-color .15s;
+}
+.kpi::after{content:''; position:absolute; right:-18px; top:-18px; width:52px; height:52px; border-radius:50%; background:radial-gradient(circle, rgba(215,255,60,.08), transparent 70%);}
+.kpi b{display:block; font-size:20px; line-height:1.15; font-family:var(--font-display); font-weight:600; overflow-wrap:anywhere;}
+.kpi span{font-size:10.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.08em; font-weight:600;}
 
-/* blason de club en CSS pur (aucune image / logo réel) — écu à reflet, sans dépendance externe */
+/* blason de club en CSS pur (aucune image / logo réel) — écu à reflet */
 .badge{
   display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; position:relative;
-  width:30px; height:34px; color:#fff; font-weight:800; font-size:9.5px; letter-spacing:.01em;
+  width:30px; height:34px; color:#fff; font-weight:800; font-size:9.5px; letter-spacing:.01em; font-family:var(--font-display);
   background:linear-gradient(155deg,var(--c1) 0%,var(--c1) 52%,var(--c2) 52%,var(--c2) 100%);
   clip-path:polygon(50% 0%,100% 15%,100% 68%,50% 100%,0% 68%,0% 15%);
-  text-shadow:0 1px 3px rgba(0,0,0,.65); box-shadow:inset 0 1px 0 rgba(255,255,255,.35), inset 0 -6px 10px rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.3);
+  text-shadow:0 1px 3px rgba(0,0,0,.7); box-shadow:inset 0 1px 0 rgba(255,255,255,.35), inset 0 -6px 10px rgba(0,0,0,.25);
 }
-.badge.lg{width:58px; height:65px; font-size:17px;}
-.badge.sm{width:20px; height:23px; font-size:6.5px;}
+.badge.lg{width:60px; height:68px; font-size:17px;}
+.badge.sm{width:22px; height:25px; font-size:7px;}
 
 .list-row{
-  display:flex; align-items:center; gap:10px; padding:10px 8px; border-radius:var(--r-sm); cursor:pointer;
+  display:flex; align-items:center; gap:11px; padding:11px 8px; border-radius:var(--r-sm); cursor:pointer;
   border-bottom:1px solid var(--line-soft); transition:background .12s;
 }
 .list-row:last-child{border-bottom:none;}
-.list-row:hover{background:var(--bg-2);}
+.list-row:hover{background:rgba(30,43,49,.55);}
 .list-row:active{background:var(--bg-3);}
 .list-row .name{font-weight:700; font-size:14px;}
-.list-row .sub{font-size:11.5px; color:var(--ink-faint);}
+.list-row .sub{font-size:12px; color:var(--ink-faint); margin-top:1px;}
 .list-row .right{margin-left:auto; text-align:right;}
 .list-row .ovr{
-  font-family:var(--font-display); font-weight:600; font-size:14px; width:30px; height:30px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center; background:var(--bg-3); border:1px solid var(--line);
+  font-family:var(--font-display); font-weight:600; font-size:15px; width:34px; height:34px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center; background:var(--bg-3); border:1px solid var(--line-strong); margin-left:auto;
 }
-.list-row .ovr.bronze{background:var(--bg-3); border-color:var(--line); color:var(--ink-dim);}
-.list-row .ovr.silver{background:#232b37; border-color:#3a4453; color:var(--ink);}
-.list-row .ovr.gold{background:#15291f; border-color:var(--emerald); color:var(--emerald-soft);}
+.list-row .right .ovr{margin:0 0 3px auto;}
+.list-row .ovr.bronze{background:linear-gradient(160deg,#3b2a1c,#20170f); border-color:#6b4a2c; color:#e9b98a;}
+.list-row .ovr.silver{background:linear-gradient(160deg,#343d44,#1c2227); border-color:#5b6770; color:#e4ebef;}
+.list-row .ovr.gold{background:linear-gradient(160deg,#4a3a10,#241b06); border-color:var(--gold); color:var(--gold-soft); box-shadow:0 0 12px rgba(228,180,63,.18);}
 
-/* ---------- Cartes joueur (V9.0) : plus de paliers de rareté façon FUT — une seule carte sobre,
-   un portrait procédural (teinte stable par joueur, via hashSeed) pour donner un repère visuel
-   sans dégradé tape-à-l'œil ni halo doré permanent. ---------- */
-.player-card-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(122px,1fr)); gap:10px;}
+/* ---------- Cartes joueur : vraies cartes à collectionner (bronze / argent / or) ---------- */
+.player-card-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(138px,1fr)); gap:12px;}
 .player-card{
-  position:relative; border-radius:12px; padding:10px 8px 11px; text-align:center; cursor:pointer;
-  background:var(--bg-1); border:1px solid var(--line);
-  transition:transform .12s, border-color .15s;
+  --m1:#3a4750; --m2:#1a2227; --mt:#e4ebef; --mline:rgba(255,255,255,.12);
+  position:relative; overflow:hidden; border-radius:16px 16px 22px 22px; padding:11px 10px 12px; text-align:center; cursor:pointer;
+  background:
+    radial-gradient(120px 90px at 50% 36%, rgba(255,255,255,.10), transparent 70%),
+    linear-gradient(165deg, var(--m1), var(--m2) 70%);
+  border:1px solid var(--mline); color:var(--mt);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 10px 24px rgba(0,0,0,.45);
+  transition:transform .15s, box-shadow .15s;
 }
-.player-card:active{transform:scale(.96);}
-.player-card-top{display:flex; justify-content:space-between; align-items:flex-start;}
-.player-card-ovr{font-family:var(--font-display); font-weight:700; font-size:21px; line-height:1; color:var(--ink);}
-.player-card.gold .player-card-ovr{color:var(--emerald-soft);}
-.player-card-pos{font-size:9.5px; font-weight:800; color:var(--ink-dim); margin-top:1px;}
-.player-card-flag{font-size:14px;}
+.player-card::before{ /* reflet métallique */
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.14) 42%, transparent 54%);
+}
+.player-card:hover{transform:translateY(-3px); box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 16px 30px rgba(0,0,0,.55);}
+.player-card:active{transform:scale(.97);}
+.player-card.bronze{--m1:#6a4a2e; --m2:#23180f; --mt:#f6dcc0; --mline:rgba(233,185,138,.35);}
+.player-card.silver{--m1:#56636d; --m2:#1b2328; --mt:#f1f5f7; --mline:rgba(220,230,236,.3);}
+.player-card.gold{--m1:#8c6b17; --m2:#2a1f05; --mt:#fff1c9; --mline:rgba(246,217,130,.5); box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 10px 26px rgba(0,0,0,.5), 0 0 22px rgba(228,180,63,.14);}
+.player-card-top{position:relative; display:flex; justify-content:space-between; align-items:flex-start;}
+.player-card-ovr{font-family:var(--font-display); font-weight:700; font-size:28px; line-height:.95; color:var(--mt);}
+.player-card-pos{font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.06em; opacity:.85; margin-top:1px;}
+.player-card-flag{font-size:16px;}
 .player-card-portrait{
-  width:44px; height:44px; margin:2px auto; border-radius:10px; display:flex; align-items:center; justify-content:center;
-  border:1px solid rgba(255,255,255,.06);
+  width:44px; height:44px; margin:2px auto; border-radius:12px; display:flex; align-items:center; justify-content:center;
+  border:1px solid rgba(255,255,255,.1); position:relative;
 }
-.player-card-portrait.pt-0{background:linear-gradient(155deg,#1c2740,#141b2c);}
-.player-card-portrait.pt-1{background:linear-gradient(155deg,#242b36,#171c24);}
-.player-card-portrait.pt-2{background:linear-gradient(155deg,#1e3630,#12211d);}
-.player-card-portrait.pt-3{background:linear-gradient(155deg,#2a2540,#1a1730);}
-.player-card-portrait.pt-4{background:linear-gradient(155deg,#2c2420,#1c1714);}
-.player-card-portrait.pt-5{background:linear-gradient(155deg,#1f2b3a,#141c28);}
-.player-card-silhouette{display:block; color:var(--ink-faint); opacity:.7;}
-/* ---------- En-tête de fiche joueur (V9.0) : portrait + identité + club sur une seule ligne ---------- */
-.pd-header-top{display:flex; align-items:center; gap:12px;}
+.player-card .player-card-portrait{width:58px !important; height:58px !important; margin:-4px auto 2px; border-radius:50% !important; background:radial-gradient(circle at 50% 35%, rgba(255,255,255,.18), rgba(0,0,0,.25)) !important; border-color:var(--mline);}
+.player-card .player-card-silhouette{color:var(--mt); opacity:.55;}
+.player-card-portrait.pt-0{background:linear-gradient(155deg,#1e3a44,#0f1d22);}
+.player-card-portrait.pt-1{background:linear-gradient(155deg,#2a3339,#161c20);}
+.player-card-portrait.pt-2{background:linear-gradient(155deg,#1d3d2f,#0f2019);}
+.player-card-portrait.pt-3{background:linear-gradient(155deg,#2f2a46,#181528);}
+.player-card-portrait.pt-4{background:linear-gradient(155deg,#3a2b1f,#1d1510);}
+.player-card-portrait.pt-5{background:linear-gradient(155deg,#233546,#121b26);}
+.player-card-silhouette{display:block; color:var(--ink-faint); opacity:.75;}
+.player-card-name{position:relative; font-family:var(--font-display); text-transform:uppercase; font-weight:600; letter-spacing:.03em; font-size:14px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.player-card-club{position:relative; display:flex; align-items:center; justify-content:center; gap:5px; margin-top:4px; font-size:10.5px; opacity:.8; white-space:nowrap; overflow:hidden;}
+.player-card-stats{position:relative; display:flex; justify-content:space-around; margin-top:9px; padding-top:8px; border-top:1px solid var(--mline);}
+.player-card-stats div{display:flex; flex-direction:column; align-items:center; gap:2px;}
+.player-card-stats b{font-family:var(--font-display); font-size:16px; font-weight:600; line-height:1;}
+.player-card-stats span{font-size:9px; opacity:.7; text-transform:uppercase; letter-spacing:.06em; font-weight:700;}
+.player-card-rating{position:relative; margin-top:7px; font-size:10.5px; opacity:.8; text-align:center;}
+.player-card-rating b{font-family:var(--font-display); font-size:13px;}
+.player-card-rating.small-muted{opacity:.5; font-style:italic;}
+.pos-tag{font-family:var(--font-display); font-size:10.5px; font-weight:600; letter-spacing:.04em; padding:2px 6px; border-radius:5px; background:var(--bg-4); color:var(--ink-dim);}
+.pos-tag.FW{color:#ff9f8f; background:rgba(239,75,71,.12);}
+.pos-tag.MF{color:var(--emerald-soft); background:rgba(31,191,122,.12);}
+.pos-tag.DF{color:var(--blue-soft); background:rgba(63,124,255,.14);}
+.pos-tag.GK{color:var(--violet-soft); background:rgba(154,134,247,.14);}
+
+/* ---------- En-tête de fiche joueur : bannière sous les projecteurs ---------- */
+.pd-hero{
+  overflow:hidden;
+  background:
+    radial-gradient(420px 220px at 85% -10%, color-mix(in srgb, var(--club-c1, #1fbf7a) 45%, transparent), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.02) 0 40px, transparent 40px 80px),
+    linear-gradient(180deg, rgba(20,30,34,.95), rgba(9,14,16,.98));
+}
+.pd-header-top{display:flex; align-items:center; gap:14px;}
 .pd-header-id{flex:1; min-width:0;}
-.pd-header-id h2{font-size:19px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.player-card-name{font-size:11.5px; font-weight:700; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.player-card-club{display:flex; align-items:center; justify-content:center; gap:4px; margin-top:5px; font-size:9.5px; color:var(--ink-faint); white-space:nowrap; overflow:hidden;}
-.player-card-stats{display:flex; justify-content:space-around; margin-top:8px; padding-top:7px; border-top:1px solid var(--line-soft);}
-.player-card-stats div{display:flex; flex-direction:column; align-items:center; gap:1px;}
-.player-card-stats b{font-family:var(--font-display); font-size:13px; font-weight:600; line-height:1;}
-.player-card-stats span{font-size:8px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.03em;}
-.player-card-rating{margin-top:6px; font-size:9.5px; color:var(--ink-faint); text-align:center;}
-.player-card-rating b{color:var(--emerald-soft); font-family:var(--font-display); font-size:11px;}
-.player-card-rating.small-muted{opacity:.6; font-style:italic;}
-.pos-tag{font-size:9.5px; font-weight:800; padding:2px 5px; border-radius:4px; background:var(--bg-3); color:var(--ink-dim);}
-.pos-tag.FW{color:var(--red-soft);} .pos-tag.MF{color:var(--emerald-soft);} .pos-tag.DF{color:var(--blue-soft);} .pos-tag.GK{color:var(--violet-soft);}
+.pd-header-id h2{font-size:22px; line-height:1.05; margin-bottom:6px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word;}
+@media (min-width:640px){ .pd-header-id h2{font-size:28px;} }
+.pd-status{display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; padding:4px 9px; border-radius:999px; background:rgba(0,0,0,.3); border:1px solid var(--line-strong);}
+.ovr-ring{
+  --v:70; --c:var(--accent);
+  width:74px; height:74px; border-radius:50%; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:radial-gradient(closest-side, var(--bg-1) 78%, transparent 80% 100%), conic-gradient(var(--c) calc(var(--v) * 1%), rgba(255,255,255,.07) 0);
+}
+.ovr-ring b{font-family:var(--font-display); font-weight:700; font-size:26px; line-height:1;}
+.ovr-ring span{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); font-weight:700;}
 
-/* ---------- Barres de progression (moral/forme/réputation/potentiel) ---------- */
-.meter{height:7px; border-radius:5px; background:var(--bg-3); overflow:hidden; margin-top:4px; box-shadow:inset 0 1px 2px rgba(0,0,0,.4);}
-.meter > i{display:block; height:100%; border-radius:5px; box-shadow:0 0 8px currentColor; opacity:.95; animation:meterFill .7s cubic-bezier(.3,0,.2,1);}
+/* ---------- Bannière carrière du tableau de bord ---------- */
+.career-hero{
+  overflow:hidden; padding:18px;
+  background:
+    radial-gradient(360px 200px at 100% 0%, rgba(215,255,60,.12), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 46px, transparent 46px 92px),
+    linear-gradient(180deg, rgba(20,30,34,.95), rgba(9,14,16,.98));
+}
+.career-hero.prestige{border-color:var(--gold-dim); background:
+    radial-gradient(360px 200px at 100% 0%, rgba(228,180,63,.18), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 46px, transparent 46px 92px),
+    linear-gradient(180deg, rgba(34,28,14,.95), rgba(12,11,8,.98));}
+.career-hero .tier{font-family:var(--font-display); text-transform:uppercase; font-weight:700; font-size:30px; line-height:1; letter-spacing:.01em;}
+.career-hero.prestige .tier{color:var(--gold-soft);}
+.career-hero .spec{font-size:12px; color:var(--ink-faint); margin-top:4px; text-transform:uppercase; letter-spacing:.1em; font-weight:600;}
+.career-hero-row{display:flex; align-items:center; gap:16px;}
+.career-hero-row > div:first-child{flex:1; min-width:0;}
+
+/* ---------- Barres de progression ---------- */
+.meter{height:6px; border-radius:6px; background:rgba(255,255,255,.06); overflow:hidden; margin-top:5px;}
+.meter > i{display:block; height:100%; border-radius:6px; box-shadow:0 0 10px currentColor; animation:meterFill .8s cubic-bezier(.3,0,.2,1);}
 @keyframes meterFill{from{width:0;}}
-.meter-row{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-faint); margin-top:8px;}
+.meter-row{display:flex; justify-content:space-between; font-size:12px; color:var(--ink-dim); margin-top:10px; font-weight:500;}
 
-/* ---------- Micro-interactions (V8) : transitions discrètes plutôt que des changements bruts ---------- */
-.page-fade{animation:pageFadeIn .28s ease-out;}
-@keyframes pageFadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
-.btn, .region-card, .list-row, .tab-btn{transition:background .15s, border-color .15s, transform .1s;}
+/* ---------- Micro-interactions ---------- */
+.page-fade{animation:pageFadeIn .3s ease-out;}
+@keyframes pageFadeIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+.btn, .region-card, .list-row, .tab-btn{transition:background .15s, border-color .15s, transform .1s, color .15s;}
+.save-warning{position:fixed; top:calc(var(--topbar-h) + 8px); left:12px; right:12px; z-index:80; background:#2d1210; border:1px solid var(--red); color:var(--red-soft); border-radius:var(--r-md); padding:10px 12px; font-size:13px; font-weight:600; display:flex; gap:10px; align-items:center; justify-content:space-between; box-shadow:var(--sh-2);}
+@media (min-width:900px){ .save-warning{left:calc(var(--sidenav-w) + 30px); max-width:900px;} }
 
-/* ---------- Fiche joueur : lignes d'attribut façon rapport de scouting (V7) ---------- */
+/* ---------- Lignes d'attribut ---------- */
 .attr-row{display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line-soft); font-size:13px; color:var(--ink-dim);}
 .attr-row:last-child{border-bottom:none;}
 .attr-row .attr-val{background:var(--bg-3); color:var(--ink); font-family:var(--font-display); font-weight:600; font-size:13px; padding:3px 10px; border-radius:6px; min-width:16px; text-align:center;}
-.attr-row .attr-val.accent{background:var(--blue-soft); color:var(--bg);}
+.attr-row .attr-val.accent{background:var(--accent); color:var(--accent-ink);}
 
 /* ---------- Onglets ---------- */
-.tabs{display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; padding-bottom:2px;}
+.tabs{display:flex; gap:6px; overflow-x:auto; margin-bottom:14px; padding-bottom:4px; scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
 .tab-btn{
-  flex-shrink:0; padding:8px 13px; border-radius:999px; border:1px solid var(--line); background:var(--bg-2);
-  color:var(--ink-dim); font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;
+  flex-shrink:0; padding:9px 15px; border-radius:999px; border:1px solid var(--line-strong); background:rgba(16,24,28,.8);
+  color:var(--ink-dim); font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap;
 }
-.tab-btn.active{background:var(--blue); color:#f4f7ff; border-color:var(--blue);}
+.tab-btn:hover{color:var(--ink); border-color:#3a4c54;}
+.tab-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600;}
 
-/* ---------- Tableau classement ---------- */
-.tbl{width:100%; border-collapse:collapse; font-size:12.5px;}
-.tbl th{text-align:left; color:var(--ink-faint); font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:6px 4px; border-bottom:1px solid var(--line);}
-.tbl td{padding:8px 4px; border-bottom:1px solid var(--line-soft); font-family:var(--font-display); font-weight:500;}
-.tbl td.name-cell{font-family:var(--font); font-weight:700; display:flex; align-items:center; gap:8px;}
-.tbl tr:hover{background:var(--bg-2);}
-.tbl .rk{color:var(--ink-faint); width:18px;}
-.tbl tr.me{background:rgba(201,162,39,.09);}
+/* ---------- Tableaux ---------- */
+.tbl{width:100%; border-collapse:collapse; font-size:13px;}
+.tbl th{text-align:left; color:var(--ink-faint); font-family:var(--font-display); font-weight:500; font-size:11.5px; text-transform:uppercase; letter-spacing:.1em; padding:7px 5px; border-bottom:1px solid var(--line-strong);}
+.tbl td{padding:9px 5px; border-bottom:1px solid var(--line-soft); font-family:var(--font-display); font-weight:500; font-size:14px;}
+.tbl td.name-cell{font-family:var(--font); font-weight:700; font-size:13px; display:flex; align-items:center; gap:8px;}
+.tbl tbody tr:nth-child(even){background:rgba(255,255,255,.012);}
+.tbl tr:hover{background:rgba(30,43,49,.55);}
+.tbl .rk{color:var(--ink-faint); width:20px;}
+.tbl tbody tr:nth-child(-n+3) .rk{color:var(--accent);}
+.tbl tr.me{background:linear-gradient(90deg, rgba(215,255,60,.14), rgba(215,255,60,.02)); box-shadow:inset 3px 0 0 var(--accent);}
 
 /* ---------- Actualités ---------- */
-.recap-player{padding:8px 4px; border-bottom:1px solid var(--line-soft);}
-.recap-more summary{cursor:pointer; padding:8px 4px; color:var(--blue-soft);}
-.news-item{display:flex; gap:10px; padding:11px 4px; border-bottom:1px solid var(--line-soft);}
-.news-item[onclick]:hover{background:var(--bg-2); border-radius:var(--r-sm);}
+.recap-player{padding:9px 4px; border-bottom:1px solid var(--line-soft);}
+.recap-player:last-child{border-bottom:none;}
+.recap-more summary{cursor:pointer; padding:8px 4px; color:var(--accent); font-weight:600;}
+.news-item{display:flex; gap:11px; padding:12px 4px; border-bottom:1px solid var(--line-soft);}
+.news-item[onclick]:hover{background:rgba(30,43,49,.5); border-radius:var(--r-sm);}
 .news-item:last-child{border-bottom:none;}
-.news-ico{width:30px; height:30px; border-radius:50%; background:var(--bg-3); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:14px;}
-.news-text{font-size:13.5px; line-height:1.4;}
-.news-meta{font-size:10.5px; color:var(--ink-faint); margin-top:2px;}
-/* ---------- Messages joueurs dans le fil d'actus (V9.1) : situation + choix + réaction conservés ensemble,
-   là où seule la conséquence isolée était gardée jusqu'ici (le contexte se perdait dès la popup refermée). ---------- */
+.news-ico{width:32px; height:32px; border-radius:10px; background:var(--bg-3); border:1px solid var(--line-strong); color:var(--ink-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:14px;}
+.news-text{font-size:13.5px; line-height:1.45;}
+.news-meta{font-size:11px; color:var(--ink-faint); margin-top:3px;}
 .news-message{padding:12px 4px; border-bottom:1px solid var(--line-soft);}
 .news-message:last-child{border-bottom:none;}
 .news-message[onclick]{cursor:pointer;}
-.news-message[onclick]:hover{background:var(--bg-2); border-radius:var(--r-sm);}
+.news-message[onclick]:hover{background:rgba(30,43,49,.5); border-radius:var(--r-sm);}
 .news-message-head{display:flex; align-items:center; gap:9px; margin-bottom:8px;}
 .news-message-head .name{font-size:13px; font-weight:700;}
-.news-msg-bubble{max-width:88%; padding:8px 11px; border-radius:12px; font-size:12.5px; line-height:1.35; margin-bottom:5px;}
-.news-msg-bubble.incoming{background:var(--bg-3); border-bottom-left-radius:4px;}
-.news-msg-bubble.outgoing{background:var(--emerald-soft); color:#08160f; border-bottom-right-radius:4px; font-weight:600; margin-left:auto;}
+.news-msg-bubble{max-width:88%; padding:9px 12px; border-radius:14px; font-size:13px; line-height:1.4; margin-bottom:5px;}
+.news-msg-bubble.incoming{background:var(--bg-3); border:1px solid var(--line-strong); border-bottom-left-radius:4px;}
+.news-msg-bubble.outgoing{background:var(--accent); color:var(--accent-ink); border-bottom-right-radius:4px; font-weight:600; margin-left:auto;}
 .news-message-outcome{font-size:12.5px; color:var(--ink-dim); margin-top:4px; padding-left:2px;}
-/* ---------- Actu "breaking" (V9.1, monde visible) : un transfert notable, qu'il soit le vôtre ou un gros
-   coup ailleurs dans le monde. Seul cas d'interface courante où le doré reste légitime (V9.0) : un vrai
-   repère de prestige, pas une simple ligne d'actu de plus. ---------- */
-.news-breaking{display:flex; gap:10px; padding:11px 4px 11px 11px; border-left:3px solid var(--gold); border-bottom:1px solid var(--line-soft); background:linear-gradient(90deg, rgba(201,162,39,.07), transparent 45%);}
+.news-breaking{display:flex; gap:11px; padding:12px 6px 12px 12px; border-left:3px solid var(--gold); border-bottom:1px solid var(--line-soft); background:linear-gradient(90deg, rgba(228,180,63,.09), transparent 55%); border-radius:0 var(--r-sm) var(--r-sm) 0;}
 .news-breaking:last-child{border-bottom:none;}
-.news-breaking[onclick]:hover{background:linear-gradient(90deg, rgba(201,162,39,.12), transparent 45%);}
-.news-breaking-tag{display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--gold-soft); margin-bottom:3px;}
-/* ---------- Recommandation exclusive (V9.1, "la confiance rapporte") : même gabarit que le breaking news,
-   mais en bleu — une opportunité pour votre agence, pas un repère de prestige mondial (qui reste au doré). ---------- */
-.news-referral{display:flex; gap:10px; padding:11px 4px 11px 11px; border-left:3px solid var(--blue); border-bottom:1px solid var(--line-soft); background:linear-gradient(90deg, rgba(58,99,196,.08), transparent 45%); cursor:pointer;}
+.news-breaking .news-ico{color:var(--gold); border-color:rgba(228,180,63,.35);}
+.news-breaking[onclick]:hover{background:linear-gradient(90deg, rgba(228,180,63,.15), transparent 55%);}
+.news-breaking-tag{display:inline-flex; align-items:center; gap:4px; font-family:var(--font-display); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.12em; color:var(--gold-soft); margin-bottom:3px;}
+.news-referral{display:flex; gap:11px; padding:12px 6px 12px 12px; border-left:3px solid var(--accent); border-bottom:1px solid var(--line-soft); background:linear-gradient(90deg, rgba(215,255,60,.08), transparent 55%); cursor:pointer; border-radius:0 var(--r-sm) var(--r-sm) 0;}
 .news-referral:last-child{border-bottom:none;}
-.news-referral:hover{background:linear-gradient(90deg, rgba(58,99,196,.14), transparent 45%);}
-.news-referral-tag{display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--blue-soft); margin-bottom:3px;}
+.news-referral .news-ico{color:var(--accent); border-color:rgba(215,255,60,.35);}
+.news-referral:hover{background:linear-gradient(90deg, rgba(215,255,60,.14), transparent 55%);}
+.news-referral-tag{display:inline-flex; align-items:center; gap:4px; font-family:var(--font-display); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.12em; color:var(--accent); margin-bottom:3px;}
 
-/* ---------- Bannière événement ---------- */
-.event-banner{
-  border:1px solid var(--gold-dim); background:linear-gradient(135deg,#221c0c,#181410);
-  border-radius:var(--r-md); padding:14px; margin-bottom:14px;
-}
+/* ---------- « À vous de jouer » : actions à trancher ---------- */
+.action-item{display:flex; align-items:center; gap:11px; padding:11px 10px 11px 12px; margin-bottom:6px; border-radius:var(--r-sm); background:rgba(5,8,10,.35); border:1px solid var(--line-soft); border-left:3px solid var(--tone, var(--blue));}
+.action-item:last-child{margin-bottom:0;}
+.action-item[onclick]{cursor:pointer;}
+.action-item[onclick]:hover{background:rgba(30,43,49,.55);}
+.action-item .news-ico{color:var(--tone, var(--blue)); border-color:color-mix(in srgb, var(--tone, var(--blue)) 40%, transparent);}
+
+/* ---------- Événements : conversation sur le téléphone de l'agent ---------- */
+.event-banner{border:1px solid var(--gold-dim); background:linear-gradient(135deg,#221c0c,#181410); border-radius:var(--r-md); padding:14px; margin-bottom:14px;}
 .event-banner .kicker{color:var(--gold-soft); font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; font-weight:800; margin-bottom:6px;}
 .event-banner p{color:var(--ink); font-size:14px; margin-bottom:12px;}
 .event-choices{display:flex; flex-direction:column; gap:8px;}
-.event-overlay{background:rgba(4,3,1,.82);}
+.event-overlay{background:rgba(2,4,4,.84);}
 .event-modal{
-  border:1px solid var(--gold); background:linear-gradient(165deg,#1c1608,var(--bg-1) 55%);
-  box-shadow:0 0 0 1px rgba(201,162,39,.15), var(--sh-2);
+  border:1px solid var(--line-strong); background:linear-gradient(180deg, #0f171a, #080d0f);
+  box-shadow:0 0 0 1px rgba(215,255,60,.08), var(--sh-2);
 }
 .event-modal-kicker{color:var(--gold-soft); font-size:11px; text-transform:uppercase; letter-spacing:.14em; font-weight:800; margin-bottom:12px;}
 .event-modal-text{font-size:17px; line-height:1.5; margin-bottom:20px; font-weight:600;}
-
-/* ---------- Événements en mode messagerie (V8, immersion) : le client "écrit" à son agent ---------- */
-.chat-header{display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid rgba(201,162,39,.2);}
-.chat-avatar{width:40px; height:40px; border-radius:50%; background:var(--gold-soft); color:#221a05; display:flex; align-items:center; justify-content:center; font-weight:800; font-family:var(--font-display); font-size:14px; flex-shrink:0;}
-.chat-name{font-weight:700; font-size:14.5px;}
-.chat-sub{font-size:11px; color:var(--emerald-soft);}
-.chat-body{display:flex; flex-direction:column; gap:8px; margin-bottom:16px;}
-.chat-bubble{max-width:85%; padding:10px 13px; border-radius:14px; font-size:14px; line-height:1.4; opacity:0; animation:fadein .3s ease forwards;}
-.chat-bubble.incoming{align-self:flex-start; background:var(--bg-3); border-bottom-left-radius:4px;}
-.chat-bubble.outgoing{align-self:flex-end; background:var(--emerald-soft); color:#08160f; border-bottom-right-radius:4px; font-weight:600;}
+.chat-header{display:flex; align-items:center; gap:11px; margin:-4px -2px 14px; padding:0 2px 12px; border-bottom:1px solid var(--line);}
+.chat-avatar{width:44px; height:44px; border-radius:50%; background:linear-gradient(160deg, var(--accent), #9fc71a); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--font-display); font-size:16px; flex-shrink:0; box-shadow:0 0 0 3px rgba(215,255,60,.15);}
+.chat-name{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.04em; font-weight:600; font-size:17px;}
+.chat-sub{font-size:11px; color:var(--emerald-soft); display:flex; align-items:center; gap:5px;}
+.chat-sub::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--emerald); box-shadow:0 0 8px var(--emerald);}
+.chat-body{display:flex; flex-direction:column; gap:9px; margin-bottom:16px; padding:12px; border-radius:var(--r-md); background:repeating-linear-gradient(135deg, rgba(255,255,255,.012) 0 12px, transparent 12px 24px), rgba(0,0,0,.25);}
+.chat-bubble{max-width:86%; padding:11px 14px; border-radius:16px; font-size:14px; line-height:1.45; opacity:0; animation:fadein .3s ease forwards;}
+.chat-bubble.incoming{align-self:flex-start; background:var(--bg-3); border:1px solid var(--line-strong); border-bottom-left-radius:4px;}
+.chat-bubble.outgoing{align-self:flex-end; background:var(--accent); color:var(--accent-ink); border-bottom-right-radius:4px; font-weight:600;}
 .chat-replies{display:flex; flex-direction:column; gap:8px;}
 .chat-reply-btn{
-  background:var(--bg-2); border:1px solid var(--gold-dim); color:var(--ink); border-radius:16px; padding:10px 14px;
-  font-size:13.5px; font-weight:600; text-align:left; cursor:pointer; transition:background .15s, border-color .15s;
+  background:rgba(23,34,39,.7); border:1px solid var(--line-strong); color:var(--ink); border-radius:14px; padding:12px 14px;
+  font-size:14px; font-weight:600; text-align:left; cursor:pointer; transition:background .15s, border-color .15s, transform .1s;
+  display:flex; align-items:center; gap:10px;
 }
-.chat-reply-btn:hover{background:var(--bg-3); border-color:var(--gold);}
+.chat-reply-btn::before{content:'↳'; color:var(--accent); font-weight:800;}
+.chat-reply-btn:hover{background:var(--bg-4); border-color:var(--accent);}
 .chat-reply-btn:active{transform:scale(.98);}
 
-/* ---------- Modal ---------- */
+/* ---------- Modales (feuille glissante sur mobile, carte au centre sur grand écran) ---------- */
 .modal-overlay{
-  position:fixed; inset:0; background:rgba(4,5,8,.72); z-index:60; display:flex; align-items:flex-end;
-  justify-content:center; backdrop-filter:blur(2px);
+  position:fixed; inset:0; background:rgba(2,4,5,.74); z-index:60; display:flex; align-items:flex-end;
+  justify-content:center; backdrop-filter:blur(4px);
 }
 .modal{
-  width:100%; max-width:480px; max-height:88vh; overflow-y:auto; background:var(--bg-1); border:1px solid var(--line);
-  border-top-left-radius:20px; border-top-right-radius:20px; padding:20px 18px 26px; box-shadow:var(--sh-2);
-  animation:slideup .22s ease;
+  position:relative; width:100%; max-width:500px; max-height:90vh; overflow-y:auto;
+  background:linear-gradient(180deg, #111a1e, #0a1013 40%); border:1px solid var(--line-strong);
+  border-top-left-radius:24px; border-top-right-radius:24px; padding:26px 18px 26px; box-shadow:var(--sh-2);
+  animation:slideup .25s cubic-bezier(.2,.9,.3,1);
 }
-@keyframes slideup{from{transform:translateY(24px); opacity:.4;} to{transform:translateY(0); opacity:1;}}
+.modal::before{content:''; position:absolute; top:9px; left:50%; width:40px; height:4px; margin-left:-20px; border-radius:4px; background:var(--line-strong);}
+@keyframes slideup{from{transform:translateY(30px); opacity:.3;} to{transform:translateY(0); opacity:1;}}
 @media (min-width:640px){
   .modal-overlay{align-items:center;}
-  .modal{border-radius:var(--r-lg);}
+  .modal{border-radius:var(--r-lg); padding-top:22px;}
+  .modal::before{display:none;}
 }
-.modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
-.modal-close{width:32px; height:32px; border-radius:50%; background:var(--bg-3); border:1px solid var(--line); color:var(--ink-dim); cursor:pointer; display:flex; align-items:center; justify-content:center;}
-.modal-section{margin-bottom:16px;}
-.modal-section label{display:flex; justify-content:space-between; font-size:12px; color:var(--ink-dim); margin-bottom:6px;}
-.modal-section input[type=range]{width:100%; accent-color:var(--blue);}
-.reaction{font-size:12px; color:var(--red-soft); margin-top:6px;}
-.reaction.ok{color:var(--emerald-soft);}
+.modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+.modal-head h3{font-size:22px; line-height:1.1;}
+.modal-close{width:36px; height:36px; border-radius:50%; background:var(--bg-3); border:1px solid var(--line-strong); color:var(--ink-dim); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.modal-close:hover{color:var(--ink); border-color:#3a4c54;}
+.modal-section{margin-bottom:18px;}
+.modal-section label{display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-dim); margin-bottom:8px; font-weight:600;}
+.modal-section label .num{color:var(--accent); font-size:15px;}
+.modal-section select{width:100%; padding:11px 12px; background:var(--bg-2); border:1px solid var(--line-strong); color:var(--ink); border-radius:var(--r-sm); font-size:14px;}
+input[type=range]{width:100%; -webkit-appearance:none; appearance:none; height:6px; border-radius:6px; background:linear-gradient(90deg, var(--accent-dim), var(--bg-4)); outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:var(--accent); border:3px solid var(--bg-1); box-shadow:0 0 0 1px var(--accent), 0 0 14px rgba(215,255,60,.45); cursor:pointer;}
+input[type=range]::-moz-range-thumb{width:18px; height:18px; border-radius:50%; background:var(--accent); border:3px solid var(--bg-1); box-shadow:0 0 0 1px var(--accent); cursor:pointer;}
+.reaction{font-size:12.5px; color:var(--red-soft); margin-top:7px; padding-left:10px; border-left:2px solid rgba(239,75,71,.5);}
+.reaction.ok{color:var(--emerald-soft); border-left-color:var(--emerald);}
 
-/* ---------- Résumé de mois (moment fort) ---------- */
-.recap-item{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line-soft); opacity:0; animation:fadein .35s ease forwards;}
+/* ---------- Résumé du mois ---------- */
+.recap-hero{display:flex; align-items:baseline; gap:10px;}
+.recap-item{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line-soft); opacity:0; animation:fadein .35s ease forwards;}
+.recap-item:nth-child(2){animation-delay:.06s;} .recap-item:nth-child(3){animation-delay:.12s;}
 .recap-item:last-child{border-bottom:none;}
 @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 
 /* ---------- Divers ---------- */
-.empty-state{text-align:center; padding:40px 16px; color:var(--ink-faint);}
-.empty-state .emoji{display:flex; justify-content:center; margin-bottom:10px; color:var(--ink-faint);}
+.empty-state{text-align:center; padding:44px 16px; color:var(--ink-dim); font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; font-size:16px;}
+.empty-state .small{font-family:var(--font); text-transform:none; letter-spacing:0; display:inline-block; margin-top:6px;}
+.empty-state .emoji{display:flex; justify-content:center; margin:0 auto 12px; width:62px; height:62px; align-items:center; border-radius:50%; background:rgba(215,255,60,.07); border:1px dashed var(--accent-dim); color:var(--accent);}
 .flag{font-size:15px;}
-.sep{height:1px; background:var(--line-soft); margin:12px 0;}
+.sep{height:1px; background:var(--line); margin:14px 0;}
 .row-between{display:flex; align-items:center; justify-content:space-between; gap:8px;}
-.small{font-size:11.5px; color:var(--ink-faint);}
+.small{font-size:12px; color:var(--ink-faint);}
 .toast{
-  position:fixed; bottom:calc(var(--fab-h) + 26px); left:50%; transform:translateX(-50%);
-  background:var(--bg-3); border:1px solid var(--blue-dim); color:var(--ink); padding:10px 16px;
-  border-radius:999px; font-size:13px; font-weight:600; z-index:80; box-shadow:var(--sh-2);
+  position:fixed; bottom:calc(var(--fab-h) + var(--bottombar-h) + 26px); left:50%; transform:translateX(-50%); max-width:calc(100vw - 32px);
+  display:flex; align-items:center; gap:9px;
+  background:rgba(23,34,39,.96); border:1px solid var(--line-strong); color:var(--ink); padding:11px 18px;
+  border-radius:999px; font-size:13.5px; font-weight:600; z-index:90; box-shadow:var(--sh-2); backdrop-filter:blur(10px);
   animation:toastin .25s ease;
 }
+.toast::before{content:''; width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); flex-shrink:0;}
+@media (min-width:900px){ .toast{bottom:calc(var(--fab-h) + 34px); left:calc(50% + var(--sidenav-w) / 2);} }
 @keyframes toastin{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
-.region-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
-.region-card{border:1px solid var(--line); border-radius:var(--r-sm); padding:12px; text-align:center; cursor:pointer; background:var(--bg-2);}
-.region-card:hover{border-color:var(--blue-dim);}
-.region-card.active{border-color:var(--blue); background:var(--blue-soft); color:#0a1220;}
-.region-card .flag{font-size:22px; display:block; margin-bottom:4px;}
+.filter-bar{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:12px;}
+.filter-bar .tab-btn{padding:7px 12px; font-size:12px;}
+.filter-bar select{padding:7px 10px; background:var(--bg-2); border:1px solid var(--line-strong); color:var(--ink); border-radius:999px; font-size:12.5px; font-weight:600; margin-left:auto;}
+.region-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(104px,1fr)); gap:8px;}
+.region-card{border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:12px 8px; text-align:center; cursor:pointer; background:rgba(16,24,28,.8); font-size:13px; font-weight:600;}
+.region-card:hover{border-color:var(--accent-dim); background:var(--bg-3);}
+.region-card.active{border-color:var(--accent); background:linear-gradient(160deg, rgba(215,255,60,.18), rgba(215,255,60,.04)); color:var(--accent);}
+.region-card.active .small{color:var(--accent-soft);}
+.region-card .flag{font-size:24px; display:block; margin-bottom:5px;}
+@media (prefers-reduced-motion: reduce){ *, *::before, *::after{animation:none !important; transition:none !important;} }
 </style>
 </head>
 <body>
@@ -817,6 +958,16 @@ const RIVAL_AGENT_NAMES = [
 function rand(min, max) { return Math.random() * (max - min) + min; }
 function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+// Tirage stable (V8.3, audit B-15 / P1-2) : même clé = même nombre dans [0,1[. Sert aux montants et aux
+// décisions qui ne doivent pas pouvoir être « retirés » en boucle dans le même mois (relancer une recherche,
+// resoumettre la même offre) — sans changer le comportement d'un mois sur l'autre.
+function stableRand(key) {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h += 0x6D2B79F5; let t = h;
+  t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
 function choice(arr) { return arr[randInt(0, arr.length - 1)]; }
 function weightedChoice(items, weightFn) {
   const total = items.reduce((s, it) => s + weightFn(it), 0);
@@ -862,7 +1013,7 @@ function computeUpcomingDeadlines(state) {
   const curAbs = state.date.absMonth;
   const curCalYear = seasonStartYear(state);
   const mercatoIn = monthsUntilNextMercato(state);
-  if (mercatoIn <= 2) items.push({ months: mercatoIn, icon: '📅', text: mercatoIn === 0 ? 'Le mercato est ouvert ce mois-ci.' : `Le mercato ouvre dans ${mercatoIn} mois.` });
+  if (mercatoIn <= 2) items.push({ months: mercatoIn, icon: 'calendar', text: mercatoIn === 0 ? 'Le mercato est ouvert ce mois-ci.' : `Le mercato ouvre dans ${mercatoIn} mois.` });
   for (const pid of state.agent.portfolio) {
     const p = state.players[pid];
     if (!p || p.retired) continue;
@@ -1082,6 +1233,20 @@ function recomputeLeagueReputation(state, lg) {
   lg.reputation = clamp(Math.round(w * 10) / 10, 4, 99);
 }
 
+// Composition type d'un effectif (23 joueurs) : sert à la création du monde ET, depuis la V8.3 (audit P0-5), à
+// choisir le poste des jeunes qui arrivent chaque saison — ils étaient tirés au hasard, si bien que les gardiens
+// (10 % des tirages pour 13 % des besoins) disparaissaient peu à peu : 29 clubs sans aucun gardien après 20 saisons.
+const SQUAD_PLAN = [['GK', 3], ['DC', 3], ['DL', 2], ['DR', 2], ['MDC', 2], ['MC', 3], ['MOC', 2], ['AG', 2], ['AD', 2], ['BU', 2]];
+function neededPositionForClub(state, club) {
+  const counts = {};
+  for (const id of club.squad) { const p = state.players[id]; if (p) counts[p.pos] = (counts[p.pos] || 0) + 1; }
+  let best = [], bestGap = -Infinity;
+  for (const [pos, want] of SQUAD_PLAN) {
+    const gap = (want - (counts[pos] || 0)) / want; // manque relatif : 1 gardien sur 3 pèse plus que 2 DC sur 3
+    if (gap > bestGap) { bestGap = gap; best = [pos]; } else if (gap === bestGap) best.push(pos);
+  }
+  return choice(best);
+}
 function initWorld(state) {
   state.leagues = {}; state.clubs = {}; state.players = {};
   for (const lg of LEAGUES) state.leagues[lg.id] = { id: lg.id, name: lg.name, country: lg.country, clubIds: [], fixtures: [] };
@@ -1095,8 +1260,7 @@ function initWorld(state) {
       initClubEconomy(club);
       state.clubs[id] = club;
       state.leagues[lgId].clubIds.push(id);
-      const plan = [['GK', 3], ['DC', 3], ['DL', 2], ['DR', 2], ['MDC', 2], ['MC', 3], ['MOC', 2], ['AG', 2], ['AD', 2], ['BU', 2]];
-      for (const [posCode, count] of plan) {
+      for (const [posCode, count] of SQUAD_PLAN) {
         for (let i = 0; i < count; i++) {
           const p = generatePlayer(state, { club, forcedPos: posCode, ageMin: 18, ageMax: 33 });
           state.players[p.id] = p;
@@ -1160,6 +1324,41 @@ function avgBy(arr, fn) { return arr.length ? arr.reduce((s, x) => s + fn(x), 0)
 // événements sur 10 saisons testées en navigateur — trois matchs sur le banc, c'est banal pour un remplaçant.
 const STATUS_BENCH_STREAK = 5;
 const STATUS_MSG_COOLDOWN = 6; // mois minimum entre deux messages de statut pour un même joueur
+// Composition par poste (V8.3, audit P0-5) : le onze était formé des onze meilleurs scores tous postes confondus —
+// mesuré sur 4 320 compositions, 13 % n'alignaient aucun gardien et 46 % en alignaient plusieurs. Désormais un
+// 4-3-3 : 1 gardien, 4 défenseurs, 3 milieux, 3 attaquants, avec les deux créneaux de rotation d'avant (joueurs
+// peu utilisés, jeunes à potentiel d'abord) placés dans les lignes où le banc est le plus fourni. Une ligne
+// incomplète est complétée par les meilleurs joueurs de champ restants ; sans aucun gardien disponible, un joueur
+// de champ dépanne dans les buts.
+const LINEUP_SHAPE = { GK: 1, DF: 4, MF: 3, FW: 3 };
+function pickLineup(players) {
+  const scored = players.map(p => ({ p, score: p.ovr * 0.7 + p.form * 0.2 + p.morale * 0.1 - (p.fatigue || 0) * 0.08 + rand(0, 14) }));
+  scored.sort((a, b) => b.score - a.score);
+  const byLine = { GK: [], DF: [], MF: [], FW: [] };
+  for (const s of scored) (byLine[s.p.posLine] || byLine.MF).push(s.p);
+  const picked = {};
+  for (const [line, n] of Object.entries(LINEUP_SHAPE)) picked[line] = byLine[line].slice(0, n);
+  // créneaux de rotation : sans eux, les joueurs à faible niveau ne jouent jamais et ne progressent jamais
+  const ROTATION_SLOTS = 2;
+  const benchOf = line => byLine[line].slice(LINEUP_SHAPE[line]);
+  const rotationLines = ['DF', 'MF', 'FW'].filter(l => benchOf(l).length && picked[l].length === LINEUP_SHAPE[l])
+    .sort((a, b) => benchOf(b).length - benchOf(a).length).slice(0, ROTATION_SLOTS);
+  for (const line of rotationLines) {
+    const best = benchOf(line).map(p => {
+      const youthBonus = (p.age <= 21 && (p.pot - p.ovr) > 8) ? 15 : 0;
+      return { p, rscore: -(p.seasonStats.apps || 0) * 3 + youthBonus + rand(0, 10) };
+    }).sort((a, b) => b.rscore - a.rscore)[0];
+    picked[line][picked[line].length - 1] = best.p; // remplace le moins bien classé des titulaires de la ligne
+  }
+  const xi = [].concat(picked.GK, picked.DF, picked.MF, picked.FW);
+  // lignes incomplètes (effectif décimé) : on complète avec les meilleurs restants, gardien en dernier recours
+  const rest = scored.map(s => s.p).filter(p => !xi.includes(p));
+  const restOutfield = rest.filter(p => p.posLine !== 'GK');
+  const restGK = rest.filter(p => p.posLine === 'GK');
+  if (!picked.GK.length && restOutfield.length) xi.unshift(restOutfield.shift());
+  while (xi.length < 11 && (restOutfield.length || restGK.length)) xi.push(restOutfield.length ? restOutfield.shift() : restGK.shift());
+  return xi;
+}
 function squadStrength(state, club, statusReactionCandidates) {
   const monthNow = state.date.absMonth;
   const allSquad = club.squad.map(id => state.players[id]).filter(p => p && !p.retired);
@@ -1167,24 +1366,7 @@ function squadStrength(state, club, statusReactionCandidates) {
   const players = allSquad.filter(p => (!p.injuredUntil || p.injuredUntil <= monthNow) && !(p.suspendedMatches > 0));
   // les joueurs suspendus purgent un match à chaque fois que leur équipe joue
   allSquad.forEach(p => { if (p.suspendedMatches > 0) p.suspendedMatches--; });
-  const scored = players.map(p => ({ p, score: p.ovr * 0.7 + p.form * 0.2 + p.morale * 0.1 - (p.fatigue || 0) * 0.08 + rand(0, 14) }));
-  scored.sort((a, b) => b.score - a.score);
-  // noyau des meilleurs + créneaux de rotation réservés aux joueurs les moins utilisés (priorité aux jeunes à potentiel) :
-  // sans ça, les joueurs à faible niveau ne jouent jamais un seul match de la saison et ne progressent jamais.
-  const CORE = 9, ROTATION_SLOTS = 2;
-  const core = scored.slice(0, CORE).map(s => s.p);
-  const bench = scored.slice(CORE).map(s => s.p);
-  const rotationPicks = [];
-  if (bench.length) {
-    const benchScored = bench.map(p => {
-      const appsSoFar = p.seasonStats.apps || 0;
-      const youthBonus = (p.age <= 21 && (p.pot - p.ovr) > 8) ? 15 : 0;
-      return { p, rscore: -appsSoFar * 3 + youthBonus + rand(0, 10) };
-    });
-    benchScored.sort((a, b) => b.rscore - a.rscore);
-    for (let i = 0; i < Math.min(ROTATION_SLOTS, benchScored.length); i++) rotationPicks.push(benchScored[i].p);
-  }
-  const xi = core.concat(rotationPicks);
+  const xi = pickLineup(players);
   // Changement de statut (V9.3, suite) : un suivi léger (deux compteurs par joueur représenté) suffit à repérer
   // une vraie bascule — trois matchs de suite au banc, ou trois titularisations d'affilée juste après une telle
   // série — plutôt que de réagir au moindre choix de composition, qui varie chaque semaine sans rien signifier.
@@ -1440,6 +1622,7 @@ function runAgencyAcademy(state, news) {
     const club = pickClubNeedingYouth(state);
     const p = generatePlayer(state, { club, isYouth: true, forcedPos: choice(POSITIONS).code });
     p.age = randInt(15, 17);
+    p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 3); // appelé en fin de saison, avant le changement de date
     p.pot = clamp(Math.max(p.pot, randInt(76, 90)), p.ovr, 94); // de vraies pépites (un premier réglage donnait des potentiels de 68)
     p.value = estimateValue(p.ovr, p.pot, p.age, club.tier);
     p.agentId = 'player';
@@ -1510,7 +1693,14 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
   state.transferListed = (state.transferListed || []).filter(id => id !== player.id);
   checkRecord(state, 'biggestTransfer', player, fee, { fromClub: sellerClub ? sellerClub.name : 'Libre', toClub: buyerClub.name });
   if (player.agentId === 'player') {
-    const commission = Math.round(fee * agentCommissionRate(state));
+    // joueur libre (V8.3, audit P0-2) : pas d'indemnité donc pas de pourcentage dessus — l'agent touche à la place
+    // des frais d'agent versés par le club qui recrute, proportionnels à un an de salaire, comme en vrai.
+    let commission;
+    if (sellerClub) commission = Math.round(fee * agentCommissionRate(state));
+    else {
+      commission = Math.round((player.wage || 0) * 12 * agentCommissionRate(state));
+      buyerClub.budget -= commission;
+    }
     state.agent.cash += commission;
     state.agent.careerStats.totalCommissions += commission;
     state.agent.careerStats.transfersDone = (state.agent.careerStats.transfersDone || 0) + 1;
@@ -1521,10 +1711,13 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
     if (ra) { ra.cash += Math.round(fee * 0.09); ra.reputation = clamp(ra.reputation + 1, 0, 100); }
   }
   if (!opts.silent && isNewsworthy(state, player)) {
-    news.push({ text: `Transfert : ${player.name} rejoint ${buyerClub.name} (${fmtMoneyShort(fee)}).`, tag: 'transfert', playerId: player.id, breaking: true });
+    news.push({ text: `Transfert : ${player.name} rejoint ${buyerClub.name} (${sellerClub ? fmtMoneyShort(fee) : 'libre'}).`, tag: 'transfert', playerId: player.id, breaking: true });
   }
 }
 function weakestLine(state, club) {
+  // V8.3 (audit P0-5) : les gardiens étaient exclus de ce calcul, donc jamais recrutés par l'IA
+  const gkCount = club.squad.filter(id => state.players[id] && state.players[id].posLine === 'GK').length;
+  if (gkCount < 2) return 'GK';
   const lines = { DF: [], MF: [], FW: [] };
   for (const id of club.squad) { const p = state.players[id]; if (p && lines[p.posLine]) lines[p.posLine].push(p.ovr); }
   const scored = Object.entries(lines).map(([k, v]) => [k, avgBy(v.map(x => ({ x })), o => o.x)]);
@@ -1553,24 +1746,38 @@ function runAIClubTransfers(state, news, isMercato) {
 // des clubs signent aussi de leur propre initiative — ça crée une vraie urgence à représenter une pépite repérée
 // avant qu'un club ne le fasse à sa place, exactement l'histoire qu'un monde vivant doit pouvoir raconter.
 function runAIClubFreeAgentSignings(state, news, isMercato) {
-  const attempts = isMercato ? 6 : 2;
-  for (let i = 0; i < attempts; i++) {
-    const pool = (state.freeAgents || []).map(id => state.players[id]).filter(p => p && !p.retired && !p.club && p.agentId !== 'player');
+  // V8.3 (audit P0-4) : depuis que les fins de contrat libèrent vraiment les joueurs, le vivier des libres se
+  // remplit à chaque été. Pendant le mercato, chaque club en sous-effectif tente donc de se renforcer parmi eux
+  // (au lieu de six tentatives au hasard pour tout le monde), en visant un niveau cohérent avec le sien ; hors
+  // mercato, quelques signatures ponctuelles comme avant.
+  let pool = (state.freeAgents || []).map(id => state.players[id]).filter(p => p && !p.retired && !p.club && p.agentId !== 'player');
+  if (!pool.length) return;
+  const clubs = Object.values(state.clubs);
+  const buyers = isMercato
+    ? clubs.filter(c => c.squad.length < 23).sort(() => Math.random() - 0.5)
+    : [choice(clubs), choice(clubs)];
+  for (const buyer of buyers) {
     if (!pool.length) break;
-    const buyer = choice(Object.values(state.clubs));
     if (buyer.squad.length >= 25 || buyer.budget < 50000) continue;
     const line = weakestLine(state, buyer);
-    const candidates = pool.filter(p => p.posLine === line);
+    // un jeune reste un pari que tout club peut faire ; un joueur formé doit correspondre au standing du club
+    const candidates = pool.filter(p => p.posLine === line && (p.age <= 21 || Math.abs(idealTierForOvr(p.ovr) - buyer.tier) <= 1));
     if (!candidates.length) continue;
     const buyerLgNat = (LEAGUES.find(l => l.id === buyer.league) || {}).nat;
-    candidates.sort((a, b) => (b.pot + countryAffinity(b.nat, buyerLgNat) / 30) - (a.pot + countryAffinity(a.nat, buyerLgNat) / 30));
+    const worth = p => (p.age <= 21 ? (p.ovr + p.pot) / 2 : p.ovr) + countryAffinity(p.nat, buyerLgNat) / 30;
+    candidates.sort((a, b) => worth(b) - worth(a));
     const target = candidates[0];
     target.club = buyer.id;
     target.contractUntil = seasonStartYear(state) + randInt(2, 4);
     target.wage = computeWage(target.value, buyer.tier);
     buyer.squad.push(target.id);
+    pool = pool.filter(p => p !== target);
     state.freeAgents = (state.freeAgents || []).filter(id => id !== target.id);
-    if (news && Math.random() < 0.25) news.push({ text: `${target.name} signe son premier contrat professionnel avec ${buyer.name}.`, tag: 'transfert', playerId: target.id });
+    if (news && (isNewsworthy(state, target) || Math.random() < 0.1)) {
+      news.push({ text: (target.seasonsPlayed || 0) > 0
+        ? `${target.name}, libre, s'engage avec ${buyer.name}.`
+        : `${target.name} signe son premier contrat professionnel avec ${buyer.name}.`, tag: 'transfert', playerId: target.id });
+    }
   }
 }
 // Vérifie les promesses de rôle sportif faites en négociation (V8, mémoire agent↔joueur) : quelques mois après la
@@ -1600,31 +1807,58 @@ function checkRolePromises(state, news) {
     }
   }
 }
-function updateContractsAndListings(state) {
+function updateContractsAndListings(state, news) {
   const seasonY = seasonStartYear(state);
   state.transferListed = state.transferListed || [];
   // nettoyage : un joueur listé qui a depuis pris sa retraite (et donc disparu de state.players) doit sortir de la
   // liste — sans ça elle ne fait que croître indéfiniment sur des parties très longues, pour rien.
   state.transferListed = state.transferListed.filter(id => state.players[id]);
+  // Fin de contrat (V8.3, audit P0-4) : un contrat « jusqu'en Y » court jusqu'à l'été Y. La décision (prolonger ou
+  // laisser partir) se prend en juillet, juste avant le mercato d'été, pour que les joueurs libérés arrivent sur le
+  // marché au bon moment ; un contrat déjà dépassé (ancienne sauvegarde) est traité dès le mois courant. Avant, un
+  // joueur non prolongé restait indéfiniment dans son club avec un contrat expiré (~3 300 cas après 20 saisons).
+  const endingNow = calMonth(state) === 7 ? seasonY + 1 : seasonY;
   for (const p of Object.values(state.players)) {
     if (p.retired || !p.club) continue;
-    if (p.contractUntil && p.contractUntil <= seasonY && !state.transferListed.includes(p.id)) {
-      if (p.agentId === 'player') { state.transferListed.push(p.id); continue; } // le client de l'agent gère lui-même sa fin de contrat
-      const club = state.clubs[p.club];
-      // un club prestigieux retient mieux ses joueurs ; un jeune a plus de chances d'être prolongé qu'un vétéran ;
-      // un club qui n'a plus les moyens de la masse salariale actuelle du joueur hésite à prolonger.
-      const rep = club ? (club.reputation || 50) : 50;
-      const ageFactor = p.age <= 24 ? 1.25 : (p.age <= 30 ? 1.0 : (p.age <= 33 ? 0.6 : 0.25));
-      const affordable = club ? (p.wage * 12 <= (club.wageBudget || tierWageBudget(club.tier)) * 1.4) : true;
-      const renewChance = clamp(0.3 + (rep / 100) * 0.35, 0.15, 0.8) * ageFactor * (affordable ? 1 : 0.35);
-      if (Math.random() < renewChance) {
-        p.contractUntil = seasonY + randInt(1, 3);
-        // légère remise à niveau du salaire à la valeur actuelle du joueur (une prolongation, pas un simple statu quo)
-        if (club) p.wage = Math.max(p.wage, Math.round(computeWage(p.value, club.tier) / 500) * 500);
-      } else {
-        state.transferListed.push(p.id);
-      }
+    if (!p.contractUntil || p.contractUntil > endingNow) continue;
+    const club = state.clubs[p.club];
+    // le client de l'agent : pas de prolongation automatique, c'est à vous de la négocier avant l'échéance
+    if (p.agentId === 'player') { releaseToFreeAgency(state, p, news); continue; }
+    // un club prestigieux retient mieux ses joueurs ; un jeune a plus de chances d'être prolongé qu'un vétéran ;
+    // un club qui n'a plus les moyens de la masse salariale actuelle du joueur hésite à prolonger.
+    const rep = club ? (club.reputation || 50) : 50;
+    const ageFactor = p.age <= 24 ? 1.25 : (p.age <= 30 ? 1.0 : (p.age <= 33 ? 0.6 : 0.25));
+    const affordable = club ? (p.wage * 12 <= (club.wageBudget || tierWageBudget(club.tier)) * 1.4) : true;
+    const renewChance = clamp(0.3 + (rep / 100) * 0.35, 0.15, 0.8) * ageFactor * (affordable ? 1 : 0.35);
+    // plancher d'effectif : un club ne se vide pas de ses joueurs faute de prolongations
+    const mustKeep = club && club.squad.length <= MIN_SQUAD_AFTER_RELEASE;
+    if (mustKeep || Math.random() < renewChance) {
+      p.contractUntil = endingNow + randInt(1, 3);
+      // légère remise à niveau du salaire à la valeur actuelle du joueur (une prolongation, pas un simple statu quo)
+      if (club) p.wage = Math.max(p.wage, Math.round(computeWage(p.value, club.tier) / 500) * 500);
+    } else {
+      releaseToFreeAgency(state, p, news);
     }
+  }
+}
+const MIN_SQUAD_AFTER_RELEASE = 18;
+// Un joueur en fin de contrat quitte son club libre de tout engagement : il rejoint le vivier des joueurs libres
+// (signable sans indemnité par les clubs de l'IA), ou reste dans votre portefeuille s'il est votre client.
+function releaseToFreeAgency(state, p, news) {
+  const club = p.club ? state.clubs[p.club] : null;
+  if (club) club.squad = club.squad.filter(id => id !== p.id);
+  p.club = null; p.contractUntil = null; p.parentClub = null; p.loanUntil = null; p.loanStartMinutes = null;
+  p.releaseClause = null; p.rolePromise = null;
+  state.transferListed = (state.transferListed || []).filter(id => id !== p.id);
+  state.incomingOffers = (state.incomingOffers || []).filter(o => o.playerId !== p.id || !o.fee);
+  if (p.agentId !== 'player') {
+    state.freeAgents = state.freeAgents || [];
+    if (!state.freeAgents.includes(p.id)) state.freeAgents.push(p.id);
+  }
+  if (news && club && (p.agentId === 'player' || isNewsworthy(state, p))) {
+    news.push({ text: p.agentId === 'player'
+      ? `Fin de contrat : ${p.name} quitte ${club.name} libre. À vous de lui trouver un club (sans indemnité de transfert).`
+      : `Fin de contrat : ${p.name} quitte ${club.name} libre.`, tag: 'contrat', playerId: p.id });
   }
 }
 // Un club évalue chaque mois s'il doit vendre un joueur en surplus à son poste, ou renflouer sa trésorerie en
@@ -1645,7 +1879,8 @@ function runAIClubSquadManagement(state, news, isMercato) {
     }
     if (!candidate && c.budget < tierBudget(c.tier) * 0.15) {
       // détresse financière : on se sépare du salaire le plus lourd parmi les joueurs cédables
-      candidate = [...squad].sort((a, b) => b.wage - a.wage)[0];
+      const gkCount = squad.filter(p => p.posLine === 'GK').length;
+      candidate = [...squad].filter(p => p.posLine !== 'GK' || gkCount > 2).sort((a, b) => b.wage - a.wage)[0];
     }
     if (candidate && !state.transferListed.includes(candidate.id)) state.transferListed.push(candidate.id);
   }
@@ -1725,6 +1960,17 @@ function checkReleaseClauses(state, news) {
   }
 }
 function officeRent(state) { const lvl = OFFICE_LEVELS[state.agent.officeLevel - 1]; return lvl ? (lvl.rent || 0) : 0; }
+function clientFollowUpCost(state) {
+  return state.agent.portfolio.reduce((s, id) => { const p = state.players[id]; return s + (p ? 1000 + Math.round((p.wage || 0) * 0.04) : 0); }, 0);
+}
+// Impôt sur les bénéfices de l'agence (V8.3, audit P1-4) : prélevé en fin de saison sur les commissions de la
+// saison, avec un barème progressif — l'argent reste le moteur de la carrière sans s'accumuler sans limite.
+function seasonTaxOn(amount) {
+  const brackets = [[200000, 0], [2000000, 0.25], [10000000, 0.45], [Infinity, 0.60]];
+  let tax = 0, prev = 0;
+  for (const [cap, rate] of brackets) { if (amount > prev) tax += (Math.min(amount, cap) - prev) * rate; prev = cap; }
+  return Math.round(tax);
+}
 function monthlyAgencyIncomeExpense(state, news) {
   let sponsor = 0;
   if (state.agent.officeLevel >= 2 && Math.random() < 0.5) {
@@ -1733,11 +1979,19 @@ function monthlyAgencyIncomeExpense(state, news) {
   }
   const staffKeys = Object.keys(state.agent.staff).filter(k => state.agent.staff[k] > 0);
   const staffCount = staffKeys.reduce((a, k) => a + state.agent.staff[k], 0);
-  const staffCost = staffCount * 3500;
+  // frais de suivi des clients (V8.3, audit P1-4) : déplacements, juristes, image... proportionnels au train de
+  // vie de chaque client — un portefeuille de stars coûte réellement plus cher à entretenir qu'un vivier de jeunes.
+  const clientCost = clientFollowUpCost(state);
+  const staffCost = staffCount * 3500 + clientCost;
   const rent = officeRent(state);
   const invest = investmentsUpkeep(state);
   state.agent.cash -= staffCost + rent + invest;
   state.agent.monthLedger = { sponsor, staff: staffCost, rent, invest };
+  // dette durable (audit B-21) : au-delà de 100 k€ de découvert, la profession le sait — la réputation s'effrite
+  if (state.agent.cash < -100000) {
+    gainReputation(state, -0.4);
+    if (news && calMonth(state) % 3 === 0) news.push({ text: `Votre agence croule sous les dettes : le milieu commence à le savoir et votre réputation en pâtit.`, tag: 'finance' });
+  }
   if (hasInvestment(state, 'fondation')) gainReputation(state, 0.2);
   // garde-fou : dans le rouge au-delà de trois mois de charges, l'investissement le plus coûteux ferme en premier
   // (avant le déménagement ci-dessous) — une conséquence visible et réversible plutôt qu'une spirale
@@ -2094,7 +2348,8 @@ function generateIncomingOffers(state, news) {
     for (const pid of state.agent.portfolio) {
       const p = state.players[pid];
       if (!p || p.retired) continue;
-      if (Math.random() > (!p.club ? 0.22 : 0.12)) continue;
+      if (p.club && monthsUntilNextMercato(state) > 1) continue; // V8.3 : hors mercato, les clubs attendent la fenêtre
+      if (Math.random() > (!p.club ? 0.22 : 0.18)) continue;
       const maxOffers = p.ovr >= 75 ? 2 : 1; // les joueurs très courtisés peuvent recevoir plusieurs offres à la fois
       if (state.incomingOffers.filter(o => o.playerId === pid).length >= maxOffers) continue;
       const idealTier = idealTierForOvr(p.ovr); // un club ne s'intéresse à un joueur que si le niveau colle à peu près
@@ -2102,11 +2357,12 @@ function generateIncomingOffers(state, news) {
       const candidates = Object.values(state.clubs).filter(c => c.id !== p.club && Math.abs(c.tier - idealTier) <= 1 && !takenClubs.includes(c.id));
       if (!candidates.length) continue;
       const buyer = choice(candidates);
-      const fee = Math.max(p.club ? 50000 : 10000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000);
+      // joueur libre = aucune indemnité entre clubs (V8.3, audit P0-2) : il n'y a pas de club vendeur à dédommager
+      const fee = p.club ? Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000) : 0;
       if (fee > buyer.budget * 1.3) continue;
       const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
       state.incomingOffers.push({ id: nextId(state, 'off'), playerId: pid, clubId: buyer.id, fee, wage, expires: state.date.absMonth + 2 });
-      if (news) news.push({ text: `${buyer.name} formule une offre pour ${p.name} (${fmtMoneyShort(fee)}${p.club ? '' : ', premier contrat pro'}).`, tag: 'mercato', playerId: pid });
+      if (news) news.push({ text: `${buyer.name} formule une offre pour ${p.name} (${p.club ? fmtMoneyShort(fee) : 'joueur libre, sans indemnité'}).`, tag: 'mercato', playerId: pid });
     }
   }
   state.incomingOffers = state.incomingOffers.filter(o => o.expires >= state.date.absMonth);
@@ -2122,8 +2378,14 @@ function acceptIncomingOffer(state, offerId) {
   // un joueur qui vient d'accepter une autre offre ne peut pas aussi honorer celle-ci (V8.2, chasse aux
   // exploits) : sans ce garde-fou, deux offres reçues le même mois pour un même joueur (possible dès 75 OVR)
   // permettaient d'encaisser deux commissions coup sur coup pour un seul et même joueur.
+  const win = evaluateMercatoWindow(state, p);
+  if (!win.ok) return { ok: false, reason: win.reason }; // l'offre reste sur la table jusqu'à l'ouverture
   const cd = evaluateTransferCooldown(state, p);
   if (!cd.ok) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: cd.reason }; }
+  const consent = evaluateClientConsent(state, p, buyer);
+  if (!consent.ok) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: consent.reason }; }
+  // le budget a pu fondre depuis l'offre (audit B-17) : le club ne peut plus payer, l'offre tombe
+  if (offer.fee > buyer.budget * 1.3) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: `${buyer.name} n'a plus les moyens de payer cette indemnité : l'offre est retirée.` }; }
   if (offer.wage) p.wage = offer.wage;
   executeTransfer(state, p, buyer, offer.fee, news, { silent: false });
   state.incomingOffers.splice(idx, 1);
@@ -2187,7 +2449,7 @@ function computeInterestedClubs(state, player) {
 // proposition spontanée d'un client par l'agent, pour que les deux chemins produisent des offres identiques.
 function makeClubOfferFor(state, p, club) {
   if ((state.incomingOffers || []).some(o => o.playerId === p.id && o.clubId === club.id)) return { ok: false, dup: true, reason: `${club.name} a déjà une offre sur la table pour ${p.name}.` };
-  const fee = Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000);
+  const fee = p.club ? Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000) : 0;
   if (fee > club.budget * 1.3) return { ok: false, reason: `${club.name} botte en touche : le budget ne suit pas pour l'instant.` };
   const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
   state.incomingOffers = state.incomingOffers || [];
@@ -2202,6 +2464,7 @@ const PITCH_RETRY_MONTHS = 6;
 function pitchStatus(state, p, clubId) {
   const now = state.date.absMonth;
   if (p.lastPitchAt === now) return { ok: false, reason: `Vous avez déjà démarché un club pour ${p.name} ce mois-ci.` };
+  if (monthsUntilNextMercato(state) > 1) return { ok: false, reason: `Les clubs ne discutent pas transferts si loin du mercato : revenez le mois précédant son ouverture.` };
   const last = (p.pitchLog || {})[clubId];
   if (last !== undefined && now - last < PITCH_RETRY_MONTHS) return { ok: false, reason: `Ce club vous a répondu il y a peu : réessayez dans ${PITCH_RETRY_MONTHS - (now - last)} mois.` };
   return { ok: true };
@@ -2280,9 +2543,35 @@ function evaluateTransferCooldown(state, player) {
 }
 // Un transfert doit passer les deux garde-fous : le joueur n'est pas en plein "cooldown", ET le club acheteur
 // a les moyens/l'intérêt de le faire (V8.2, chasse aux exploits).
+// Mercato (V8.3, audit P1-1 / B-14) : les fenêtres de janvier et de juillet ne s'appliquaient qu'à l'IA — l'agent
+// pouvait transférer ou prêter n'importe quel mois. Un joueur libre peut toujours signer à tout moment, comme
+// en vrai ; un joueur sous contrat ne change de club que mercato ouvert.
+function isMercatoOpen(state) { const m = calMonth(state); return m === 1 || m === 7; }
+function evaluateMercatoWindow(state, player) {
+  if (!player.club || isMercatoOpen(state)) return { ok: true };
+  const inM = monthsUntilNextMercato(state);
+  return { ok: false, reason: `Le mercato est fermé : ${player.name} ne peut pas changer de club avant ${MONTH_NAMES[calMonth(state) >= 2 && calMonth(state) <= 6 ? 7 : 1].toLowerCase()} (dans ${inM} mois).` };
+}
+// Le client a son mot à dire (V8.3, suite de l'audit P1-4) : un joueur qui vient de poser ses valises ne veut
+// pas repartir dans l'année, sauf pour un vrai pas en avant (club d'un standing supérieur). Sans ça, accepter
+// chaque offre à chaque mercato restait la stratégie dominante — et le moteur de la richesse sans limite.
+const SETTLE_MONTHS = 12;
+function evaluateClientConsent(state, player, targetClub) {
+  if (player.agentId !== 'player' || !player.club || player.lastTransferMonth == null || !targetClub) return { ok: true };
+  const since = state.date.absMonth - player.lastTransferMonth;
+  const cur = state.clubs[player.club];
+  if (since < SETTLE_MONTHS && !(cur && targetClub.tier > cur.tier)) {
+    return { ok: false, reason: `${player.name} vient d'arriver à ${cur ? cur.name : 'son club'} et veut s'y installer : il ne partira pas avant ${SETTLE_MONTHS - since} mois, sauf pour un club plus huppé.` };
+  }
+  return { ok: true };
+}
 function evaluateTransferGate(state, targetClub, player, offer) {
+  const win = evaluateMercatoWindow(state, player);
+  if (!win.ok) return win;
   const cd = evaluateTransferCooldown(state, player);
   if (!cd.ok) return cd;
+  const consent = evaluateClientConsent(state, player, targetClub);
+  if (!consent.ok) return consent;
   return evaluateClubTransferAcceptance(state, targetClub, player, offer);
 }
 // Un club ne signe pas n'importe quel contrat (V9.3, chasse aux exploits) : jusqu'ici, une PROLONGATION n'était
@@ -2331,6 +2620,10 @@ function evaluateClubContractAcceptance(state, club, player, offer) {
 function evaluateNegotiationGate(state, player, offer) {
   const isTransfer = !!offer.targetClubId && offer.targetClubId !== player.club;
   const targetClub = offer.targetClubId ? state.clubs[offer.targetClubId] : null;
+  // sans club, il n'y a aucun contrat à prolonger ni aucun payeur (V8.3, audit P0-1) : sans ce garde-fou, la
+  // « renégociation » d'un client libre relevait son salaire de x2,5 tous les six mois sans plafond et versait
+  // une commission à chaque fois — de l'argent créé à partir de rien, démontré en test (3 M€/mois en 30 mois).
+  if (!isTransfer && !player.club) return { ok: false, reason: `${player.name} n'a pas de club : il n'y a aucun contrat à renégocier. Trouvez-lui d'abord un club.` };
   const gate = isTransfer ? evaluateTransferGate(state, targetClub, player, offer) : evaluateRenewalCooldown(state, player);
   if (!gate.ok) return gate;
   if (!isTransfer && player.club) {
@@ -2410,9 +2703,18 @@ function evaluateOffer(state, player, offer) {
   score += (state.agent.staff.negociateurs || 0) * 3 + (state.agent.staff.avocats || 0) * 1.5;
   if (state.agent.specialty === 'negociateur') score += 4;
   score = clamp(Math.round(score), 0, 100);
-  return { score, reactions, accept: score >= 55 };
+  // V8.3 (audit P1-2) : l'accord était certain dès 55 et impossible à 54 — le « pourcentage » affiché n'était
+  // qu'un seuil à atteindre. Désormais une vraie probabilité (50 % à 55, ~88 % à 63, ~12 % à 47), tirée de façon
+  // stable pour un même joueur, un même club et un même mois : resoumettre la même offre ne change rien, seule
+  // une meilleure offre améliore les chances.
+  const chance = acceptanceChance(score);
+  const roll = stableRand(`neg:${player.id}:${offer.targetClubId || player.club || '-'}:${state.date.absMonth}`);
+  return { score, chance, reactions, accept: roll < chance };
 }
+function acceptanceChance(score) { return clamp(1 / (1 + Math.exp(-(score - 55) / 4)), 0, 1); }
 function applyAcceptedOffer(state, player, offer, news) {
+  // double garde-fou (V8.3, audit P0-1) : aucun contrat ne se signe sans club, quel que soit le chemin d'appel
+  if (!(offer.targetClubId || player.club)) return false;
   player.wage = offer.salary;
   player.contractUntil = seasonStartYear(state) + offer.years;
   player.morale = clamp(player.morale + 10, 0, 100);
@@ -2468,14 +2770,15 @@ function generateCounterOffer(state, player, offer) {
   tries.sort((a, b) => a.cost - b.cost);
   for (const t of tries) {
     const ev = evaluateOffer(state, player, t.candidate);
-    if (ev.score >= 58 && evaluateNegotiationGate(state, player, t.candidate).ok) return { offer: t.candidate, ev };
+    if (ev.score >= 62 && evaluateNegotiationGate(state, player, t.candidate).ok) return { offer: t.candidate, ev };
   }
   return null;
 }
 // l'indemnité de transfert se règle entre les deux clubs, l'agent n'a pas la main dessus (il gère le contrat du joueur)
-function estimateTransferFee(player, buyerClub) {
+function estimateTransferFee(player, buyerClub, state) {
   if (!player || !player.club || !buyerClub) return 0; // joueur libre = aucune indemnité entre clubs
-  return Math.max(30000, Math.round(player.value * (0.95 + rand(0, 0.25)) / 5000) * 5000);
+  const r = state ? stableRand(`est:${player.id}:${buyerClub.id}:${state.date.absMonth}`) : Math.random();
+  return Math.max(30000, Math.round(player.value * (0.95 + r * 0.25) / 5000) * 5000);
 }
 // ---------- Recherche de clubs intéressés (selon le pays rêvé par le joueur) ----------
 // Score d'attractivité d'un club pour un joueur donné : combine niveau (proximité de tier), réputation,
@@ -2492,7 +2795,7 @@ function scoreClubForPlayer(state, p, c, idealTier, opts) {
     + (affinity / 100) * 3.5
     + ((c.reputation || 50) / 40) * ambitionWeight
     + outlook * (opts.outlookWeight === undefined ? 2 : opts.outlookWeight)
-    + rand(0, 2.5);
+    + stableRand(`club:${p.id}:${c.id}:${state.date.absMonth}`) * 2.5; // stable dans le mois (audit B-15)
 }
 function pickInterestedClubs(state, p, idealTier, n, opts) {
   const eligible = Object.values(state.clubs).filter(c => c.id !== p.club && Math.abs(c.tier - idealTier) <= 1);
@@ -2510,7 +2813,7 @@ function findInterestedClubs(state, playerId) {
   const repBonus = 1 + state.agent.reputation / 500;
   const offers = [];
   for (const c of clubs) {
-    const fee = Math.max(p.club ? 30000 : 10000, Math.round(p.value * (0.75 + Math.random() * 0.6) * repBonus / 5000) * 5000);
+    const fee = p.club ? Math.max(30000, Math.round(p.value * (0.75 + stableRand(`fee:${p.id}:${c.id}:${state.date.absMonth}`) * 0.6) * repBonus / 5000) * 5000) : 0;
     if (fee > c.budget * 1.5) continue;
     const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
     offers.push({ clubId: c.id, fee, wage });
@@ -2533,6 +2836,8 @@ function executeLoan(state, playerId, clubId, durationMonths, news) {
   if (!p || !dest) return { ok: false };
   if (!p.club) return { ok: false, reason: 'Ce joueur est libre : passez par un transfert classique.' };
   if (p.parentClub) return { ok: false, reason: 'Ce joueur est déjà en prêt.' };
+  const win = evaluateMercatoWindow(state, p);
+  if (!win.ok) return { ok: false, reason: win.reason };
   // même garde-fou anti-spam que pour les transferts (V8.2, chasse aux exploits) : sans ça, un joueur tout
   // juste transféré pouvait être immédiatement reprêté ailleurs pour encaisser une deuxième commission.
   const cd = evaluateTransferCooldown(state, p);
@@ -2903,7 +3208,7 @@ const ACHIEVEMENTS = [
   { id: 'reputation_50', label: 'Nom qui compte', desc: 'Atteignez 50 de réputation.', cash: 10000, rep: 0, check: s => s.agent.reputation >= 50 },
   { id: 'reputation_90', label: 'Légende du métier', desc: 'Atteignez 90 de réputation.', cash: 50000, rep: 0, check: s => s.agent.reputation >= 90 },
   { id: 'une_legende', label: 'Une carrière écrite', desc: 'Un joueur que vous avez représenté entre dans les légendes du jeu.', cash: 15000, rep: 4, check: s => (s.legends || []).some(l => l.wasMine) },
-  { id: 'record_du_monde', label: "Dans les livres d'histoire", desc: 'Un de vos joueurs détient un record éternel.', cash: 30000, rep: 6, check: s => Object.values(s.records || {}).some(r => r.agentWasMine) },
+  { id: 'record_du_monde', label: "Dans les livres d'histoire", desc: 'Un de vos joueurs détient un record éternel.', cash: 30000, rep: 6, check: s => (s.meta.totalSeasonsPlayed || 0) >= 3 && Object.values(s.records || {}).some(r => r.agentWasMine) },
   { id: 'dix_saisons', label: 'Vétéran', desc: 'Jouez 10 saisons.', cash: 5000, rep: 0, check: s => (s.meta.totalSeasonsPlayed || 0) >= 10 },
   { id: 'cinquante_saisons', label: 'Une vie de carrière', desc: 'Jouez 50 saisons.', cash: 20000, rep: 0, check: s => (s.meta.totalSeasonsPlayed || 0) >= 50 },
   { id: 'cent_saisons', label: 'Dynastie', desc: 'Jouez 100 saisons.', cash: 60000, rep: 0, check: s => (s.meta.totalSeasonsPlayed || 0) >= 100 },
@@ -3206,6 +3511,11 @@ function processEndOfSeason(state, news) {
   const seasonStart = state.agent.seasonStartStats || { commissions: 0, transfersDone: 0 };
   summary.seasonCommissions = (state.agent.careerStats.totalCommissions || 0) - seasonStart.commissions;
   summary.seasonTransfers = (state.agent.careerStats.transfersDone || 0) - seasonStart.transfersDone;
+  summary.seasonTax = seasonTaxOn(Math.max(0, summary.seasonCommissions));
+  if (summary.seasonTax > 0) {
+    state.agent.cash -= summary.seasonTax;
+    news.push({ text: `Impôt sur les bénéfices de la saison : ${fmtMoneyShort(summary.seasonTax)} prélevés sur ${fmtMoneyShort(summary.seasonCommissions)} de commissions.`, tag: 'finance' });
+  }
   for (const lg of Object.values(state.leagues)) {
     const ranked = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const championId = ranked[0];
@@ -3214,7 +3524,10 @@ function processEndOfSeason(state, news) {
       champ.titlesWon = (champ.titlesWon || 0) + 1;
       summary.champions[lg.id] = { clubId: championId, clubName: champ.name };
       news.push({ text: `${champ.name} sacré champion de ${lg.name} !`, tag: 'trophee', clubId: champ.id });
-      for (const pid of champ.squad) {
+      // l'effectif titré est celui de la fin des matchs (mai), pas celui d'après le mercato d'été (audit B-18)
+      const frozen = state.titleSquads && state.titleSquads[lg.id];
+      const titleSquad = frozen && frozen.clubId === championId ? frozen.squad : champ.squad;
+      for (const pid of titleSquad) {
         const p = state.players[pid]; if (!p) continue;
         p.trophies.push({ season: seasonLabel(state), title: `Champion ${lg.name}` });
         p.collectiveTitles = (p.collectiveTitles || 0) + 1;
@@ -3258,7 +3571,16 @@ function processEndOfSeason(state, news) {
   let toGenerate = clamp(targetPop - clubPop, 0, 400);
   for (let i = 0; i < toGenerate; i++) {
     const club = pickClubNeedingYouth(state);
-    const p = generatePlayer(state, { club, isYouth: true, forcedPos: choice(POSITIONS).code });
+    // un tiers des arrivants sont des joueurs formés (21-27 ans) venus de championnats non simulés (V8.3, audit P2-3) :
+    // n'intégrer que des 15-19 ans déformait la pyramide des âges (34 % de moins de 21 ans après 20 saisons, contre
+    // 19 % au départ) et faisait baisser le niveau médian du monde saison après saison.
+    const experienced = Math.random() < 0.35;
+    const p = generatePlayer(state, experienced
+      ? { club, ageMin: 21, ageMax: 27, forcedPos: neededPositionForClub(state, club) }
+      : { club, isYouth: true, forcedPos: neededPositionForClub(state, club) });
+    // la date n'a pas encore basculé sur la nouvelle saison : sans ce décalage, certains jeunes arrivaient avec un
+    // contrat déjà échu (V8.3)
+    p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 3);
     state.players[p.id] = p;
     club.squad.push(p.id);
     summary.newYouth++;
@@ -3271,7 +3593,8 @@ function processEndOfSeason(state, news) {
   if (state.freeAgents.length > FREE_AGENT_CAP) {
     const sorted = state.freeAgents.map(id => state.players[id]).filter(Boolean).sort((a, b) => b.pot - a.pot);
     const keepIds = new Set(sorted.slice(0, FREE_AGENT_CAP).map(p => p.id));
-    for (const id of state.freeAgents) if (!keepIds.has(id)) delete state.players[id];
+    // V8.3 : un libre qui ne trouve plus preneur raccroche proprement (portefeuilles des rivaux, légendes...)
+    for (const id of state.freeAgents) if (!keepIds.has(id) && state.players[id]) retirePlayer(state, state.players[id]);
     state.freeAgents = state.freeAgents.filter(id => keepIds.has(id));
   }
   evaluateAgentLegendScores(state);
@@ -3378,7 +3701,7 @@ const EVENTS = [
       { label: 'Faire monter les enchères publiquement', effect: (state, p, news) => {
         const bigClubs = Object.values(state.clubs).filter(c => c.tier >= 4 && c.id !== p.club);
         const buyer = bigClubs.length ? choice(bigClubs) : choice(Object.values(state.clubs).filter(c => c.id !== p.club));
-        const fee = Math.max(500000, Math.round(p.value * 1.25 / 5000) * 5000);
+        const fee = p.club ? Math.max(500000, Math.round(p.value * 1.25 / 5000) * 5000) : 0;
         if (buyer && fee <= buyer.budget * 1.5) {
           state.incomingOffers = state.incomingOffers || [];
           state.incomingOffers.push({ id: nextId(state, 'off'), playerId: p.id, clubId: buyer.id, fee, wage: Math.round(p.wage * 1.3 / 500) * 500, expires: state.date.absMonth + 2 });
@@ -3397,7 +3720,7 @@ const EVENTS = [
         else { p.morale = clamp(p.morale + 4, 0, 100); news.push({ text: `Budget insuffisant pour convaincre ${p.name} en grand.`, tag: 'agence', playerId: p.id }); }
       } },
       { label: 'Laisser faire', effect: (state, p, news) => {
-        if (Math.random() < 0.45) { p.agentId = null; state.agent.portfolio = state.agent.portfolio.filter(id => id !== p.id); news.push({ text: `${p.name} quitte votre agence pour un concurrent.`, tag: 'agence', playerId: p.id }); }
+        if (Math.random() < 0.45) poachClient(state, p, pickPoachingRival(state, p), news); // audit B-19 : il rejoint vraiment un rival
         else news.push({ text: `${p.name} résiste finalement aux sirènes de la concurrence.`, tag: 'agence', playerId: p.id });
       } },
     ] },
@@ -3464,13 +3787,18 @@ const EVENTS = [
       { label: 'Laisser la concurrence s\u2019en charger', effect: () => {} },
     ] },
   { id: 'clause_declenchee', weight: 1, scope: 'represented', cond: state => state.agent.portfolio.some(id => { const pl = state.players[id]; return pl && pl.club && !pl.retired && pl.ovr >= 65; }),
-    text: (p, state) => `Un grand club active sans prévenir une clause libératoire dans le contrat de ${p.name} !`,
+    text: (p, state) => `Un grand club veut activer une clause libératoire dans le contrat de ${p.name} !`,
     choices: [
       { label: 'Laisser le transfert se faire (rapide, mais à prix fixe)', effect: (state, p, news) => {
         const bigClubs = Object.values(state.clubs).filter(c => c.tier >= 4 && c.id !== p.club);
         const buyer = bigClubs.length ? choice(bigClubs) : choice(Object.values(state.clubs).filter(c => c.id !== p.club));
         const fee = Math.round(p.value * 0.85 / 5000) * 5000;
-        if (buyer) { executeTransfer(state, p, buyer, fee, news, { silent: false }); gainReputation(state, 1); }
+        if (!buyer) return;
+        const gate = evaluateTransferGate(state, buyer, p, { fee });
+        if (!gate.ok || !p.club) { news.push({ text: `L'opération autour de ${p.name} capote : ${gate.reason || 'le joueur est libre'}`, tag: 'mercato', playerId: p.id }); return; }
+        executeTransfer(state, p, buyer, fee, news, { silent: false });
+        p.releaseClause = null; p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+        gainReputation(state, 1);
       } },
       { label: 'Négocier en coulisses pour faire capoter l\u2019opération', effect: (state, p, news) => {
         if (Math.random() < 0.5) { nudgeClubRelation(state, p.club, 6, `Activation de clause contrée pour ${p.name}`); news.push({ text: `Vous faites échouer l'activation de la clause de ${p.name}.`, tag: 'agence', playerId: p.id }); }
@@ -3913,15 +4241,25 @@ function advanceMonth(state) {
       }
     }
     pushMatchdayNews(state, news);
+    // dernier mois de matchs : on fige l'effectif des futurs champions avant tout transfert estival (audit B-18)
+    if (month === MATCH_MONTHS[MATCH_MONTHS.length - 1]) {
+      state.titleSquads = {};
+      for (const lg of Object.values(state.leagues)) {
+        const top = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table))[0];
+        if (top) state.titleSquads[lg.id] = { clubId: top, squad: [...state.clubs[top].squad] };
+      }
+    }
   }
   advanceEuropeMonth(state, news, month);
   const injuryReactionCandidates = []; // V9.3 : « réactions après blessure », même principe que matchReactionCandidates
   state.pendingRecoveryQueue = state.pendingRecoveryQueue || []; // V9.3 : réponse différée — persiste tant qu'elle n'a pas été consommée (voir maybeTriggerRecoveryReaction), contrairement aux candidats de match/blessure qui sont des réactions instantanées, pas des suites promises
+  // bornée (V8.3) : un seul retour par joueur, et au plus 10 en attente — la file grossissait sans fin dans la sauvegarde
+  state.pendingRecoveryQueue = state.pendingRecoveryQueue.filter((c, i, arr) => state.players[c.playerId] && arr.findIndex(x => x.playerId === c.playerId) === i).slice(-10);
   const recoveryReactionCandidates = state.pendingRecoveryQueue;
   updateFormMoraleInjuries(state, news, injuryReactionCandidates, recoveryReactionCandidates);
   state.pendingGoalQueue = state.pendingGoalQueue || []; // V9.3 : un objectif atteint est un jalon unique, pas une chance mensuelle — la file persiste comme pour les retours de blessure
   checkPersonalGoals(state, state.pendingGoalQueue);
-  updateContractsAndListings(state);
+  updateContractsAndListings(state, news);
   checkRolePromises(state, news);
   const isMercato = (month === 1 || month === 7);
   runAIClubSquadManagement(state, news, isMercato);
@@ -3948,7 +4286,7 @@ function advanceMonth(state) {
   const wasLastMonthOfSeason = (month === 7);
   let seasonSummary = null;
   // traité AVANT l'avancée de la date : les trophées/records/actus de fin de saison portent ainsi le bon millésime
-  if (wasLastMonthOfSeason) seasonSummary = processEndOfSeason(state, news);
+  if (wasLastMonthOfSeason) { seasonSummary = processEndOfSeason(state, news); state.titleSquads = null; }
   advanceDate(state);
   // déclenché après une éventuelle transition de saison : la cible existe forcément encore à ce stade
   // priorité : blessure (rare, mérite le plus d'attention) > retour de blessure (réponse différée) > objectif atteint (jalon unique) > changement de statut > réaction post-match > tirage mensuel générique
@@ -4005,7 +4343,6 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
   };
   initWorld(state);
   for (const lg of Object.values(state.leagues)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
-  generateSeasonGoals(state);
   // Premiers pas (addictivité, retour de terrain) : plutôt que de lâcher le joueur dans un monde de 5000 profils
   // sans direction, un contact lui recommande un premier talent prometteur, déjà sous contrat avec son agence —
   // la toute première décision consiste à lui trouver un club, pas à se demander par où commencer.
@@ -4019,6 +4356,7 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
   state.agent.portfolio.push(starter.id);
   assignPersonalGoal(state, starter);
   state.agent.careerStats.playersSignedEver = 1;
+  generateSeasonGoals(state); // après le joueur offert (audit B-06 : sinon « signez un joueur » était validé d'office)
   state.onboarding = { active: true, starterPlayerId: starter.id };
   return state;
 }
@@ -4046,6 +4384,10 @@ const PLAYER_SAVE_FIELDS = [
   'careerMinutes', 'fatigue', 'peakValue', 'injuryType', 'recentInjuryType', 'suspendedMatches', 'parentClub',
   'loanUntil', 'releaseClause', 'homegrownClub', 'rolePromise', 'monthsSinceLastMatch', 'courtship', 'lastRenewalMonth', 'lastStatus', 'loanStartMinutes',
   'lastTransferMonth', 'agentTrust', 'referralUntil', 'referredByName', 'lastReferralMonth',
+  // V8.3 (audit P0-3) : champs posés en cours de partie mais jusqu'ici absents de la liste, donc perdus à chaque
+  // rechargement (objectif personnel, délai anti-spam du démarchage, séries banc/titulaire). Toujours AJOUTER en fin
+  // de liste : la liste est enregistrée avec les données, les anciennes sauvegardes restent donc lisibles.
+  'benchStreak', 'startStreak', 'justBrokeIn', 'lastPitchAt', 'pitchLog', 'personalGoal', 'lastStatusMsgAt',
 ];
 // Compaction de la sauvegarde : au-delà de l'aplatissement du joueur en tableau positionnel (PLAYER_SAVE_FIELDS),
 // les tableaux 'career' et 'trophies' sont eux aussi des tableaux d'objets répétés ~5000 fois (un par joueur actif) :
@@ -4108,14 +4450,71 @@ function deserializeState(json) {
   }
   return raw;
 }
-const SAVE_KEY = 'football_agent_save_v2';
-function saveToLocalStorage(state) {
-  try { localStorage.setItem(SAVE_KEY, serializeState(state)); return true; } catch (e) { return false; }
+// Sauvegarde compressée (V8.3, audit P0-3) : le JSON brut pesait 2,1 M caractères dès la création et dépassait le
+// quota du navigateur (~5,2 M) vers la 18e saison — l'écriture échouait alors en silence et un rechargement faisait
+// perdre des saisons entières. Compressé en gzip (natif du navigateur), il pèse ~5 fois moins. L'ancien format
+// (JSON brut) reste lu, et reste le repli si le navigateur ne sait pas compresser.
+const SAVE_KEY = 'football_agent_save_v2';     // JSON brut (ancien format, et repli)
+const SAVE_KEY_GZ = 'football_agent_save_v3';  // JSON compressé gzip, encodé en base64
+function canCompressSave() { return typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined'; }
+async function gzipToBase64(str) {
+  const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
-function loadFromLocalStorage() {
-  try { const raw = localStorage.getItem(SAVE_KEY); return raw ? deserializeState(raw) : null; } catch (e) { return null; }
+async function base64ToGunzip(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return await new Response(stream).text();
 }
-function deleteLocalStorageSave() { try { localStorage.removeItem(SAVE_KEY); return true; } catch (e) { return false; } }
+// La compression est asynchrone : un compteur garantit qu'une écriture lente ne remplace jamais une plus récente,
+// et le dernier état reste disponible pour une écriture de secours si la page se ferme pendant la compression.
+let saveSeq = 0, pendingSaveJSON = null;
+async function saveToLocalStorage(state) {
+  state.meta = state.meta || {};
+  state.meta.saveCounter = (state.meta.saveCounter || 0) + 1;
+  const json = serializeState(state); // instantané pris tout de suite, avant toute attente
+  const seq = ++saveSeq;
+  try {
+    if (!canCompressSave()) { localStorage.setItem(SAVE_KEY, json); return true; }
+    pendingSaveJSON = json;
+    const packed = await gzipToBase64(json);
+    if (seq !== saveSeq) return true; // une sauvegarde plus récente est en cours : elle écrira à notre place
+    pendingSaveJSON = null;
+    localStorage.setItem(SAVE_KEY_GZ, packed);
+    localStorage.removeItem(SAVE_KEY); // libère l'ancien format (et un éventuel secours de fermeture)
+    return true;
+  } catch (e) {
+    if (seq === saveSeq) pendingSaveJSON = null;
+    return false;
+  }
+}
+function flushPendingSaveOnUnload() {
+  if (!pendingSaveJSON) return;
+  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); } catch (e) { /* trop gros pour le format brut : tant pis */ }
+}
+async function loadFromLocalStorage() {
+  // les deux formats peuvent coexister (secours écrit à la fermeture) : on garde le plus récent
+  const found = [];
+  try {
+    const gz = localStorage.getItem(SAVE_KEY_GZ);
+    if (gz && canCompressSave()) found.push(deserializeState(await base64ToGunzip(gz)));
+  } catch (e) { /* sauvegarde compressée illisible : on tente l'autre format */ }
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) found.push(deserializeState(raw));
+  } catch (e) { /* idem */ }
+  if (!found.length) return null;
+  return found.sort((a, b) => ((b.meta && b.meta.saveCounter) || 0) - ((a.meta && a.meta.saveCounter) || 0))[0];
+}
+function deleteLocalStorageSave() {
+  saveSeq++; pendingSaveJSON = null; // annule une écriture en cours
+  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_GZ); return true; } catch (e) { return false; }
+}
 
 if (typeof module !== 'undefined') {
   module.exports = {
@@ -4140,8 +4539,12 @@ if (typeof module !== 'undefined') {
     computeAgentInterest, specialtyFitsPlayer, evaluateClubTransferAcceptance, evaluateRenewalCooldown,
     evaluateTransferCooldown, evaluateTransferGate,
     computeCareerStatus, checkCareerStatusChanges, CAREER_STATUS_ORDER, resolveDropClient,
-    isNewsworthy, maybeGenerateRumor, RUMOR_TEMPLATES, runAIClubTransfers, newsItemHTML,
-    maybeGenerateReferral, computeAgentInterest, applyAcceptedOffer, checkRolePromises,
+    isNewsworthy, maybeGenerateRumor, RUMOR_TEMPLATES, runAIClubTransfers,
+    maybeGenerateReferral,
+    // V8.3 : exports ajoutés pour les tests (tests/engine.test.js) ; newsItemHTML (fonction d'affichage) retiré :
+    // il rendait le moteur impossible à charger seul dans Node (ReferenceError).
+    evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
+    neededPositionForClub, releaseToFreeAgency, updateContractsAndListings, stableRand, SQUAD_PLAN, PLAYER_SAVE_FIELDS,
   };
 }
 /* ============================================================
@@ -4344,14 +4747,25 @@ function toast(msg) {
   setTimeout(() => { if (root) root.innerHTML = ''; }, 2600);
 }
 function saveGame() {
-  if (!G) return;
-  const ok = saveToLocalStorage(G);
-  if (!ok) toast('⚠️ Sauvegarde impossible (espace insuffisant) — pensez à exporter votre partie depuis Sauvegarde.');
+  if (!G) return Promise.resolve(true);
+  return saveToLocalStorage(G).then(ok => { setSaveWarning(!ok); return ok; });
+}
+// Échec d'écriture (V8.3, audit P0-3) : un toast de 2,6 s ne suffisait pas — la progression cessait d'être
+// enregistrée sans que le joueur le sache. Le bandeau reste affiché tant que les sauvegardes échouent.
+function setSaveWarning(on) {
+  const el = document.getElementById('saveWarning');
+  if (!on) { if (el) el.remove(); return; }
+  if (el) return;
+  const div = document.createElement('div');
+  div.id = 'saveWarning'; div.className = 'save-warning';
+  div.innerHTML = `⚠️ La sauvegarde automatique a échoué (espace du navigateur insuffisant) : votre progression n'est plus enregistrée. <button class="btn btn-sm" onclick="handleExport()">Exporter la partie</button>`;
+  document.body.appendChild(div);
 }
 
 /* ---------- Amorçage ---------- */
-function boot() {
-  const loaded = loadFromLocalStorage();
+async function boot() {
+  window.addEventListener('pagehide', flushPendingSaveOnUnload);
+  const loaded = await loadFromLocalStorage();
   if (loaded && loaded.clubs && loaded.players && loaded.agent) {
     migrateOldSave(loaded);
     G = loaded; renderApp();
@@ -4363,6 +4777,8 @@ function boot() {
 // joué, pour que la fiche club affiche tout de suite des valeurs correctes.
 function migrateOldSave(state) {
   let needsLeagueRecalc = false;
+  // V8.3 : un joueur sans club n'a pas de contrat (reliquat de l'ancienne renégociation sans club, audit P0-1)
+  for (const p of Object.values(state.players || {})) if (!p.club && p.contractUntil) p.contractUntil = null;
   for (const c of Object.values(state.clubs)) {
     if (c.reputation === undefined) { initClubEconomy(c); needsLeagueRecalc = true; }
   }
@@ -4416,6 +4832,8 @@ const BOTTOM_TABS = [
 ];
 const MORE_ITEMS = [
   { id: 'scouting', label: 'Scouting', ico: 'search' },
+  { id: 'clubs', label: 'Clubs', ico: 'shield' },
+  { id: 'phone', label: 'Téléphone', ico: 'chat' },
   { id: 'negotiations', label: 'Négociations', ico: 'chat' },
   { id: 'news', label: 'Actualités', ico: 'news' },
   { id: 'finances', label: 'Finances', ico: 'coin' },
@@ -4424,7 +4842,7 @@ const MORE_ITEMS = [
 function renderApp() {
   document.getElementById('app').innerHTML = `
     <nav class="sidenav" id="sidenav">
-      <div class="sidenav-brand"><b>${esc(G.agent.agency)}</b><span>${esc(G.agent.name)} · ${flagFor(G.agent.nationality)}</span></div>
+      <div class="sidenav-brand"><div class="crest">${esc(playerInitials(G.agent.agency))}</div><div style="min-width:0"><b>${esc(G.agent.agency)}</b><span>${esc(G.agent.name)} · ${flagFor(G.agent.nationality)}</span></div></div>
       ${NAV_ITEMS.map(n => `<div class="nav-item" data-nav="${n.id}" onclick="navigate('${n.id}')"><span class="ico">${icon(n.ico)}</span>${n.label}</div>`).join('')}
       <div class="sep"></div>
       <div class="nav-item" onclick="openSettingsModal()"><span class="ico">${icon('gear')}</span>Sauvegarde</div>
@@ -4435,7 +4853,7 @@ function renderApp() {
       <div class="topbar-stats" id="topbarStats"></div>
     </header>
     <main class="content" id="content"></main>
-    <button class="fab-advance" id="fabAdvance" onclick="doAdvanceMonth()">Passer au mois suivant →</button>
+    <button class="fab-advance" id="fabAdvance" onclick="doAdvanceMonth()">Mois suivant →</button>
     <nav class="bottombar">
       ${BOTTOM_TABS.map(t => `<button class="tab-item" data-tab="${t.id}" onclick="navigate('${t.id}')"><span class="ico">${icon(t.ico)}</span><span class="lbl">${t.label}</span></button>`).join('')}
       <button class="tab-item" data-tab="more" onclick="openMoreSheet()"><span class="ico">${icon('menu')}</span><span class="lbl">Plus</span></button>
@@ -4468,7 +4886,8 @@ function renderPage() {
   renderTopbar();
 }
 function renderTopbar() {
-  document.getElementById('topbarDate').innerHTML = `${MONTH_NAMES[calMonth(G)]} <span class="num">${calYear(G)}</span><span class="season">Saison ${seasonLabel(G)}</span>`;
+  const mercatoTag = isMercatoOpen(G) ? ` · <b style="color:var(--accent)">Mercato ouvert</b>` : ` · Mercato dans ${monthsUntilNextMercato(G)} mois`;
+  document.getElementById('topbarDate').innerHTML = `${MONTH_NAMES[calMonth(G)]} <span class="num">${calYear(G)}</span><span class="season">Saison ${seasonLabel(G)}${mercatoTag}</span>`;
   const cashCls = G.agent.cash < 0 ? 'chip cash neg' : 'chip cash';
   document.getElementById('topbarStats').innerHTML = `
     <div class="${cashCls}"><span class="ico">${icon('coin',14)}</span><span class="num">${fmtMoneyShort(G.agent.cash)}</span></div>
@@ -4479,7 +4898,7 @@ function renderTopbar() {
   document.querySelectorAll('.tab-item[data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === ui.page || (isMore && el.dataset.tab === 'more')));
   const fab = document.getElementById('fabAdvance');
   fab.disabled = !!G.pendingEvent;
-  fab.textContent = G.pendingEvent ? 'Répondez à la décision en cours' : 'Passer au mois suivant →';
+  fab.innerHTML = G.pendingEvent ? `${icon('chat',18)} Répondez à la décision en cours` : `${icon('calendar',19)} Passer au mois suivant <span style="opacity:.6">→</span>`;
 }
 
 /* ---------- Modales génériques ---------- */
@@ -4537,9 +4956,11 @@ function handleResolveEventModal(i) {
   const p = ev.playerId ? G.players[ev.playerId] : null;
   const ra = ev.rivalId ? (G.rivalAgents || []).find(r => r.id === ev.rivalId) : null;
   const who = p || ra;
-  resolveEvent(G, i);
+  // seule la conséquence de CE choix est affichée (audit B-12 : on affichait G.news[0], parfois une vieille
+  // actualité sans rapport quand le choix n'avait produit aucune nouvelle)
+  const outcome = resolveEvent(G, i);
   saveGame();
-  const latest = (G.news || [])[0];
+  const latest = { text: (outcome || []).map(n => n.text).join(' ') || 'Rien de particulier n\u2019en ressort.' };
   document.getElementById('modalRoot').innerHTML = `<div class="modal-overlay event-overlay"><div class="modal event-modal chat-modal">
     <div class="chat-header">
       <div class="chat-avatar">${who ? esc(playerInitials(who.name)) : '⚽'}</div>
@@ -4601,12 +5022,16 @@ function computeAgentActions(state) {
     const p = state.players[o.playerId], c = state.clubs[o.clubId];
     if (!p || !c) continue;
     actions.push({ urgency: 95 - Math.max(0, o.expires - curAbs) * 15, icon: 'mail', tone: 'blue', offerId: o.id,
-      title: `Offre pour ${p.name}`, text: `${c.name} propose ${fmtMoneyShort(o.fee)} · ${fmtMoneyShort(o.wage)}/mois`,
+      title: `Offre pour ${p.name}`, text: `${c.name} propose ${o.fee ? fmtMoneyShort(o.fee) : 'un contrat (joueur libre)'} · ${fmtMoneyShort(o.wage)}/mois`,
       cta: `openPlayerDetail('${p.id}','dashboard')` });
   }
   for (const pid of (state.agent.portfolio || [])) {
     const p = state.players[pid];
     if (!p || p.retired) continue;
+    // (le joueur offert au départ a déjà sa carte « Premiers pas » tant qu'il n'a jamais eu de club)
+    if (!p.club && !(computeOnboardingStep(state) === 'find_club' && state.onboarding.starterPlayerId === pid)) actions.push({ urgency: 70, icon: 'search', tone: 'gold',
+      title: `${p.name} est sans club`, text: `Trouvez-lui un club : pas d'indemnité de transfert, mais des frais d'agent versés par le club qui le recrute.`,
+      cta: `openTransferSearch('${pid}')` });
     if ((p.morale ?? 50) < 35) actions.push({ urgency: 75 - (p.morale ?? 50), icon: 'chat', tone: 'red',
       title: `${p.name} est mécontent`, text: `Moral au plus bas (${Math.round(p.morale)}/100) : un geste ou une explication s'impose.`,
       cta: `openPlayerDetail('${pid}','dashboard')` });
@@ -4622,7 +5047,7 @@ function computeAgentActions(state) {
       title: 'Piste exclusive à explorer', text: n.text,
       cta: n.playerId ? `openPlayerDetail('${n.playerId}','dashboard')` : `navigate('scouting')` });
   }
-  const monthlyFixed = officeRent(state) + Object.values(state.agent.staff).reduce((x, y) => x + y, 0) * 3500 + investmentsUpkeep(state);
+  const monthlyFixed = officeRent(state) + Object.values(state.agent.staff).reduce((x, y) => x + y, 0) * 3500 + investmentsUpkeep(state) + clientFollowUpCost(state);
   if (monthlyFixed > 0 && state.agent.cash < monthlyFixed * 3) actions.push({ urgency: state.agent.cash < 0 ? 90 : 65, icon: 'bank', tone: 'red',
     title: state.agent.cash < 0 ? 'Trésorerie dans le rouge' : 'Trésorerie tendue',
     text: `Moins de 3 mois de charges fixes (${fmtMoneyShort(monthlyFixed)}/mois). Un transfert ou une prolongation renflouerait les caisses.`,
@@ -4634,7 +5059,7 @@ function actionsSectionHTML(actions) {
   return `<div class="card">
     <div class="card-title">${icon('target',15)} À vous de jouer</div>
     ${actions.length ? actions.map(ac => `
-      <div class="news-item" style="border-left:3px solid var(--${ac.tone});${ac.offerId ? '' : 'cursor:pointer'}" ${ac.offerId ? '' : `onclick="${ac.cta}"`}>
+      <div class="action-item" style="--tone:var(--${ac.tone})" ${ac.offerId ? '' : `onclick="${ac.cta}"`}>
         <div class="news-ico">${icon(ac.icon,16)}</div>
         <div><div class="news-text">${esc(ac.title)}</div><div class="news-meta">${esc(ac.text)}</div></div>
         ${ac.offerId ? `<div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-sm btn-emerald" onclick="handleAcceptOffer('${ac.offerId}')">${icon('check',14)}</button><button class="btn btn-sm btn-danger" onclick="handleDeclineOffer('${ac.offerId}')">${icon('close',14)}</button></div>` : ''}
@@ -4666,13 +5091,19 @@ function careerTierCardHTML(a) {
   const tier = CAREER_TIERS[idx], next = CAREER_TIERS[idx + 1];
   const prestige = idx >= 4;
   const prog = next ? clamp(Math.round((a.reputation - tier.min) / (next.min - tier.min) * 100), 0, 100) : 100;
-  return `<div class="card" ${prestige ? 'style="border-color:var(--gold-dim, var(--gold))"' : ''}>
+  const rep = Math.round(a.reputation);
+  return `<div class="card career-hero ${prestige ? 'prestige' : ''}">
     <div class="card-title">Carrière</div>
-    <div class="row-between"><b style="font-size:19px;${prestige ? 'color:var(--gold-soft)' : ''}">${esc(tier.label)}</b><span class="small">Réputation <b class="num">${Math.round(a.reputation)}</b>/100</span></div>
-    <div class="small" style="margin:2px 0 8px;color:var(--ink-faint)">${esc((SPECIALTIES.find(s => s.id === a.specialty) || {}).label || '')}</div>
-    ${meterHTML(prog, 100, prestige ? 'var(--gold)' : 'var(--blue)')}
-    ${next ? `<div class="small" style="margin-top:6px">Prochain palier : <b>${esc(next.label)}</b> à ${next.min} de réputation — ${esc(next.unlock)}</div>`
-      : `<div class="small" style="margin-top:6px;color:var(--gold-soft)">Sommet de la profession atteint.</div>`}
+    <div class="career-hero-row">
+      <div>
+        <div class="tier">${esc(tier.label)}</div>
+        <div class="spec">${esc((SPECIALTIES.find(s => s.id === a.specialty) || {}).label || '')} · ${esc(OFFICE_LEVELS[a.officeLevel - 1].label)}</div>
+      </div>
+      <div class="ovr-ring" style="--v:${rep};--c:${prestige ? 'var(--gold)' : 'var(--accent)'}"><b>${rep}</b><span>Répu.</span></div>
+    </div>
+    <div style="margin-top:14px">${meterHTML(prog, 100, prestige ? 'var(--gold)' : 'var(--accent)')}</div>
+    ${next ? `<div class="small" style="margin-top:8px">Prochain palier : <b style="color:var(--ink)">${esc(next.label)}</b> à ${next.min} de réputation — ${esc(next.unlock)}</div>`
+      : `<div class="small" style="margin-top:8px;color:var(--gold-soft)">Sommet de la profession atteint.</div>`}
   </div>`;
 }
 function renderDashboard() {
@@ -4680,7 +5111,7 @@ function renderDashboard() {
   const portfolioPreview = a.portfolio.slice(0, 4).map(id => G.players[id]).filter(Boolean);
   const deadlines = computeUpcomingDeadlines(G);
   const deadlinesHTML = deadlines.length ? `<div class="card"><div class="card-title">Prochainement</div>${deadlines.map(d => `
-    <div class="row-between small" style="padding:5px 0;${d.playerId ? 'cursor:pointer' : ''}" ${d.playerId ? `onclick="openPlayerDetail('${d.playerId}','dashboard')"` : ''}><span>${d.icon} ${esc(d.text)}</span></div>`).join('')}</div>` : '';
+    <div class="row-between small" style="padding:5px 0;${d.playerId ? 'cursor:pointer' : ''}" ${d.playerId ? `onclick="openPlayerDetail('${d.playerId}','dashboard')"` : ''}><span style="display:inline-flex;align-items:center;gap:8px"><span style="color:var(--accent);display:inline-flex">${icon(d.icon, 15)}</span>${esc(d.text)}</span></div>`).join('')}</div>` : '';
   const goalsHTML = (G.seasonGoals && G.seasonGoals.length) ? `<div class="card"><div class="card-title">Objectifs de la saison</div>${G.seasonGoals.map(g => {
     const cur = a.careerStats[g.metric] || 0;
     const prog = clamp(Math.round(((cur - g.startVal) / g.amount) * 100), 0, 100);
@@ -4688,13 +5119,13 @@ function renderDashboard() {
   }).join('')}</div>` : '';
   return `
     ${onboardingCardHTML()}
+    ${careerTierCardHTML(a)}
     ${actionsSectionHTML(computeAgentActions(G))}
     ${phoneSectionHTML()}
-    ${careerTierCardHTML(a)}
     <div class="grid-3">
       <div class="kpi"><b class="num">${fmtMoneyShort(a.cash)}</b><span>Trésorerie</span></div>
       <div class="kpi"><b class="num">${a.portfolio.length}</b><span>Joueurs gérés</span></div>
-      <div class="kpi"><b>${OFFICE_LEVELS[a.officeLevel - 1].label}</b><span>Agence</span></div>
+      <div class="kpi"><b style="font-size:15px">${OFFICE_LEVELS[a.officeLevel - 1].label}</b><span>Agence</span></div>
     </div>
     ${portfolioPreview.length
       ? `<div class="card"><div class="card-title">Vos joueurs</div>${portfolioPreview.map(p => playerRowHTML(p, { returnTo: 'dashboard' })).join('')}</div>`
@@ -4707,8 +5138,10 @@ function renderDashboard() {
 
 /* ---------- Mes joueurs ---------- */
 function renderMyPlayers() {
-  const list = G.agent.portfolio.map(id => G.players[id]).filter(Boolean);
-  return `<div class="page-title">Mes joueurs <small>${list.length}/${OFFICE_LEVELS[G.agent.officeLevel - 1].cap}</small></div>
+  const all = G.agent.portfolio.map(id => G.players[id]).filter(Boolean);
+  const list = applyListFilter(all, listFilterState('myplayers'));
+  return `<div class="page-title">Mes joueurs <small>${all.length}/${OFFICE_LEVELS[G.agent.officeLevel - 1].cap}</small></div>
+  ${all.length > 3 ? filterBarHTML('myplayers', { noYoung: true }) : ''}
   ${list.length ? `<div class="player-card-grid">${list.map(p => playerCardHTML(p, { returnTo: 'myplayers' })).join('')}</div>` : emptyStateHTML('star', 'Aucun joueur sous contrat avec vous.', 'Scoutez ou approchez des joueurs libres pour bâtir votre écurie.')}`;
 }
 
@@ -4776,6 +5209,22 @@ function clubLeaguePositionLabel(state, club) {
   const rank = ranked.indexOf(club.id) + 1;
   return `${lg.name}, ${rank}${rank === 1 ? 're' : 'e'} place`;
 }
+// Potentiel affiché (V8.3, audit P1-3 / B-07) : la fiche révélait le potentiel exact de tout joueur sans agent,
+// ce qui rendait le scouting (précision, recruteurs, « Observer + ») inutile. Exact pour vos clients ; sinon la
+// fourchette de votre rapport de scouting s'il existe ; sinon une estimation d'autant plus large que votre réseau
+// de recrutement est faible, stable d'une visite à l'autre.
+function potentialLabel(state, p) {
+  if (p.agentId === 'player') return String(p.pot);
+  if (p.agentId) return '?';
+  for (const m of (state.scoutMissions || [])) {
+    const r = m.ready && (m.results || []).find(x => x.playerId === p.id);
+    if (r) return `${r.shownRange[0]}–${r.shownRange[1]}`;
+  }
+  const acc = scoutingAccuracy(state) + 4;
+  const shift = (stableRand('pot:' + p.id) - 0.5) * acc;
+  const lo = clamp(Math.round(p.pot - acc * 0.6 + shift), Math.max(30, p.ovr), 99);
+  return `${lo}–${clamp(Math.round(lo + acc * 1.2), lo + 1, 99)}`;
+}
 function renderPlayerDetail() {
   const p = G.players[ui.selectedPlayerId];
   if (!p) return `<p>Joueur introuvable (peut-être retraité).</p><button class="btn" onclick="navigate('${ui.returnTo}')">← Retour</button>`;
@@ -4830,8 +5279,10 @@ function renderPlayerDetail() {
       ${p.courtship && p.courtship.attempts ? `<p class="small" style="margin-top:6px">Déjà sollicité ${p.courtship.attempts} fois — insister use sa patience.</p>` : ''}
       ${(() => { const tr = rivalsTracking(G, p); return tr.length ? `<p class="small" style="margin-top:6px;color:var(--gold-soft)">${icon('swap',13)} Concurrence : ${esc(tr[0].name)} (${rivalFocus(G, tr[0]).label}) suit aussi ce joueur${tr.length > 1 ? ` — et ${tr.length - 1} autre${tr.length > 2 ? 's' : ''}` : ''}. Ne tardez pas.</p>` : ''; })()}`;
   } else if (isMine) {
-    actionsHTML = `<button class="btn btn-primary btn-block" onclick="openNegotiation('${p.id}','renew')">Renégocier / prolonger</button>
-      <button class="btn btn-block" style="margin-top:8px" onclick="openTransferSearch('${p.id}')">Négocier un transfert</button>`;
+    actionsHTML = p.club
+      ? `<button class="btn btn-primary btn-block" onclick="openNegotiation('${p.id}','renew')">Renégocier / prolonger</button>
+      <button class="btn btn-block" style="margin-top:8px" onclick="openTransferSearch('${p.id}')">Négocier un transfert</button>`
+      : `<button class="btn btn-primary btn-block" onclick="openTransferSearch('${p.id}')">Trouver un club</button>`;
     if (p.club && !p.parentClub) actionsHTML += `<button class="btn btn-block" style="margin-top:8px" onclick="openLoanSearch('${p.id}')">Prêter à un autre club</button>`;
     actionsHTML += `<button class="btn btn-danger btn-block" style="margin-top:8px" onclick="confirmDropClient('${p.id}')">Mettre fin au contrat d'agent</button>`;
   } else {
@@ -4851,25 +5302,28 @@ function renderPlayerDetail() {
 
   return `
     <button class="btn btn-sm" onclick="navigate('${ui.returnTo}')" style="margin-bottom:12px">← Retour</button>
-    <div class="card">
+    <div class="card pd-hero" style="--club-c1:${club ? club.c1 : '#1fbf7a'}">
       <div class="pd-header-top">
-        ${portraitHTML(p.id, 56)}
+        <div class="ovr-ring" style="--v:${p.ovr};--c:${p.ovr >= 77 ? 'var(--gold)' : 'var(--accent)'}"><b>${p.ovr}</b><span>Niveau</span></div>
         <div class="pd-header-id">
-          <h2>${esc(p.name)} ${flagFor(p.nat)}</h2>
-          <div class="small"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${posLabel(p.pos)} · ${p.age} ans</div>
+          <h2>${esc(p.name)}</h2>
+          <div class="small" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${posLabel(p.pos)} · ${p.age} ans · ${flagFor(p.nat)}</div>
+          <div class="pd-status" style="color:${statusColors[careerStatus] || 'var(--ink-dim)'}">${esc(careerStatus)}</div>
         </div>
         ${clubBadgeHTML(club, 'lg')}
       </div>
-      <div class="grid-3" style="margin-top:12px">
-        <div class="kpi"><b class="num">${p.ovr}</b><span>Niveau</span></div>
-        <div class="kpi"><b class="num">${(isMine || !p.agentId) ? p.pot : '?'}</b><span>Potentiel</span></div>
+      <div class="grid-3" style="margin-top:14px">
+        <div class="kpi"><b class="num">${potentialLabel(G, p)}</b><span>Potentiel${isMine ? '' : ' estimé'}</span></div>
         <div class="kpi"><b class="num">${fmtMoneyShort(p.value)}</b><span>Valeur</span></div>
+        <div class="kpi"><b class="num">${fmtMoneyShort(p.wage)}</b><span>Salaire/mois</span></div>
       </div>
-      <div class="row-between" style="margin-top:10px">
-        <span class="small" style="font-weight:700;color:${health.color}">${esc(health.text)}</span>
+      <div class="row-between" style="margin-top:12px">
+        <span class="small" style="font-weight:700;color:${health.color}">● ${esc(health.text)}</span>
+        <span class="small">${club ? esc(club.name) : 'Sans club'}${p.contractUntil ? ' · contrat ' + p.contractUntil : ''}</span>
       </div>
-      ${(!isMine && p.referralUntil && G.date.absMonth <= p.referralUntil) ? `<p class="small" style="margin-top:8px;color:var(--blue-soft);font-weight:700">${icon('star',13)} Piste exclusive via ${esc(p.referredByName || 'un de vos joueurs')} — encore valable ${Math.max(0, p.referralUntil - G.date.absMonth)} mois</p>` : ''}
+      ${(!isMine && p.referralUntil && G.date.absMonth <= p.referralUntil) ? `<p class="small" style="margin-top:8px;color:var(--accent);font-weight:700">${icon('star',13)} Piste exclusive via ${esc(p.referredByName || 'un de vos joueurs')} — encore valable ${Math.max(0, p.referralUntil - G.date.absMonth)} mois</p>` : ''}
     </div>
+    <div class="card">${actionsHTML}</div>
     <div class="card"><div class="card-title">État</div>
       ${club ? `<div class="meter-row"><span>Relation avec le club</span><span class="num">${rel}/100</span></div>${meterHTML(rel, 100, rel >= 50 ? 'var(--emerald)' : 'var(--red)')}` : ''}
       ${isMine ? `<div class="meter-row"><span>Confiance envers vous</span><span class="num">${p.agentTrust ?? 50}/100</span></div>${meterHTML(p.agentTrust ?? 50, 100, 'var(--blue)')}` : ''}
@@ -4913,7 +5367,6 @@ function renderPlayerDetail() {
     <div class="card"><div class="card-title">Saison en cours</div>${statBlocks}</div>
     <div class="card"><div class="card-title">Historique saison par saison</div>${historyTable}</div>
     <div class="card"><div class="card-title">Palmarès</div>${trophies}</div>
-    <div class="card">${actionsHTML}</div>
   `;
 }
 function handleRepresent(id) {
@@ -5101,12 +5554,38 @@ function openMatchDetail(leagueId, idx) {
 }
 
 /* ---------- Marché ---------- */
+// Filtres et tris (V8.3, audit P2-5) : le marché et le fil d'actus s'étiraient sur 6 000 à 11 000 px sans
+// aucun moyen de chercher. Un état d'affichage par liste, jamais sauvegardé (préférence de session).
+const LIST_SORTS = { ovr: ['Niveau', (a, b) => b.ovr - a.ovr], value: ['Valeur', (a, b) => b.value - a.value], age: ['Âge', (a, b) => a.age - b.age], wage: ['Salaire', (a, b) => b.wage - a.wage] };
+function listFilterState(key) { ui.filters = ui.filters || {}; return ui.filters[key] = ui.filters[key] || { line: 'all', sort: 'ovr', young: false, limit: 40 }; }
+function setListFilter(key, field, value) { const f = listFilterState(key); f[field] = value; if (field !== 'limit') f.limit = 40; renderPage(); }
+function applyListFilter(list, f) {
+  return list.filter(p => (f.line === 'all' || p.posLine === f.line) && (!f.young || p.age <= 21)).sort(LIST_SORTS[f.sort][1]);
+}
+function filterBarHTML(key, opts) {
+  opts = opts || {};
+  const f = listFilterState(key);
+  const lines = [['all', 'Tous'], ['GK', 'Gardiens'], ['DF', 'Défense'], ['MF', 'Milieu'], ['FW', 'Attaque']];
+  return `<div class="filter-bar">
+    ${lines.map(([v, l]) => `<button class="tab-btn ${f.line === v ? 'active' : ''}" onclick="setListFilter('${key}','line','${v}')">${l}</button>`).join('')}
+    ${opts.noYoung ? '' : `<button class="tab-btn ${f.young ? 'active' : ''}" onclick="setListFilter('${key}','young',${!f.young})">≤ 21 ans</button>`}
+    <select onchange="setListFilter('${key}','sort',this.value)" aria-label="Trier">${Object.entries(LIST_SORTS).map(([v, [l]]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>Tri : ${l}</option>`).join('')}</select>
+  </div>`;
+}
+function limitedRowsHTML(key, list, returnTo) {
+  const f = listFilterState(key);
+  if (!list.length) return '<p class="small">Aucun joueur ne correspond à ces filtres.</p>';
+  return list.slice(0, f.limit).map(p => playerRowHTML(p, { returnTo })).join('')
+    + (list.length > f.limit ? `<button class="btn btn-block btn-sm" style="margin-top:8px" onclick="setListFilter('${key}','limit',${f.limit + 40})">Afficher plus (${list.length - f.limit} restants)</button>` : '');
+}
 function renderMarket() {
-  const listed = (G.transferListed || []).map(id => G.players[id]).filter(p => p && !p.retired).sort((a, b) => b.ovr - a.ovr);
-  const freeAgents = (G.freeAgents || []).map(id => G.players[id]).filter(Boolean);
+  const f = listFilterState('market');
+  const listed = applyListFilter((G.transferListed || []).map(id => G.players[id]).filter(p => p && !p.retired), f);
+  const freeAgents = applyListFilter((G.freeAgents || []).map(id => G.players[id]).filter(p => p && !p.retired && !p.club), f);
   return `<div class="page-title">Marché des transferts</div>
-    ${freeAgents.length ? `<div class="card"><div class="card-title">Talents libres (scoutés)</div>${freeAgents.map(p => playerRowHTML(p, { returnTo: 'market' })).join('')}</div>` : ''}
-    <div class="card"><div class="card-title">Sur le marché (${listed.length})</div>
+    ${filterBarHTML('market')}
+    <div class="card"><div class="card-title">Joueurs libres (${freeAgents.length})</div>${limitedRowsHTML('market', freeAgents, 'market')}</div>
+    <div class="card"><div class="card-title">Sur la liste des transferts (${listed.length})</div>
     ${listed.length ? listed.slice(0, 60).map(p => playerRowHTML(p, { returnTo: 'market' })).join('') : '<p class="small">Aucun joueur sur le marché en ce moment.</p>'}</div>
   `;
 }
@@ -5121,7 +5600,7 @@ function renderNegotiationsHub() {
     ${offers.length ? `<div class="card"><div class="card-title">Offres reçues</div>${offers.map(o => `
       <div class="list-row" style="cursor:default">
         ${clubBadgeHTML(o.club, 'sm')}
-        <div><div class="name">${esc(o.player.name)}${o.player.club ? '' : ' <span class="small">(sans club)</span>'}</div><div class="sub">${esc(o.club.name)} propose <b class="num">${fmtMoneyShort(o.fee)}</b> · <span class="num">${fmtMoneyShort(o.wage)}</span>/mois</div></div>
+        <div><div class="name">${esc(o.player.name)}${o.player.club ? '' : ' <span class="small">(sans club)</span>'}</div><div class="sub">${esc(o.club.name)} propose <b class="num">${o.fee ? fmtMoneyShort(o.fee) : 'sans indemnité'}</b> · <span class="num">${fmtMoneyShort(o.wage)}</span>/mois</div></div>
         <div class="right" style="display:flex;gap:6px">
           <button class="btn btn-sm btn-emerald" onclick="handleAcceptOffer('${o.id}')">Accepter</button>
           <button class="btn btn-sm btn-danger" onclick="handleDeclineOffer('${o.id}')">Refuser</button>
@@ -5162,7 +5641,7 @@ function transferSearchModalHTML() {
       const outlookLabel = outlook >= 0.7 ? '🟢 Poste ouvert' : (outlook >= 0.35 ? '🟡 Concurrence modérée' : '🔴 Poste disputé');
       return `<div class="list-row" style="cursor:default">
         ${clubBadgeHTML(c, 'sm')}
-        <div><div class="name">${esc(c.name)}</div><div class="sub">propose <b class="num">${fmtMoneyShort(o.fee)}</b> · ${fmtMoneyShort(o.wage)}/mois · ${outlookLabel}</div></div>
+        <div><div class="name">${esc(c.name)}</div><div class="sub">propose <b class="num">${o.fee ? fmtMoneyShort(o.fee) : 'sans indemnité'}</b> · ${fmtMoneyShort(o.wage)}/mois · ${outlookLabel}</div></div>
         <div class="right" style="display:flex;flex-direction:column;gap:5px">
           <button class="btn btn-sm btn-emerald" onclick="handleAcceptTransferSearch('${o.clubId}',${o.fee},${o.wage})">Accepter</button>
           <button class="btn btn-sm" onclick="openNegotiation('${p.id}','transfer','${o.clubId}',${o.fee})">Négocier</button>
@@ -5261,10 +5740,13 @@ function handleAcceptLoan(clubId, durationMonths) {
 function openNegotiation(playerId, mode, presetClubId, presetFee) {
   const p = G.players[playerId];
   let fee = 0;
-  if (mode === 'transfer' && presetClubId) fee = (presetFee !== undefined) ? presetFee : estimateTransferFee(p, G.clubs[presetClubId]);
+  if (mode === 'transfer' && presetClubId) fee = (presetFee !== undefined) ? presetFee : estimateTransferFee(p, G.clubs[presetClubId], G);
+  // valeurs par défaut qui ont une chance d'aboutir (audit) : prolonger d'au moins un an le contrat en cours,
+  // commission raisonnable (au-delà de 12 %, le club la juge excessive)
+  const minYears = (mode !== 'transfer' && p.contractUntil) ? clamp(p.contractUntil - seasonStartYear(G) + 1, 1, maxContractYearsForAge(p.age)) : 2;
   ui.negotiation = {
-    playerId, mode, salary: p.wage, years: 2, roleProm: 'titulaire',
-    commissionPct: Math.round(agentCommissionRate(G) * 100),
+    playerId, mode, salary: p.wage, years: Math.max(2, minYears), roleProm: 'titulaire',
+    commissionPct: Math.min(12, Math.round(agentCommissionRate(G) * 100)),
     targetClubId: mode === 'transfer' ? (presetClubId || '') : p.club, fee,
     signingBonus: 0, sellOnPct: 0, releaseClause: p.releaseClause || 0,
   };
@@ -5328,14 +5810,14 @@ function negResultHTML() {
   const offer = { salary: neg.salary, years: neg.years, roleProm: neg.roleProm, commissionPct: neg.commissionPct, targetClubId: neg.targetClubId || null, fee: neg.fee, signingBonus: neg.signingBonus, sellOnPct: neg.sellOnPct, releaseClause: neg.releaseClause };
   const gateCheck = evaluateNegotiationGate(G, p, offer);
   if (!gateCheck.ok) {
-    return `<div class="row-between"><span class="small">Probabilité d'accord</span><b class="num">0%</b></div>
+    return `<div class="row-between"><span class="small">Chances d'accord</span><b class="num">0%</b></div>
       ${meterHTML(0, 100, 'var(--red)')}
       <div class="reaction">${esc(gateCheck.reason)}</div>`;
   }
   const ev = evaluateOffer(G, p, offer);
   return `
-    <div class="row-between"><span class="small">Probabilité d'accord</span><b class="num">${ev.score}%</b></div>
-    ${meterHTML(ev.score, 100, ev.score >= 55 ? 'var(--emerald)' : 'var(--red)')}
+    <div class="row-between"><span class="small">Chances d'accord</span><b class="num">${Math.round(ev.chance * 100)}%</b></div>
+    ${meterHTML(Math.round(ev.chance * 100), 100, ev.chance >= 0.7 ? 'var(--emerald)' : (ev.chance >= 0.35 ? 'var(--gold)' : 'var(--red)'))}
     ${ev.reactions.map(r => `<div class="reaction">${esc(r)}</div>`).join('')}
   `;
 }
@@ -5352,7 +5834,7 @@ function updateNeg(key, val) {
   if (key === 'targetClubId') {
     // l'indemnité entre clubs est recalculée automatiquement selon le club visé — l'agent ne la fixe pas lui-même
     const p = G.players[ui.negotiation.playerId];
-    ui.negotiation.fee = val ? estimateTransferFee(p, G.clubs[val]) : 0;
+    ui.negotiation.fee = val ? estimateTransferFee(p, G.clubs[val], G) : 0;
     renderModal(negotiationModalHTML());
     return;
   }
@@ -5366,6 +5848,7 @@ function announceAchievements(list) {
 }
 function submitNegotiation() {
   const neg = ui.negotiation;
+  if (!neg) return; // modale déjà refermée (double clic) : rien à soumettre
   const p = G.players[neg.playerId];
   const offer = { playerId: neg.playerId, salary: neg.salary, years: neg.years, roleProm: neg.roleProm, commissionPct: neg.commissionPct, targetClubId: neg.targetClubId || null, fee: neg.fee, signingBonus: neg.signingBonus, sellOnPct: neg.sellOnPct, releaseClause: neg.releaseClause };
   const news = [];
@@ -5381,7 +5864,7 @@ function submitNegotiation() {
   }
   const ev = evaluateOffer(G, p, offer);
   if (ev.accept) { applyAcceptedOffer(G, p, offer, news); toast('Accord trouvé !'); pushNews(G, news); saveGame(); closeModal(); renderPage(); announceAchievements(checkAchievements(G)); return; }
-  if (ev.score >= 30) {
+  if (ev.score >= 30 && !ev.accept) {
     const counter = generateCounterOffer(G, p, offer);
     if (counter) { ui.counterOffer = { original: offer, candidate: counter.offer, ev: counter.ev }; renderModal(counterOfferModalHTML()); return; }
   }
@@ -5404,8 +5887,8 @@ function counterOfferModalHTML() {
     <div class="modal-head"><h3>Contre-proposition</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     <p class="small">${esc(p.name)} (ou le club) refuse votre offre telle quelle, mais reviendrait volontiers sur ces conditions :</p>
     <div class="card">${diffs.length ? diffs.map(d => `<div class="small" style="padding:4px 0">${d}</div>`).join('') : '<p class="small">Un ajustement mineur suffirait.</p>'}</div>
-    <div class="row-between small" style="margin-top:8px"><span>Probabilité d'accord avec cette contre-offre</span><b class="num">${ev.score}%</b></div>
-    ${meterHTML(ev.score, 100, 'var(--emerald)')}
+    <div class="row-between small" style="margin-top:8px"><span>Le joueur s'engage sur ces conditions</span><b class="num">Accord</b></div>
+    ${meterHTML(100, 100, 'var(--emerald)')}
     <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="acceptCounterOffer()">Accepter la contre-offre</button>
     <button class="btn btn-block" style="margin-top:8px" onclick="backToOwnOffer()">Revenir à mon offre</button>
     <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="declineCounterOffer()">Refuser et abandonner</button>
@@ -5475,9 +5958,19 @@ function renderPhone() {
     ${(!contacts.length && !rivalContacts.length) ? `<div class="card"><p class="small">Aucune conversation pour l'instant. Elles apparaîtront ici au fil des événements avec vos joueurs et vos rivaux.</p></div>` : ''}
   `;
 }
+const NEWS_FILTERS = {
+  all: ['Tout', () => true],
+  mine: ['Mon agence', n => (n.playerId && G.agent.portfolio.includes(n.playerId)) || ['agence', 'message', 'finance', 'business', 'objectif', 'haut_fait', 'contrat'].includes(n.tag)],
+  market: ['Transferts', n => ['transfert', 'mercato', 'rumeur'].includes(n.tag)],
+  world: ['Compétitions', n => ['trophee', 'ballondor', 'promotion', 'relegation', 'carriere'].includes(n.tag)],
+};
+function setNewsFilter(k) { ui.newsFilter = k; renderPage(); }
 function renderNews() {
-  const items = G.news || [];
-  return `<div class="page-title">Actualités</div><div class="card">${items.length ? items.map(newsItemHTML).join('') : '<p class="small">Rien pour le moment.</p>'}</div>`;
+  const k = NEWS_FILTERS[ui.newsFilter] ? ui.newsFilter : 'all';
+  const items = (G.news || []).filter(NEWS_FILTERS[k][1]);
+  return `<div class="page-title">Actualités</div>
+    <div class="filter-bar">${Object.entries(NEWS_FILTERS).map(([v, [l]]) => `<button class="tab-btn ${k === v ? 'active' : ''}" onclick="setNewsFilter('${v}')">${l}</button>`).join('')}</div>
+    <div class="card">${items.length ? items.map(newsItemHTML).join('') : '<p class="small">Rien dans cette catégorie pour le moment.</p>'}</div>`;
 }
 
 /* ---------- Agence ---------- */
@@ -5558,16 +6051,19 @@ function financeLedgerHTML(a) {
   const hist = a.financeHistory || [];
   const last = hist[hist.length - 1];
   const staffNow = Object.values(a.staff).reduce((x, y) => x + y, 0) * 3500;
+  const clientsNow = clientFollowUpCost(G);
   const fixed = `<div class="card"><div class="card-title">Charges fixes mensuelles</div>
     <div class="row-between small"><span>Loyer (${esc(OFFICE_LEVELS[a.officeLevel - 1].label)})</span><span class="num">${fmtMoneyFull(officeRent(G))}</span></div>
     <div class="row-between small"><span>Personnel</span><span class="num">${fmtMoneyFull(staffNow)}</span></div>
+    <div class="row-between small"><span>Suivi des clients (${a.portfolio.length})</span><span class="num">${fmtMoneyFull(clientsNow)}</span></div>
     ${investmentsUpkeep(G) ? `<div class="row-between small"><span>Investissements</span><span class="num">${fmtMoneyFull(investmentsUpkeep(G))}</span></div>` : ''}
-    <div class="row-between small"><b>Total</b><b class="num">${fmtMoneyFull(officeRent(G) + staffNow + investmentsUpkeep(G))}</b></div></div>`;
+    <div class="row-between small"><b>Total</b><b class="num">${fmtMoneyFull(officeRent(G) + staffNow + clientsNow + investmentsUpkeep(G))}</b></div>
+    <p class="small" style="margin-top:8px">Impôt en fin de saison sur les commissions : 0 % jusqu'à 200 k€, puis 25 %, 45 % au-delà de 2 M€ et 60 % au-delà de 10 M€.</p></div>`;
   if (!last) return fixed + '<div class="card"><p class="small">Le compte du mois apparaîtra après votre premier passage au mois suivant.</p></div>';
   const line = (label, v) => `<div class="row-between small"><span>${label}</span><span class="num" style="color:${v > 0 ? 'var(--emerald)' : v < 0 ? 'var(--red-soft)' : 'var(--ink-faint)'}">${v > 0 ? '+' : ''}${fmtMoneyFull(v)}</span></div>`;
   const maxAbs = Math.max(1, ...hist.map(h => Math.abs(h.result)));
   return fixed + `<div class="card"><div class="card-title">Compte de ${MONTH_NAMES[last.month]}</div>
-      ${line('Commissions', last.commissions)}${line('Revenus commerciaux', last.sponsor)}${line('Personnel', -last.staff)}${line('Loyer', -last.rent)}${last.invest ? line('Investissements', -last.invest) : ''}${last.other ? line('Autres (scouting, événements, primes...)', last.other) : ''}
+      ${line('Commissions', last.commissions)}${line('Revenus commerciaux', last.sponsor)}${line('Personnel et suivi des clients', -last.staff)}${line('Loyer', -last.rent)}${last.invest ? line('Investissements', -last.invest) : ''}${last.other ? line('Autres (scouting, événements, primes...)', last.other) : ''}
       <div style="border-top:1px solid var(--line-soft);margin-top:6px;padding-top:6px">${line('<b>Résultat du mois</b>', last.result)}</div></div>
     <div class="card"><div class="card-title">Résultat des derniers mois</div>
       <div style="display:flex;gap:3px;height:72px">${hist.map(h => { const hgt = h.result ? Math.max(3, Math.round(Math.abs(h.result) / maxAbs * 34)) : 0; return `<div title="${MONTH_NAMES[h.month]} : ${fmtMoneyFull(h.result)}" style="flex:1;display:flex;flex-direction:column">
@@ -5743,7 +6239,7 @@ function snapshotForRecap(state) {
     const st = p.seasonStats || {};
     players[id] = { name: p.name, ovr: p.ovr, value: p.value, club: p.club, apps: st.apps || 0, goals: st.goals || 0, assists: st.assists || 0, ratingSum: st.ratingSum || 0, injured: !!(p.injuredUntil && p.injuredUntil > state.date.absMonth) };
   }
-  return { cash: a.cash, rep: a.reputation, commissions: (a.careerStats && a.careerStats.totalCommissions) || 0, players };
+  return { cash: a.cash, rep: a.reputation, commissions: (a.careerStats && a.careerStats.totalCommissions) || 0, players, label: `${MONTH_NAMES[calMonth(state)]} ${calYear(state)}` };
 }
 function doAdvanceMonth() {
   if (G.pendingEvent) { showEventModal(); return; }
@@ -5815,7 +6311,7 @@ function showRecap(news, seasonSummary, before) {
     </div>` : '';
   ui.pendingSeasonReport = seasonSummary || null;
   renderModal(`
-    <div class="modal-head"><h3>${MONTH_NAMES[calMonth(G)]} ${calYear(G)}</h3><button class="modal-close" onclick="continueFromRecap()">${icon('close',16)}</button></div>
+    <div class="modal-head"><div><div class="small" style="text-transform:uppercase;letter-spacing:.14em;font-weight:700;color:var(--accent)">Bilan du mois</div><h3>${before ? esc(before.label) : `${MONTH_NAMES[calMonth(G)]} ${calYear(G)}`}</h3></div><button class="modal-close" onclick="continueFromRecap()">${icon('close',16)}</button></div>
     ${agencyHTML}
     ${before ? `<div class="card-title" style="margin-top:4px">Vos joueurs</div><div style="margin-bottom:10px">${recapPlayersHTML(before, seasonSummary)}</div>` : ''}
     <div class="card-title">À retenir</div>
@@ -5857,6 +6353,7 @@ function seasonReportHTML(summary) {
       <div class="kpi"><b class="num">${summary.seasonTransfers || 0}</b><span>Transferts conclus</span></div>
       <div class="kpi"><b class="num">${fmtMoneyShort(summary.seasonCommissions || 0)}</b><span>Commissions cette saison</span></div>
     </div>
+    ${summary.seasonTax ? `<p class="small">Impôt sur les bénéfices prélevé : <b class="num" style="color:var(--red-soft)">-${fmtMoneyShort(summary.seasonTax)}</b></p>` : ''}
     ${standout ? `<p class="small" style="color:var(--gold-soft);font-weight:700">${icon('star',14)} Joueur de la saison chez vous : ${esc(standout.name)} — note moyenne ${standout.entry.avgRating}</p>` : ''}
     <div class="sep"></div>
     ${rows}
@@ -5897,7 +6394,11 @@ function handleImport(evt) {
     try {
       const parsed = deserializeState(reader.result);
       if (!parsed.clubs || !parsed.players || !parsed.agent) throw new Error('format invalide');
-      G = parsed; saveGame(); closeModal(); renderApp(); toast('Sauvegarde importée.');
+      migrateOldSave(parsed);
+      G = parsed;
+      closeModal(); renderApp();
+      // le succès n'est annoncé que si la partie a vraiment pu être enregistrée dans ce navigateur
+      saveGame().then(ok => toast(ok ? 'Sauvegarde importée.' : 'Partie importée, mais impossible de l\u2019enregistrer dans ce navigateur : gardez votre fichier.'));
     } catch (e) { toast('Fichier de sauvegarde invalide.'); }
   };
   reader.readAsText(file);
@@ -5927,7 +6428,7 @@ function confirmReset() {
     <button class="btn btn-block" style="margin-top:8px" onclick="closeModal()">Annuler</button>
   `);
 }
-function doReset() { deleteLocalStorageSave(); G = null; closeModal(); renderOnboarding(); }
+function doReset() { deleteLocalStorageSave(); setSaveWarning(false); G = null; closeModal(); renderOnboarding(); }
 
 document.addEventListener('DOMContentLoaded', boot);
 </script>
