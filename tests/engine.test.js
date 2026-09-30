@@ -146,8 +146,8 @@ test('8.4 : toute offre visible peut être acceptée (fenêtre, délai, consente
       for (const o of E.visibleOffers(s)) {
         const p = s.players[o.playerId];
         if (!p || !p.club || !o.fee) continue;
-        assert.equal(E.evaluateMercatoWindow(s, p).ok, true, 'offre visible hors mercato');
-        assert.equal(E.evaluateTransferCooldown ? true : true, true);
+        const move = E.canMoveNow(s, p, s.clubs[o.clubId]); // fenêtre, délai et consentement (V8.5 : assertion réelle)
+        assert.equal(move.ok, true, move.reason);
       }
     }
   }
@@ -206,4 +206,68 @@ test('Simulation de 5 saisons : monde cohérent (contrats, gardiens, effectifs, 
   assert.ok(E.agentRank(s) >= 1 && E.agentRank(s) <= 13);
   const round = E.deserializeState(E.serializeState(s));
   assert.equal(E.serializeState(round), E.serializeState(s), 'aller-retour de sauvegarde fidèle');
+});
+
+test('8.5 : hors mercato, un client sous contrat ne peut pas bouger ; les clubs qu\'il refuserait ne sont pas proposés', () => {
+  const s = newGame();
+  playMonths(s, 2); // octobre
+  const p = Object.values(s.players).find(x => x.club && s.clubs[x.club].tier <= 3);
+  assert.equal(E.canMoveNow(s, p).ok, false);
+  assert.match(E.canMoveNow(s, p).reason, /janvier/i);
+  playMonths(s, 3); // janvier
+  assert.equal(E.canMoveNow(s, p).ok, true);
+  p.agentId = 'player'; s.agent.portfolio.push(p.id); p.lastPermanentMove = s.date.absMonth - 2;
+  const cur = s.clubs[p.club];
+  for (const o of E.findInterestedClubs(s, p.id)) assert.ok(s.clubs[o.clubId].tier > cur.tier, 'club refusé par le client proposé');
+});
+
+test('8.5 : le libellé de démarchage annonce le vrai mois de reprise', () => {
+  const s = newGame();
+  playMonths(s, 2); // octobre : les clubs n'écoutent qu'à partir de décembre
+  const p = Object.values(s.players).find(x => x.club);
+  const club = Object.values(s.clubs).find(c => c.id !== p.club);
+  assert.equal(E.pitchStatus(s, p, club.id).ok, false);
+  assert.equal(E.pitchWaitLabel(s, p, club.id), 'Décembre (dans 2 mois)');
+  playMonths(s, 1); // novembre
+  assert.equal(E.pitchWaitLabel(s, p, club.id), 'Le mois prochain');
+});
+
+test('8.5 : des joueurs libres dès le départ', () => {
+  const s = newGame();
+  const free = s.freeAgents.map(id => s.players[id]).filter(p => p && !p.club && !p.agentId);
+  assert.equal(free.length, E.START_FREE_AGENTS);
+  assert.ok(free.filter(p => p.age <= 21).length >= 5);
+});
+
+test('8.5 : impôt estimé en cours de saison, identique au prélèvement du bilan', () => {
+  const s = newGame();
+  assert.equal(E.estimatedSeasonTax(s), 0);
+  s.agent.careerStats.totalCommissions += 3000000;
+  assert.equal(E.estimatedSeasonTax(s), E.seasonTaxOn(3000000));
+  s.agent.cash = E.estimatedSeasonTax(s) + 100000;
+  assert.equal(E.spendLeavesTaxCovered(s, 50000), true);
+  assert.equal(E.spendLeavesTaxCovered(s, 200000), false);
+});
+
+test('8.5 : les offres des clubs pour un client sous contrat sont utilisables dès le mois suivant', () => {
+  for (let run = 0; run < 3; run++) {
+    const s = newGame();
+    for (const p of Object.values(s.players).filter(x => x.club && !x.agentId && x.ovr >= 66).slice(0, 12)) { p.agentId = 'player'; s.agent.portfolio.push(p.id); }
+    for (let m = 0; m < 24; m++) {
+      const now = s.date.absMonth;
+      s.incomingOffers = [];
+      E.generateIncomingOffers(s, []);
+      for (const o of s.incomingOffers) if (s.players[o.playerId].club) assert.ok(o.visibleFrom <= now + 1, `offre visible ${o.visibleFrom - now} mois plus tard`);
+      if (s.pendingEvent) E.resolveEvent(s, 0);
+      E.advanceMonth(s);
+    }
+  }
+});
+
+test('8.5 : le palmarès pèse aussi sur le jury', () => {
+  const s = newGame();
+  s.agent.careerStats.agentOfYear = 8; s.agent.careerStats.agentOfYearStreak = 0;
+  assert.ok(Math.abs(E.reignFactor(s) - 0.85) < 1e-9);
+  s.agent.careerStats.agentOfYear = 20; s.agent.careerStats.agentOfYearStreak = 9;
+  assert.ok(Math.abs(E.reignFactor(s) - 0.36) < 1e-9);
 });
