@@ -277,6 +277,8 @@ button{font-family:inherit;}
 
 /* ---------- Micro-interactions (V8) : transitions discrètes plutôt que des changements bruts ---------- */
 .page-fade{animation:pageFadeIn .28s ease-out;}
+.save-warning{position:fixed; top:calc(var(--topbar-h) + 8px); left:12px; right:12px; z-index:80; background:#3a1614; border:1px solid var(--red); color:var(--red-soft); border-radius:var(--r-md); padding:10px 12px; font-size:13px; font-weight:600; display:flex; gap:10px; align-items:center; justify-content:space-between; box-shadow:var(--sh-2);}
+@media (min-width:900px){ .save-warning{left:266px; max-width:860px;} }
 @keyframes pageFadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 .btn, .region-card, .list-row, .tab-btn{transition:background .15s, border-color .15s, transform .1s;}
 
@@ -1082,6 +1084,20 @@ function recomputeLeagueReputation(state, lg) {
   lg.reputation = clamp(Math.round(w * 10) / 10, 4, 99);
 }
 
+// Composition type d'un effectif (23 joueurs) : sert à la création du monde ET, depuis la V8.3 (audit P0-5), à
+// choisir le poste des jeunes qui arrivent chaque saison — ils étaient tirés au hasard, si bien que les gardiens
+// (10 % des tirages pour 13 % des besoins) disparaissaient peu à peu : 29 clubs sans aucun gardien après 20 saisons.
+const SQUAD_PLAN = [['GK', 3], ['DC', 3], ['DL', 2], ['DR', 2], ['MDC', 2], ['MC', 3], ['MOC', 2], ['AG', 2], ['AD', 2], ['BU', 2]];
+function neededPositionForClub(state, club) {
+  const counts = {};
+  for (const id of club.squad) { const p = state.players[id]; if (p) counts[p.pos] = (counts[p.pos] || 0) + 1; }
+  let best = [], bestGap = -Infinity;
+  for (const [pos, want] of SQUAD_PLAN) {
+    const gap = (want - (counts[pos] || 0)) / want; // manque relatif : 1 gardien sur 3 pèse plus que 2 DC sur 3
+    if (gap > bestGap) { bestGap = gap; best = [pos]; } else if (gap === bestGap) best.push(pos);
+  }
+  return choice(best);
+}
 function initWorld(state) {
   state.leagues = {}; state.clubs = {}; state.players = {};
   for (const lg of LEAGUES) state.leagues[lg.id] = { id: lg.id, name: lg.name, country: lg.country, clubIds: [], fixtures: [] };
@@ -1095,8 +1111,7 @@ function initWorld(state) {
       initClubEconomy(club);
       state.clubs[id] = club;
       state.leagues[lgId].clubIds.push(id);
-      const plan = [['GK', 3], ['DC', 3], ['DL', 2], ['DR', 2], ['MDC', 2], ['MC', 3], ['MOC', 2], ['AG', 2], ['AD', 2], ['BU', 2]];
-      for (const [posCode, count] of plan) {
+      for (const [posCode, count] of SQUAD_PLAN) {
         for (let i = 0; i < count; i++) {
           const p = generatePlayer(state, { club, forcedPos: posCode, ageMin: 18, ageMax: 33 });
           state.players[p.id] = p;
@@ -1160,6 +1175,41 @@ function avgBy(arr, fn) { return arr.length ? arr.reduce((s, x) => s + fn(x), 0)
 // événements sur 10 saisons testées en navigateur — trois matchs sur le banc, c'est banal pour un remplaçant.
 const STATUS_BENCH_STREAK = 5;
 const STATUS_MSG_COOLDOWN = 6; // mois minimum entre deux messages de statut pour un même joueur
+// Composition par poste (V8.3, audit P0-5) : le onze était formé des onze meilleurs scores tous postes confondus —
+// mesuré sur 4 320 compositions, 13 % n'alignaient aucun gardien et 46 % en alignaient plusieurs. Désormais un
+// 4-3-3 : 1 gardien, 4 défenseurs, 3 milieux, 3 attaquants, avec les deux créneaux de rotation d'avant (joueurs
+// peu utilisés, jeunes à potentiel d'abord) placés dans les lignes où le banc est le plus fourni. Une ligne
+// incomplète est complétée par les meilleurs joueurs de champ restants ; sans aucun gardien disponible, un joueur
+// de champ dépanne dans les buts.
+const LINEUP_SHAPE = { GK: 1, DF: 4, MF: 3, FW: 3 };
+function pickLineup(players) {
+  const scored = players.map(p => ({ p, score: p.ovr * 0.7 + p.form * 0.2 + p.morale * 0.1 - (p.fatigue || 0) * 0.08 + rand(0, 14) }));
+  scored.sort((a, b) => b.score - a.score);
+  const byLine = { GK: [], DF: [], MF: [], FW: [] };
+  for (const s of scored) (byLine[s.p.posLine] || byLine.MF).push(s.p);
+  const picked = {};
+  for (const [line, n] of Object.entries(LINEUP_SHAPE)) picked[line] = byLine[line].slice(0, n);
+  // créneaux de rotation : sans eux, les joueurs à faible niveau ne jouent jamais et ne progressent jamais
+  const ROTATION_SLOTS = 2;
+  const benchOf = line => byLine[line].slice(LINEUP_SHAPE[line]);
+  const rotationLines = ['DF', 'MF', 'FW'].filter(l => benchOf(l).length && picked[l].length === LINEUP_SHAPE[l])
+    .sort((a, b) => benchOf(b).length - benchOf(a).length).slice(0, ROTATION_SLOTS);
+  for (const line of rotationLines) {
+    const best = benchOf(line).map(p => {
+      const youthBonus = (p.age <= 21 && (p.pot - p.ovr) > 8) ? 15 : 0;
+      return { p, rscore: -(p.seasonStats.apps || 0) * 3 + youthBonus + rand(0, 10) };
+    }).sort((a, b) => b.rscore - a.rscore)[0];
+    picked[line][picked[line].length - 1] = best.p; // remplace le moins bien classé des titulaires de la ligne
+  }
+  const xi = [].concat(picked.GK, picked.DF, picked.MF, picked.FW);
+  // lignes incomplètes (effectif décimé) : on complète avec les meilleurs restants, gardien en dernier recours
+  const rest = scored.map(s => s.p).filter(p => !xi.includes(p));
+  const restOutfield = rest.filter(p => p.posLine !== 'GK');
+  const restGK = rest.filter(p => p.posLine === 'GK');
+  if (!picked.GK.length && restOutfield.length) xi.unshift(restOutfield.shift());
+  while (xi.length < 11 && (restOutfield.length || restGK.length)) xi.push(restOutfield.length ? restOutfield.shift() : restGK.shift());
+  return xi;
+}
 function squadStrength(state, club, statusReactionCandidates) {
   const monthNow = state.date.absMonth;
   const allSquad = club.squad.map(id => state.players[id]).filter(p => p && !p.retired);
@@ -1167,24 +1217,7 @@ function squadStrength(state, club, statusReactionCandidates) {
   const players = allSquad.filter(p => (!p.injuredUntil || p.injuredUntil <= monthNow) && !(p.suspendedMatches > 0));
   // les joueurs suspendus purgent un match à chaque fois que leur équipe joue
   allSquad.forEach(p => { if (p.suspendedMatches > 0) p.suspendedMatches--; });
-  const scored = players.map(p => ({ p, score: p.ovr * 0.7 + p.form * 0.2 + p.morale * 0.1 - (p.fatigue || 0) * 0.08 + rand(0, 14) }));
-  scored.sort((a, b) => b.score - a.score);
-  // noyau des meilleurs + créneaux de rotation réservés aux joueurs les moins utilisés (priorité aux jeunes à potentiel) :
-  // sans ça, les joueurs à faible niveau ne jouent jamais un seul match de la saison et ne progressent jamais.
-  const CORE = 9, ROTATION_SLOTS = 2;
-  const core = scored.slice(0, CORE).map(s => s.p);
-  const bench = scored.slice(CORE).map(s => s.p);
-  const rotationPicks = [];
-  if (bench.length) {
-    const benchScored = bench.map(p => {
-      const appsSoFar = p.seasonStats.apps || 0;
-      const youthBonus = (p.age <= 21 && (p.pot - p.ovr) > 8) ? 15 : 0;
-      return { p, rscore: -appsSoFar * 3 + youthBonus + rand(0, 10) };
-    });
-    benchScored.sort((a, b) => b.rscore - a.rscore);
-    for (let i = 0; i < Math.min(ROTATION_SLOTS, benchScored.length); i++) rotationPicks.push(benchScored[i].p);
-  }
-  const xi = core.concat(rotationPicks);
+  const xi = pickLineup(players);
   // Changement de statut (V9.3, suite) : un suivi léger (deux compteurs par joueur représenté) suffit à repérer
   // une vraie bascule — trois matchs de suite au banc, ou trois titularisations d'affilée juste après une telle
   // série — plutôt que de réagir au moindre choix de composition, qui varie chaque semaine sans rien signifier.
@@ -1440,6 +1473,7 @@ function runAgencyAcademy(state, news) {
     const club = pickClubNeedingYouth(state);
     const p = generatePlayer(state, { club, isYouth: true, forcedPos: choice(POSITIONS).code });
     p.age = randInt(15, 17);
+    p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 3); // appelé en fin de saison, avant le changement de date
     p.pot = clamp(Math.max(p.pot, randInt(76, 90)), p.ovr, 94); // de vraies pépites (un premier réglage donnait des potentiels de 68)
     p.value = estimateValue(p.ovr, p.pot, p.age, club.tier);
     p.agentId = 'player';
@@ -1510,7 +1544,14 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
   state.transferListed = (state.transferListed || []).filter(id => id !== player.id);
   checkRecord(state, 'biggestTransfer', player, fee, { fromClub: sellerClub ? sellerClub.name : 'Libre', toClub: buyerClub.name });
   if (player.agentId === 'player') {
-    const commission = Math.round(fee * agentCommissionRate(state));
+    // joueur libre (V8.3, audit P0-2) : pas d'indemnité donc pas de pourcentage dessus — l'agent touche à la place
+    // des frais d'agent versés par le club qui recrute, proportionnels à un an de salaire, comme en vrai.
+    let commission;
+    if (sellerClub) commission = Math.round(fee * agentCommissionRate(state));
+    else {
+      commission = Math.round((player.wage || 0) * 12 * agentCommissionRate(state));
+      buyerClub.budget -= commission;
+    }
     state.agent.cash += commission;
     state.agent.careerStats.totalCommissions += commission;
     state.agent.careerStats.transfersDone = (state.agent.careerStats.transfersDone || 0) + 1;
@@ -1521,10 +1562,13 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
     if (ra) { ra.cash += Math.round(fee * 0.09); ra.reputation = clamp(ra.reputation + 1, 0, 100); }
   }
   if (!opts.silent && isNewsworthy(state, player)) {
-    news.push({ text: `Transfert : ${player.name} rejoint ${buyerClub.name} (${fmtMoneyShort(fee)}).`, tag: 'transfert', playerId: player.id, breaking: true });
+    news.push({ text: `Transfert : ${player.name} rejoint ${buyerClub.name} (${sellerClub ? fmtMoneyShort(fee) : 'libre'}).`, tag: 'transfert', playerId: player.id, breaking: true });
   }
 }
 function weakestLine(state, club) {
+  // V8.3 (audit P0-5) : les gardiens étaient exclus de ce calcul, donc jamais recrutés par l'IA
+  const gkCount = club.squad.filter(id => state.players[id] && state.players[id].posLine === 'GK').length;
+  if (gkCount < 2) return 'GK';
   const lines = { DF: [], MF: [], FW: [] };
   for (const id of club.squad) { const p = state.players[id]; if (p && lines[p.posLine]) lines[p.posLine].push(p.ovr); }
   const scored = Object.entries(lines).map(([k, v]) => [k, avgBy(v.map(x => ({ x })), o => o.x)]);
@@ -1553,24 +1597,38 @@ function runAIClubTransfers(state, news, isMercato) {
 // des clubs signent aussi de leur propre initiative — ça crée une vraie urgence à représenter une pépite repérée
 // avant qu'un club ne le fasse à sa place, exactement l'histoire qu'un monde vivant doit pouvoir raconter.
 function runAIClubFreeAgentSignings(state, news, isMercato) {
-  const attempts = isMercato ? 6 : 2;
-  for (let i = 0; i < attempts; i++) {
-    const pool = (state.freeAgents || []).map(id => state.players[id]).filter(p => p && !p.retired && !p.club && p.agentId !== 'player');
+  // V8.3 (audit P0-4) : depuis que les fins de contrat libèrent vraiment les joueurs, le vivier des libres se
+  // remplit à chaque été. Pendant le mercato, chaque club en sous-effectif tente donc de se renforcer parmi eux
+  // (au lieu de six tentatives au hasard pour tout le monde), en visant un niveau cohérent avec le sien ; hors
+  // mercato, quelques signatures ponctuelles comme avant.
+  let pool = (state.freeAgents || []).map(id => state.players[id]).filter(p => p && !p.retired && !p.club && p.agentId !== 'player');
+  if (!pool.length) return;
+  const clubs = Object.values(state.clubs);
+  const buyers = isMercato
+    ? clubs.filter(c => c.squad.length < 23).sort(() => Math.random() - 0.5)
+    : [choice(clubs), choice(clubs)];
+  for (const buyer of buyers) {
     if (!pool.length) break;
-    const buyer = choice(Object.values(state.clubs));
     if (buyer.squad.length >= 25 || buyer.budget < 50000) continue;
     const line = weakestLine(state, buyer);
-    const candidates = pool.filter(p => p.posLine === line);
+    // un jeune reste un pari que tout club peut faire ; un joueur formé doit correspondre au standing du club
+    const candidates = pool.filter(p => p.posLine === line && (p.age <= 21 || Math.abs(idealTierForOvr(p.ovr) - buyer.tier) <= 1));
     if (!candidates.length) continue;
     const buyerLgNat = (LEAGUES.find(l => l.id === buyer.league) || {}).nat;
-    candidates.sort((a, b) => (b.pot + countryAffinity(b.nat, buyerLgNat) / 30) - (a.pot + countryAffinity(a.nat, buyerLgNat) / 30));
+    const worth = p => (p.age <= 21 ? (p.ovr + p.pot) / 2 : p.ovr) + countryAffinity(p.nat, buyerLgNat) / 30;
+    candidates.sort((a, b) => worth(b) - worth(a));
     const target = candidates[0];
     target.club = buyer.id;
     target.contractUntil = seasonStartYear(state) + randInt(2, 4);
     target.wage = computeWage(target.value, buyer.tier);
     buyer.squad.push(target.id);
+    pool = pool.filter(p => p !== target);
     state.freeAgents = (state.freeAgents || []).filter(id => id !== target.id);
-    if (news && Math.random() < 0.25) news.push({ text: `${target.name} signe son premier contrat professionnel avec ${buyer.name}.`, tag: 'transfert', playerId: target.id });
+    if (news && (isNewsworthy(state, target) || Math.random() < 0.1)) {
+      news.push({ text: (target.seasonsPlayed || 0) > 0
+        ? `${target.name}, libre, s'engage avec ${buyer.name}.`
+        : `${target.name} signe son premier contrat professionnel avec ${buyer.name}.`, tag: 'transfert', playerId: target.id });
+    }
   }
 }
 // Vérifie les promesses de rôle sportif faites en négociation (V8, mémoire agent↔joueur) : quelques mois après la
@@ -1600,31 +1658,58 @@ function checkRolePromises(state, news) {
     }
   }
 }
-function updateContractsAndListings(state) {
+function updateContractsAndListings(state, news) {
   const seasonY = seasonStartYear(state);
   state.transferListed = state.transferListed || [];
   // nettoyage : un joueur listé qui a depuis pris sa retraite (et donc disparu de state.players) doit sortir de la
   // liste — sans ça elle ne fait que croître indéfiniment sur des parties très longues, pour rien.
   state.transferListed = state.transferListed.filter(id => state.players[id]);
+  // Fin de contrat (V8.3, audit P0-4) : un contrat « jusqu'en Y » court jusqu'à l'été Y. La décision (prolonger ou
+  // laisser partir) se prend en juillet, juste avant le mercato d'été, pour que les joueurs libérés arrivent sur le
+  // marché au bon moment ; un contrat déjà dépassé (ancienne sauvegarde) est traité dès le mois courant. Avant, un
+  // joueur non prolongé restait indéfiniment dans son club avec un contrat expiré (~3 300 cas après 20 saisons).
+  const endingNow = calMonth(state) === 7 ? seasonY + 1 : seasonY;
   for (const p of Object.values(state.players)) {
     if (p.retired || !p.club) continue;
-    if (p.contractUntil && p.contractUntil <= seasonY && !state.transferListed.includes(p.id)) {
-      if (p.agentId === 'player') { state.transferListed.push(p.id); continue; } // le client de l'agent gère lui-même sa fin de contrat
-      const club = state.clubs[p.club];
-      // un club prestigieux retient mieux ses joueurs ; un jeune a plus de chances d'être prolongé qu'un vétéran ;
-      // un club qui n'a plus les moyens de la masse salariale actuelle du joueur hésite à prolonger.
-      const rep = club ? (club.reputation || 50) : 50;
-      const ageFactor = p.age <= 24 ? 1.25 : (p.age <= 30 ? 1.0 : (p.age <= 33 ? 0.6 : 0.25));
-      const affordable = club ? (p.wage * 12 <= (club.wageBudget || tierWageBudget(club.tier)) * 1.4) : true;
-      const renewChance = clamp(0.3 + (rep / 100) * 0.35, 0.15, 0.8) * ageFactor * (affordable ? 1 : 0.35);
-      if (Math.random() < renewChance) {
-        p.contractUntil = seasonY + randInt(1, 3);
-        // légère remise à niveau du salaire à la valeur actuelle du joueur (une prolongation, pas un simple statu quo)
-        if (club) p.wage = Math.max(p.wage, Math.round(computeWage(p.value, club.tier) / 500) * 500);
-      } else {
-        state.transferListed.push(p.id);
-      }
+    if (!p.contractUntil || p.contractUntil > endingNow) continue;
+    const club = state.clubs[p.club];
+    // le client de l'agent : pas de prolongation automatique, c'est à vous de la négocier avant l'échéance
+    if (p.agentId === 'player') { releaseToFreeAgency(state, p, news); continue; }
+    // un club prestigieux retient mieux ses joueurs ; un jeune a plus de chances d'être prolongé qu'un vétéran ;
+    // un club qui n'a plus les moyens de la masse salariale actuelle du joueur hésite à prolonger.
+    const rep = club ? (club.reputation || 50) : 50;
+    const ageFactor = p.age <= 24 ? 1.25 : (p.age <= 30 ? 1.0 : (p.age <= 33 ? 0.6 : 0.25));
+    const affordable = club ? (p.wage * 12 <= (club.wageBudget || tierWageBudget(club.tier)) * 1.4) : true;
+    const renewChance = clamp(0.3 + (rep / 100) * 0.35, 0.15, 0.8) * ageFactor * (affordable ? 1 : 0.35);
+    // plancher d'effectif : un club ne se vide pas de ses joueurs faute de prolongations
+    const mustKeep = club && club.squad.length <= MIN_SQUAD_AFTER_RELEASE;
+    if (mustKeep || Math.random() < renewChance) {
+      p.contractUntil = endingNow + randInt(1, 3);
+      // légère remise à niveau du salaire à la valeur actuelle du joueur (une prolongation, pas un simple statu quo)
+      if (club) p.wage = Math.max(p.wage, Math.round(computeWage(p.value, club.tier) / 500) * 500);
+    } else {
+      releaseToFreeAgency(state, p, news);
     }
+  }
+}
+const MIN_SQUAD_AFTER_RELEASE = 18;
+// Un joueur en fin de contrat quitte son club libre de tout engagement : il rejoint le vivier des joueurs libres
+// (signable sans indemnité par les clubs de l'IA), ou reste dans votre portefeuille s'il est votre client.
+function releaseToFreeAgency(state, p, news) {
+  const club = p.club ? state.clubs[p.club] : null;
+  if (club) club.squad = club.squad.filter(id => id !== p.id);
+  p.club = null; p.contractUntil = null; p.parentClub = null; p.loanUntil = null; p.loanStartMinutes = null;
+  p.releaseClause = null; p.rolePromise = null;
+  state.transferListed = (state.transferListed || []).filter(id => id !== p.id);
+  state.incomingOffers = (state.incomingOffers || []).filter(o => o.playerId !== p.id || !o.fee);
+  if (p.agentId !== 'player') {
+    state.freeAgents = state.freeAgents || [];
+    if (!state.freeAgents.includes(p.id)) state.freeAgents.push(p.id);
+  }
+  if (news && club && (p.agentId === 'player' || isNewsworthy(state, p))) {
+    news.push({ text: p.agentId === 'player'
+      ? `Fin de contrat : ${p.name} quitte ${club.name} libre. À vous de lui trouver un club (sans indemnité de transfert).`
+      : `Fin de contrat : ${p.name} quitte ${club.name} libre.`, tag: 'contrat', playerId: p.id });
   }
 }
 // Un club évalue chaque mois s'il doit vendre un joueur en surplus à son poste, ou renflouer sa trésorerie en
@@ -1645,7 +1730,8 @@ function runAIClubSquadManagement(state, news, isMercato) {
     }
     if (!candidate && c.budget < tierBudget(c.tier) * 0.15) {
       // détresse financière : on se sépare du salaire le plus lourd parmi les joueurs cédables
-      candidate = [...squad].sort((a, b) => b.wage - a.wage)[0];
+      const gkCount = squad.filter(p => p.posLine === 'GK').length;
+      candidate = [...squad].filter(p => p.posLine !== 'GK' || gkCount > 2).sort((a, b) => b.wage - a.wage)[0];
     }
     if (candidate && !state.transferListed.includes(candidate.id)) state.transferListed.push(candidate.id);
   }
@@ -2102,11 +2188,12 @@ function generateIncomingOffers(state, news) {
       const candidates = Object.values(state.clubs).filter(c => c.id !== p.club && Math.abs(c.tier - idealTier) <= 1 && !takenClubs.includes(c.id));
       if (!candidates.length) continue;
       const buyer = choice(candidates);
-      const fee = Math.max(p.club ? 50000 : 10000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000);
+      // joueur libre = aucune indemnité entre clubs (V8.3, audit P0-2) : il n'y a pas de club vendeur à dédommager
+      const fee = p.club ? Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000) : 0;
       if (fee > buyer.budget * 1.3) continue;
       const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
       state.incomingOffers.push({ id: nextId(state, 'off'), playerId: pid, clubId: buyer.id, fee, wage, expires: state.date.absMonth + 2 });
-      if (news) news.push({ text: `${buyer.name} formule une offre pour ${p.name} (${fmtMoneyShort(fee)}${p.club ? '' : ', premier contrat pro'}).`, tag: 'mercato', playerId: pid });
+      if (news) news.push({ text: `${buyer.name} formule une offre pour ${p.name} (${p.club ? fmtMoneyShort(fee) : 'joueur libre, sans indemnité'}).`, tag: 'mercato', playerId: pid });
     }
   }
   state.incomingOffers = state.incomingOffers.filter(o => o.expires >= state.date.absMonth);
@@ -2187,7 +2274,7 @@ function computeInterestedClubs(state, player) {
 // proposition spontanée d'un client par l'agent, pour que les deux chemins produisent des offres identiques.
 function makeClubOfferFor(state, p, club) {
   if ((state.incomingOffers || []).some(o => o.playerId === p.id && o.clubId === club.id)) return { ok: false, dup: true, reason: `${club.name} a déjà une offre sur la table pour ${p.name}.` };
-  const fee = Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000);
+  const fee = p.club ? Math.max(50000, Math.round(p.value * (0.85 + Math.random() * 0.5) / 5000) * 5000) : 0;
   if (fee > club.budget * 1.3) return { ok: false, reason: `${club.name} botte en touche : le budget ne suit pas pour l'instant.` };
   const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
   state.incomingOffers = state.incomingOffers || [];
@@ -2331,6 +2418,10 @@ function evaluateClubContractAcceptance(state, club, player, offer) {
 function evaluateNegotiationGate(state, player, offer) {
   const isTransfer = !!offer.targetClubId && offer.targetClubId !== player.club;
   const targetClub = offer.targetClubId ? state.clubs[offer.targetClubId] : null;
+  // sans club, il n'y a aucun contrat à prolonger ni aucun payeur (V8.3, audit P0-1) : sans ce garde-fou, la
+  // « renégociation » d'un client libre relevait son salaire de x2,5 tous les six mois sans plafond et versait
+  // une commission à chaque fois — de l'argent créé à partir de rien, démontré en test (3 M€/mois en 30 mois).
+  if (!isTransfer && !player.club) return { ok: false, reason: `${player.name} n'a pas de club : il n'y a aucun contrat à renégocier. Trouvez-lui d'abord un club.` };
   const gate = isTransfer ? evaluateTransferGate(state, targetClub, player, offer) : evaluateRenewalCooldown(state, player);
   if (!gate.ok) return gate;
   if (!isTransfer && player.club) {
@@ -2413,6 +2504,8 @@ function evaluateOffer(state, player, offer) {
   return { score, reactions, accept: score >= 55 };
 }
 function applyAcceptedOffer(state, player, offer, news) {
+  // double garde-fou (V8.3, audit P0-1) : aucun contrat ne se signe sans club, quel que soit le chemin d'appel
+  if (!(offer.targetClubId || player.club)) return false;
   player.wage = offer.salary;
   player.contractUntil = seasonStartYear(state) + offer.years;
   player.morale = clamp(player.morale + 10, 0, 100);
@@ -2510,7 +2603,7 @@ function findInterestedClubs(state, playerId) {
   const repBonus = 1 + state.agent.reputation / 500;
   const offers = [];
   for (const c of clubs) {
-    const fee = Math.max(p.club ? 30000 : 10000, Math.round(p.value * (0.75 + Math.random() * 0.6) * repBonus / 5000) * 5000);
+    const fee = p.club ? Math.max(30000, Math.round(p.value * (0.75 + Math.random() * 0.6) * repBonus / 5000) * 5000) : 0;
     if (fee > c.budget * 1.5) continue;
     const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
     offers.push({ clubId: c.id, fee, wage });
@@ -3258,7 +3351,10 @@ function processEndOfSeason(state, news) {
   let toGenerate = clamp(targetPop - clubPop, 0, 400);
   for (let i = 0; i < toGenerate; i++) {
     const club = pickClubNeedingYouth(state);
-    const p = generatePlayer(state, { club, isYouth: true, forcedPos: choice(POSITIONS).code });
+    const p = generatePlayer(state, { club, isYouth: true, forcedPos: neededPositionForClub(state, club) });
+    // la date n'a pas encore basculé sur la nouvelle saison : sans ce décalage, certains jeunes arrivaient avec un
+    // contrat déjà échu (V8.3)
+    p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 3);
     state.players[p.id] = p;
     club.squad.push(p.id);
     summary.newYouth++;
@@ -3271,7 +3367,8 @@ function processEndOfSeason(state, news) {
   if (state.freeAgents.length > FREE_AGENT_CAP) {
     const sorted = state.freeAgents.map(id => state.players[id]).filter(Boolean).sort((a, b) => b.pot - a.pot);
     const keepIds = new Set(sorted.slice(0, FREE_AGENT_CAP).map(p => p.id));
-    for (const id of state.freeAgents) if (!keepIds.has(id)) delete state.players[id];
+    // V8.3 : un libre qui ne trouve plus preneur raccroche proprement (portefeuilles des rivaux, légendes...)
+    for (const id of state.freeAgents) if (!keepIds.has(id) && state.players[id]) retirePlayer(state, state.players[id]);
     state.freeAgents = state.freeAgents.filter(id => keepIds.has(id));
   }
   evaluateAgentLegendScores(state);
@@ -3378,7 +3475,7 @@ const EVENTS = [
       { label: 'Faire monter les enchères publiquement', effect: (state, p, news) => {
         const bigClubs = Object.values(state.clubs).filter(c => c.tier >= 4 && c.id !== p.club);
         const buyer = bigClubs.length ? choice(bigClubs) : choice(Object.values(state.clubs).filter(c => c.id !== p.club));
-        const fee = Math.max(500000, Math.round(p.value * 1.25 / 5000) * 5000);
+        const fee = p.club ? Math.max(500000, Math.round(p.value * 1.25 / 5000) * 5000) : 0;
         if (buyer && fee <= buyer.budget * 1.5) {
           state.incomingOffers = state.incomingOffers || [];
           state.incomingOffers.push({ id: nextId(state, 'off'), playerId: p.id, clubId: buyer.id, fee, wage: Math.round(p.wage * 1.3 / 500) * 500, expires: state.date.absMonth + 2 });
@@ -3917,11 +4014,13 @@ function advanceMonth(state) {
   advanceEuropeMonth(state, news, month);
   const injuryReactionCandidates = []; // V9.3 : « réactions après blessure », même principe que matchReactionCandidates
   state.pendingRecoveryQueue = state.pendingRecoveryQueue || []; // V9.3 : réponse différée — persiste tant qu'elle n'a pas été consommée (voir maybeTriggerRecoveryReaction), contrairement aux candidats de match/blessure qui sont des réactions instantanées, pas des suites promises
+  // bornée (V8.3) : un seul retour par joueur, et au plus 10 en attente — la file grossissait sans fin dans la sauvegarde
+  state.pendingRecoveryQueue = state.pendingRecoveryQueue.filter((c, i, arr) => state.players[c.playerId] && arr.findIndex(x => x.playerId === c.playerId) === i).slice(-10);
   const recoveryReactionCandidates = state.pendingRecoveryQueue;
   updateFormMoraleInjuries(state, news, injuryReactionCandidates, recoveryReactionCandidates);
   state.pendingGoalQueue = state.pendingGoalQueue || []; // V9.3 : un objectif atteint est un jalon unique, pas une chance mensuelle — la file persiste comme pour les retours de blessure
   checkPersonalGoals(state, state.pendingGoalQueue);
-  updateContractsAndListings(state);
+  updateContractsAndListings(state, news);
   checkRolePromises(state, news);
   const isMercato = (month === 1 || month === 7);
   runAIClubSquadManagement(state, news, isMercato);
@@ -4046,6 +4145,10 @@ const PLAYER_SAVE_FIELDS = [
   'careerMinutes', 'fatigue', 'peakValue', 'injuryType', 'recentInjuryType', 'suspendedMatches', 'parentClub',
   'loanUntil', 'releaseClause', 'homegrownClub', 'rolePromise', 'monthsSinceLastMatch', 'courtship', 'lastRenewalMonth', 'lastStatus', 'loanStartMinutes',
   'lastTransferMonth', 'agentTrust', 'referralUntil', 'referredByName', 'lastReferralMonth',
+  // V8.3 (audit P0-3) : champs posés en cours de partie mais jusqu'ici absents de la liste, donc perdus à chaque
+  // rechargement (objectif personnel, délai anti-spam du démarchage, séries banc/titulaire). Toujours AJOUTER en fin
+  // de liste : la liste est enregistrée avec les données, les anciennes sauvegardes restent donc lisibles.
+  'benchStreak', 'startStreak', 'justBrokeIn', 'lastPitchAt', 'pitchLog', 'personalGoal', 'lastStatusMsgAt',
 ];
 // Compaction de la sauvegarde : au-delà de l'aplatissement du joueur en tableau positionnel (PLAYER_SAVE_FIELDS),
 // les tableaux 'career' et 'trophies' sont eux aussi des tableaux d'objets répétés ~5000 fois (un par joueur actif) :
@@ -4108,14 +4211,71 @@ function deserializeState(json) {
   }
   return raw;
 }
-const SAVE_KEY = 'football_agent_save_v2';
-function saveToLocalStorage(state) {
-  try { localStorage.setItem(SAVE_KEY, serializeState(state)); return true; } catch (e) { return false; }
+// Sauvegarde compressée (V8.3, audit P0-3) : le JSON brut pesait 2,1 M caractères dès la création et dépassait le
+// quota du navigateur (~5,2 M) vers la 18e saison — l'écriture échouait alors en silence et un rechargement faisait
+// perdre des saisons entières. Compressé en gzip (natif du navigateur), il pèse ~5 fois moins. L'ancien format
+// (JSON brut) reste lu, et reste le repli si le navigateur ne sait pas compresser.
+const SAVE_KEY = 'football_agent_save_v2';     // JSON brut (ancien format, et repli)
+const SAVE_KEY_GZ = 'football_agent_save_v3';  // JSON compressé gzip, encodé en base64
+function canCompressSave() { return typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined'; }
+async function gzipToBase64(str) {
+  const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
-function loadFromLocalStorage() {
-  try { const raw = localStorage.getItem(SAVE_KEY); return raw ? deserializeState(raw) : null; } catch (e) { return null; }
+async function base64ToGunzip(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return await new Response(stream).text();
 }
-function deleteLocalStorageSave() { try { localStorage.removeItem(SAVE_KEY); return true; } catch (e) { return false; } }
+// La compression est asynchrone : un compteur garantit qu'une écriture lente ne remplace jamais une plus récente,
+// et le dernier état reste disponible pour une écriture de secours si la page se ferme pendant la compression.
+let saveSeq = 0, pendingSaveJSON = null;
+async function saveToLocalStorage(state) {
+  state.meta = state.meta || {};
+  state.meta.saveCounter = (state.meta.saveCounter || 0) + 1;
+  const json = serializeState(state); // instantané pris tout de suite, avant toute attente
+  const seq = ++saveSeq;
+  try {
+    if (!canCompressSave()) { localStorage.setItem(SAVE_KEY, json); return true; }
+    pendingSaveJSON = json;
+    const packed = await gzipToBase64(json);
+    if (seq !== saveSeq) return true; // une sauvegarde plus récente est en cours : elle écrira à notre place
+    pendingSaveJSON = null;
+    localStorage.setItem(SAVE_KEY_GZ, packed);
+    localStorage.removeItem(SAVE_KEY); // libère l'ancien format (et un éventuel secours de fermeture)
+    return true;
+  } catch (e) {
+    if (seq === saveSeq) pendingSaveJSON = null;
+    return false;
+  }
+}
+function flushPendingSaveOnUnload() {
+  if (!pendingSaveJSON) return;
+  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); } catch (e) { /* trop gros pour le format brut : tant pis */ }
+}
+async function loadFromLocalStorage() {
+  // les deux formats peuvent coexister (secours écrit à la fermeture) : on garde le plus récent
+  const found = [];
+  try {
+    const gz = localStorage.getItem(SAVE_KEY_GZ);
+    if (gz && canCompressSave()) found.push(deserializeState(await base64ToGunzip(gz)));
+  } catch (e) { /* sauvegarde compressée illisible : on tente l'autre format */ }
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) found.push(deserializeState(raw));
+  } catch (e) { /* idem */ }
+  if (!found.length) return null;
+  return found.sort((a, b) => ((b.meta && b.meta.saveCounter) || 0) - ((a.meta && a.meta.saveCounter) || 0))[0];
+}
+function deleteLocalStorageSave() {
+  saveSeq++; pendingSaveJSON = null; // annule une écriture en cours
+  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_GZ); return true; } catch (e) { return false; }
+}
 
 if (typeof module !== 'undefined') {
   module.exports = {
@@ -4344,14 +4504,25 @@ function toast(msg) {
   setTimeout(() => { if (root) root.innerHTML = ''; }, 2600);
 }
 function saveGame() {
-  if (!G) return;
-  const ok = saveToLocalStorage(G);
-  if (!ok) toast('⚠️ Sauvegarde impossible (espace insuffisant) — pensez à exporter votre partie depuis Sauvegarde.');
+  if (!G) return Promise.resolve(true);
+  return saveToLocalStorage(G).then(ok => { setSaveWarning(!ok); return ok; });
+}
+// Échec d'écriture (V8.3, audit P0-3) : un toast de 2,6 s ne suffisait pas — la progression cessait d'être
+// enregistrée sans que le joueur le sache. Le bandeau reste affiché tant que les sauvegardes échouent.
+function setSaveWarning(on) {
+  const el = document.getElementById('saveWarning');
+  if (!on) { if (el) el.remove(); return; }
+  if (el) return;
+  const div = document.createElement('div');
+  div.id = 'saveWarning'; div.className = 'save-warning';
+  div.innerHTML = `⚠️ La sauvegarde automatique a échoué (espace du navigateur insuffisant) : votre progression n'est plus enregistrée. <button class="btn btn-sm" onclick="handleExport()">Exporter la partie</button>`;
+  document.body.appendChild(div);
 }
 
 /* ---------- Amorçage ---------- */
-function boot() {
-  const loaded = loadFromLocalStorage();
+async function boot() {
+  window.addEventListener('pagehide', flushPendingSaveOnUnload);
+  const loaded = await loadFromLocalStorage();
   if (loaded && loaded.clubs && loaded.players && loaded.agent) {
     migrateOldSave(loaded);
     G = loaded; renderApp();
@@ -4363,6 +4534,8 @@ function boot() {
 // joué, pour que la fiche club affiche tout de suite des valeurs correctes.
 function migrateOldSave(state) {
   let needsLeagueRecalc = false;
+  // V8.3 : un joueur sans club n'a pas de contrat (reliquat de l'ancienne renégociation sans club, audit P0-1)
+  for (const p of Object.values(state.players || {})) if (!p.club && p.contractUntil) p.contractUntil = null;
   for (const c of Object.values(state.clubs)) {
     if (c.reputation === undefined) { initClubEconomy(c); needsLeagueRecalc = true; }
   }
@@ -4601,12 +4774,16 @@ function computeAgentActions(state) {
     const p = state.players[o.playerId], c = state.clubs[o.clubId];
     if (!p || !c) continue;
     actions.push({ urgency: 95 - Math.max(0, o.expires - curAbs) * 15, icon: 'mail', tone: 'blue', offerId: o.id,
-      title: `Offre pour ${p.name}`, text: `${c.name} propose ${fmtMoneyShort(o.fee)} · ${fmtMoneyShort(o.wage)}/mois`,
+      title: `Offre pour ${p.name}`, text: `${c.name} propose ${o.fee ? fmtMoneyShort(o.fee) : 'un contrat (joueur libre)'} · ${fmtMoneyShort(o.wage)}/mois`,
       cta: `openPlayerDetail('${p.id}','dashboard')` });
   }
   for (const pid of (state.agent.portfolio || [])) {
     const p = state.players[pid];
     if (!p || p.retired) continue;
+    // (le joueur offert au départ a déjà sa carte « Premiers pas » tant qu'il n'a jamais eu de club)
+    if (!p.club && !(computeOnboardingStep(state) === 'find_club' && state.onboarding.starterPlayerId === pid)) actions.push({ urgency: 70, icon: 'search', tone: 'gold',
+      title: `${p.name} est sans club`, text: `Trouvez-lui un club : pas d'indemnité de transfert, mais des frais d'agent versés par le club qui le recrute.`,
+      cta: `openTransferSearch('${pid}')` });
     if ((p.morale ?? 50) < 35) actions.push({ urgency: 75 - (p.morale ?? 50), icon: 'chat', tone: 'red',
       title: `${p.name} est mécontent`, text: `Moral au plus bas (${Math.round(p.morale)}/100) : un geste ou une explication s'impose.`,
       cta: `openPlayerDetail('${pid}','dashboard')` });
@@ -4830,8 +5007,10 @@ function renderPlayerDetail() {
       ${p.courtship && p.courtship.attempts ? `<p class="small" style="margin-top:6px">Déjà sollicité ${p.courtship.attempts} fois — insister use sa patience.</p>` : ''}
       ${(() => { const tr = rivalsTracking(G, p); return tr.length ? `<p class="small" style="margin-top:6px;color:var(--gold-soft)">${icon('swap',13)} Concurrence : ${esc(tr[0].name)} (${rivalFocus(G, tr[0]).label}) suit aussi ce joueur${tr.length > 1 ? ` — et ${tr.length - 1} autre${tr.length > 2 ? 's' : ''}` : ''}. Ne tardez pas.</p>` : ''; })()}`;
   } else if (isMine) {
-    actionsHTML = `<button class="btn btn-primary btn-block" onclick="openNegotiation('${p.id}','renew')">Renégocier / prolonger</button>
-      <button class="btn btn-block" style="margin-top:8px" onclick="openTransferSearch('${p.id}')">Négocier un transfert</button>`;
+    actionsHTML = p.club
+      ? `<button class="btn btn-primary btn-block" onclick="openNegotiation('${p.id}','renew')">Renégocier / prolonger</button>
+      <button class="btn btn-block" style="margin-top:8px" onclick="openTransferSearch('${p.id}')">Négocier un transfert</button>`
+      : `<button class="btn btn-primary btn-block" onclick="openTransferSearch('${p.id}')">Trouver un club</button>`;
     if (p.club && !p.parentClub) actionsHTML += `<button class="btn btn-block" style="margin-top:8px" onclick="openLoanSearch('${p.id}')">Prêter à un autre club</button>`;
     actionsHTML += `<button class="btn btn-danger btn-block" style="margin-top:8px" onclick="confirmDropClient('${p.id}')">Mettre fin au contrat d'agent</button>`;
   } else {
@@ -5121,7 +5300,7 @@ function renderNegotiationsHub() {
     ${offers.length ? `<div class="card"><div class="card-title">Offres reçues</div>${offers.map(o => `
       <div class="list-row" style="cursor:default">
         ${clubBadgeHTML(o.club, 'sm')}
-        <div><div class="name">${esc(o.player.name)}${o.player.club ? '' : ' <span class="small">(sans club)</span>'}</div><div class="sub">${esc(o.club.name)} propose <b class="num">${fmtMoneyShort(o.fee)}</b> · <span class="num">${fmtMoneyShort(o.wage)}</span>/mois</div></div>
+        <div><div class="name">${esc(o.player.name)}${o.player.club ? '' : ' <span class="small">(sans club)</span>'}</div><div class="sub">${esc(o.club.name)} propose <b class="num">${o.fee ? fmtMoneyShort(o.fee) : 'sans indemnité'}</b> · <span class="num">${fmtMoneyShort(o.wage)}</span>/mois</div></div>
         <div class="right" style="display:flex;gap:6px">
           <button class="btn btn-sm btn-emerald" onclick="handleAcceptOffer('${o.id}')">Accepter</button>
           <button class="btn btn-sm btn-danger" onclick="handleDeclineOffer('${o.id}')">Refuser</button>
@@ -5162,7 +5341,7 @@ function transferSearchModalHTML() {
       const outlookLabel = outlook >= 0.7 ? '🟢 Poste ouvert' : (outlook >= 0.35 ? '🟡 Concurrence modérée' : '🔴 Poste disputé');
       return `<div class="list-row" style="cursor:default">
         ${clubBadgeHTML(c, 'sm')}
-        <div><div class="name">${esc(c.name)}</div><div class="sub">propose <b class="num">${fmtMoneyShort(o.fee)}</b> · ${fmtMoneyShort(o.wage)}/mois · ${outlookLabel}</div></div>
+        <div><div class="name">${esc(c.name)}</div><div class="sub">propose <b class="num">${o.fee ? fmtMoneyShort(o.fee) : 'sans indemnité'}</b> · ${fmtMoneyShort(o.wage)}/mois · ${outlookLabel}</div></div>
         <div class="right" style="display:flex;flex-direction:column;gap:5px">
           <button class="btn btn-sm btn-emerald" onclick="handleAcceptTransferSearch('${o.clubId}',${o.fee},${o.wage})">Accepter</button>
           <button class="btn btn-sm" onclick="openNegotiation('${p.id}','transfer','${o.clubId}',${o.fee})">Négocier</button>
@@ -5897,7 +6076,11 @@ function handleImport(evt) {
     try {
       const parsed = deserializeState(reader.result);
       if (!parsed.clubs || !parsed.players || !parsed.agent) throw new Error('format invalide');
-      G = parsed; saveGame(); closeModal(); renderApp(); toast('Sauvegarde importée.');
+      migrateOldSave(parsed);
+      G = parsed;
+      closeModal(); renderApp();
+      // le succès n'est annoncé que si la partie a vraiment pu être enregistrée dans ce navigateur
+      saveGame().then(ok => toast(ok ? 'Sauvegarde importée.' : 'Partie importée, mais impossible de l\u2019enregistrer dans ce navigateur : gardez votre fichier.'));
     } catch (e) { toast('Fichier de sauvegarde invalide.'); }
   };
   reader.readAsText(file);
@@ -5927,7 +6110,7 @@ function confirmReset() {
     <button class="btn btn-block" style="margin-top:8px" onclick="closeModal()">Annuler</button>
   `);
 }
-function doReset() { deleteLocalStorageSave(); G = null; closeModal(); renderOnboarding(); }
+function doReset() { deleteLocalStorageSave(); setSaveWarning(false); G = null; closeModal(); renderOnboarding(); }
 
 document.addEventListener('DOMContentLoaded', boot);
 </script>
