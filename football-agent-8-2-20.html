@@ -1034,8 +1034,8 @@ function computeUpcomingDeadlines(state) {
     }
   }
   for (const g of (state.seasonGoals || [])) {
-    const cur = state.agent.careerStats[g.metric] || 0;
-    const prog = clamp(Math.round(((cur - g.startVal) / g.amount) * 100), 0, 100);
+    if (g.type === 'rank') continue;
+    const prog = goalProgress(state, g);
     if (prog >= 70 && prog < 100) items.push({ months: 0, icon: 'target', text: `Objectif "${g.label}" à ${prog}%.` });
   }
   items.sort((a, b) => a.months - b.months);
@@ -1705,10 +1705,18 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
     state.agent.careerStats.totalCommissions += commission;
     state.agent.careerStats.transfersDone = (state.agent.careerStats.transfersDone || 0) + 1;
     state.agent.careerStats.biggestFeeDone = Math.max(state.agent.careerStats.biggestFeeDone || 0, fee);
+    state.agent.careerStats.seasonBestFee = Math.max(state.agent.careerStats.seasonBestFee || 0, fee);
     gainReputation(state, 1.2);
   } else if (player.agentId) {
     const ra = state.rivalAgents.find(a => a.id === player.agentId);
-    if (ra) { ra.cash += Math.round(fee * 0.09); ra.reputation = clamp(ra.reputation + 1, 0, 100); }
+    if (ra) {
+      const c = Math.round(fee * 0.09);
+      ra.cash += c; ra.reputation = clamp(ra.reputation + 1, 0, 100);
+      // les commissions des rivaux n'étaient jamais comptées (V8.3) : leur indice de classement restait figé
+      ra.careerStats = ra.careerStats || {};
+      ra.careerStats.totalCommissions = (ra.careerStats.totalCommissions || 0) + c;
+      ra.seasonCommissions = (ra.seasonCommissions || 0) + c;
+    }
   }
   if (!opts.silent && isNewsworthy(state, player)) {
     news.push({ text: `Transfert : ${player.name} rejoint ${buyerClub.name} (${sellerClub ? fmtMoneyShort(fee) : 'libre'}).`, tag: 'transfert', playerId: player.id, breaking: true });
@@ -2082,9 +2090,36 @@ function bumpRivalry(state, ra, delta, text) {
   ra.rivalryLog.push({ season: seasonLabel(state), text });
   if (ra.rivalryLog.length > 6) ra.rivalryLog.shift();
 }
-function runRivalAgentsAI(state, isMercato, news) {
+// Taille d'écurie visée par un rival, selon sa réputation (V8.3, audit P2-2) : sans plafond ni objectif, les rivaux
+// signaient ~1 joueur par saison et ne pesaient rien face à l'agent du joueur.
+function rivalPortfolioCap(ra) { return Math.round(6 + ra.reputation / 3); }
+// Les rivaux font aussi des affaires (V8.3, audit P2-2) : à chaque mercato, un rival peut placer un de ses clients
+// dans un club à sa mesure et toucher sa commission — jusqu'ici leurs clients ne bougeaient jamais et leur
+// indice de classement restait figé, ce qui rendait la course à l'agent de l'année jouée d'avance.
+function runRivalDeals(state, news) {
   for (const ra of state.rivalAgents) {
-    if (Math.random() > (isMercato ? 0.5 : 0.12)) continue;
+    if (Math.random() > 0.45 + ra.reputation / 200) continue;
+    const clients = ra.portfolio.map(id => state.players[id])
+      .filter(p => p && !p.retired && p.club && !p.parentClub && (p.lastTransferMonth == null || state.date.absMonth - p.lastTransferMonth >= 12))
+      .sort((a, b) => b.value - a.value);
+    for (const p of clients.slice(0, 3)) {
+      const cur = state.clubs[p.club];
+      const ideal = idealTierForOvr(p.ovr);
+      const buyers = Object.values(state.clubs).filter(c => c.id !== p.club && Math.abs(c.tier - ideal) <= 1 && (!cur || c.tier >= cur.tier) && c.budget >= p.value * 1.1 && c.squad.length < 26);
+      if (!buyers.length) continue;
+      const buyer = weightedChoice(buyers, c => (c.reputation || 50));
+      const fee = Math.round(p.value * (0.9 + Math.random() * 0.4) / 5000) * 5000;
+      p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+      executeTransfer(state, p, buyer, fee, news, { silent: false });
+      break; // une grosse affaire par rival et par mercato
+    }
+  }
+}
+function runRivalAgentsAI(state, isMercato, news) {
+  if (isMercato) runRivalDeals(state, news);
+  for (const ra of state.rivalAgents) {
+    if (ra.portfolio.length >= rivalPortfolioCap(ra)) continue;
+    if (Math.random() > (isMercato ? 0.8 : 0.25)) continue;
     const focus = rivalFocus(state, ra);
     const pool = Object.values(state.players).filter(p => !p.retired && !p.agentId && p.ovr >= rivalTasteThreshold(ra));
     if (!pool.length) continue;
@@ -3170,26 +3205,127 @@ function applyPromotionRelegation(state, news) {
   }
 }
 
-// ---------- Objectifs de saison ----------
+// ---------- Objectifs de saison (V8.3, audit P2-6 : défis dynamiques) ----------
+// Deux objectifs fixes (« signez un joueur », « encaissez 15 k€ ») perdaient tout sens au bout de quelques saisons :
+// un super-agent les validait sans y penser. Désormais trois défis tirés chaque saison dans un catalogue calé sur
+// le palier de carrière, avec des récompenses à la hauteur — il y a toujours quelque chose à aller chercher.
+const GOAL_REWARD_CASH = [10000, 40000, 150000, 500000, 1500000, 3000000];
+const BIG_FEE_TARGET = [500000, 2000000, 8000000, 20000000, 50000000, 80000000];
+const RANK_TARGET = [9, 7, 5, 3, 2, 1];
 function generateSeasonGoals(state) {
   const c = state.agent.careerStats;
-  const commTarget = 15000 + Math.round(state.agent.reputation * 400);
-  state.seasonGoals = [
-    { id: 'signer', label: 'Signez un nouveau joueur cette saison', startVal: c.playersSignedEver || 0, amount: 1, metric: 'playersSignedEver', reward: { cash: 8000, rep: 1 } },
-    { id: 'commissions', label: `Encaissez ${fmtMoneyShort(commTarget)} de commissions cette saison`, startVal: c.totalCommissions || 0, amount: commTarget, metric: 'totalCommissions', reward: { cash: 10000, rep: 1 } },
+  const tier = clamp(state.agent.careerTier || 0, 0, 5);
+  const cash = GOAL_REWARD_CASH[tier];
+  // l'objectif de commissions suit ce que l'agence rapporte vraiment (90 % de la saison écoulée), pas un chiffre figé
+  const commTarget = Math.max(15000 + Math.round(state.agent.reputation * 400), Math.round((state.agent.lastSeasonCommissions || 0) * 0.9 / 5000) * 5000);
+  const pool = [
+    { id: 'signer', label: `Signez ${1 + Math.floor(tier / 2)} nouveau${tier >= 2 ? 'x' : ''} joueur${tier >= 2 ? 's' : ''}`, type: 'delta', metric: 'playersSignedEver', amount: 1 + Math.floor(tier / 2) },
+    { id: 'transferts', label: `Concluez ${1 + Math.floor(tier / 2)} transfert${tier >= 2 ? 's' : ''}`, type: 'delta', metric: 'transfersDone', amount: 1 + Math.floor(tier / 2) },
+    { id: 'gros_coup', label: `Bouclez un transfert d'au moins ${fmtMoneyShort(BIG_FEE_TARGET[tier])}`, type: 'max', metric: 'seasonBestFee', amount: BIG_FEE_TARGET[tier] },
+    { id: 'rang', label: RANK_TARGET[tier] === 1 ? 'Terminez la saison n°1 du classement des agents' : `Terminez la saison dans le top ${RANK_TARGET[tier]} des agents`, type: 'rank', amount: RANK_TARGET[tier] },
   ];
+  if (tier >= 1) pool.push({ id: 'titre', label: 'Un de vos clients remporte un titre', type: 'delta', metric: 'titlesWonAsAgent', amount: 1 });
+  if (tier >= 3) pool.push({ id: 'trophee', label: 'Un de vos clients remporte un trophée individuel', type: 'delta', metric: 'individualAwardsWon', amount: 1 });
+  const picked = [{ id: 'commissions', label: `Encaissez ${fmtMoneyShort(commTarget)} de commissions`, type: 'delta', metric: 'totalCommissions', amount: commTarget }];
+  const rest = [...pool].sort(() => Math.random() - 0.5);
+  while (picked.length < 3 && rest.length) picked.push(rest.shift());
+  state.seasonGoals = picked.map(g => ({ ...g, startVal: g.type === 'delta' ? (c[g.metric] || 0) : 0, reward: { cash: g.id === 'rang' ? cash * 2 : cash, rep: g.id === 'rang' ? 2 : 1 } }));
+}
+// Progression d'un objectif, de 0 à 100 (le classement n'est jugé qu'en fin de saison : on montre la place actuelle).
+function goalProgress(state, g) {
+  const c = state.agent.careerStats;
+  if (g.type === 'rank') return agentRank(state) <= g.amount ? 100 : 0;
+  if (g.type === 'max') return clamp(Math.round(((c[g.metric] || 0) / g.amount) * 100), 0, 100);
+  return clamp(Math.round((((c[g.metric] || 0) - g.startVal) / g.amount) * 100), 0, 100);
 }
 function checkSeasonGoals(state, news) {
-  const c = state.agent.careerStats;
   for (const g of (state.seasonGoals || [])) {
-    const current = c[g.metric] || 0;
-    if (current - g.startVal >= g.amount) {
+    if (goalProgress(state, g) >= 100) {
       state.agent.cash += g.reward.cash || 0;
       if (g.reward.rep) gainReputation(state, g.reward.rep);
       news.push({ text: `Objectif de saison atteint : ${g.label} (+${fmtMoneyShort(g.reward.cash || 0)}).`, tag: 'objectif' });
     }
   }
   generateSeasonGoals(state);
+}
+function creditRivalTitle(state, p) {
+  const ra = p.agentId && state.rivalAgents.find(r => r.id === p.agentId);
+  if (!ra) return;
+  ra.careerStats = ra.careerStats || {};
+  ra.careerStats.titlesWonAsAgent = (ra.careerStats.titlesWonAsAgent || 0) + 1;
+  ra.seasonTitles = (ra.seasonTitles || 0) + 1;
+}
+// Indice de la saison (V8.3) : l'agent de l'année est jugé sur ce qu'il a accompli CETTE saison (commissions,
+// titres) et sur la force actuelle de son écurie — pas sur un cumul de carrière qui, une fois en tête, ne
+// pouvait plus jamais être rattrapé. Même barème pour vous et pour les rivaux.
+function agentSeasonScore(a, state, seasonComm, seasonTitles) {
+  const portfolioValue = (a.portfolio || []).reduce((s, pid) => { const p = state.players[pid]; return s + (p ? p.value : 0); }, 0);
+  return Math.round(a.reputation * 10 + portfolioValue / 400000 + (seasonComm || 0) / 200000 + (seasonTitles || 0) * 25 + (a.portfolio || []).length * 4);
+}
+function agentRankingList(state) {
+  const a = state.agent, start = a.seasonStartStats || {};
+  const myComm = (a.careerStats.totalCommissions || 0) - (start.commissions || 0);
+  const myTitles = (a.careerStats.titlesWonAsAgent || 0) - (start.titles || 0);
+  return [
+    { mine: true, score: agentSeasonScore(a, state, myComm, myTitles) },
+    ...state.rivalAgents.map(r => ({ mine: false, id: r.id, name: r.name, score: agentSeasonScore(r, state, r.seasonCommissions, r.seasonTitles) })),
+  ].sort((x, y) => y.score - x.score);
+}
+function agentRank(state) { return agentRankingList(state).findIndex(x => x.mine) + 1; }
+// Agent de l'année (V8.3, audit P2-6) : un vrai titre à conquérir et à défendre face aux rivaux, saison après
+// saison — la course au classement donne un but à une carrière longue, bien après l'agence maximale.
+function awardAgentOfTheYear(state, news, summary) {
+  const list = agentRankingList(state);
+  const rank = list.findIndex(x => x.mine) + 1;
+  summary.agentRank = rank;
+  const cs = state.agent.careerStats;
+  if (rank === 1) {
+    cs.agentOfYear = (cs.agentOfYear || 0) + 1;
+    cs.agentOfYearStreak = (cs.agentOfYearStreak || 0) + 1;
+    state.agent.honors = state.agent.honors || [];
+    state.agent.honors.push({ season: seasonLabel(state), title: "Agent de l'année" });
+    gainReputation(state, 2);
+    summary.agentOfYear = true;
+    news.push({ text: `Vous êtes élu agent de l'année ${seasonLabel(state)}${cs.agentOfYearStreak > 1 ? ` — ${cs.agentOfYearStreak}e fois de suite !` : ' !'}`, tag: 'trophee', breaking: true });
+  } else {
+    cs.agentOfYearStreak = 0;
+    const winner = list[0];
+    if (winner && !winner.mine) {
+      const ra = state.rivalAgents.find(r => r.id === winner.id);
+      if (ra) { ra.honors = (ra.honors || 0) + 1; news.push({ text: `${ra.name} est élu agent de l'année ${seasonLabel(state)}. Vous terminez ${rank}e.`, tag: 'agence' }); }
+    }
+  }
+}
+
+// ---------- Leviers d'influence (V8.3, audit P2-6 : l'argent doit redevenir une décision) ----------
+// Campagne d'image : convertit de l'argent en réputation, une fois par saison, à un prix qui grimpe avec votre
+// notoriété — de plus en plus cher de gagner des points au sommet, comme le reste de la réputation.
+function imageCampaignCost(state) { return Math.round(250000 * Math.pow(1 + state.agent.reputation / 10, 2) / 50000) * 50000; }
+function launchImageCampaign(state) {
+  if (state.agent.lastImageCampaign === seasonIdx(state)) return { ok: false, reason: 'Une seule campagne par saison : le public se lasserait.' };
+  const cost = imageCampaignCost(state);
+  if (state.agent.cash < cost) return { ok: false, reason: 'Trésorerie insuffisante.' };
+  state.agent.cash -= cost;
+  state.agent.lastImageCampaign = seasonIdx(state);
+  const before = state.agent.reputation;
+  gainReputation(state, 5);
+  return { ok: true, gain: state.agent.reputation - before, cost };
+}
+// Partenariat avec un club : vous financez une partie de son projet (formation, infrastructures) — le club gagne du
+// budget, vous gagnez sa confiance, ce qui pèse ensuite dans chaque négociation avec lui. Une fois par saison et par club.
+function clubPartnershipCost(club) { return Math.max(250000, Math.round(tierBudget(club.tier) * 0.05 / 50000) * 50000); }
+function signClubPartnership(state, clubId) {
+  const club = state.clubs[clubId];
+  if (!club) return { ok: false, reason: 'Club introuvable.' };
+  state.agent.clubPartnerships = state.agent.clubPartnerships || {};
+  if (state.agent.clubPartnerships[clubId] === seasonIdx(state)) return { ok: false, reason: `Vous avez déjà un partenariat en cours avec ${club.name} cette saison.` };
+  const cost = clubPartnershipCost(club);
+  if (state.agent.cash < cost) return { ok: false, reason: 'Trésorerie insuffisante.' };
+  state.agent.cash -= cost;
+  club.budget += Math.round(cost * 0.8);
+  state.agent.clubPartnerships[clubId] = seasonIdx(state);
+  nudgeClubRelation(state, clubId, 12, `Partenariat financier avec ${club.name}`);
+  return { ok: true, cost };
 }
 
 // ---------- Hauts faits (achievements) ----------
@@ -3392,6 +3528,7 @@ function advanceEuropeMonth(state, news, month) {
           p.collectiveTitles = (p.collectiveTitles || 0) + 1;
           checkRecord(state, 'mostTitles', p, p.collectiveTitles);
           if (p.agentId === 'player') { state.agent.careerStats.titlesWonAsAgent = (state.agent.careerStats.titlesWonAsAgent || 0) + 1; gainReputation(state, 3); }
+          else creditRivalTitle(state, p);
         }
         news.push({ text: `${champ.name} remporte la Ligue des Champions !`, tag: 'trophee', clubId: champ.id });
         if (finalLoser && state.clubs[finalLoser]) { const fl = state.clubs[finalLoser]; fl.budget += dampedClubIncome(fl, 18000000); }
@@ -3533,6 +3670,7 @@ function processEndOfSeason(state, news) {
         p.collectiveTitles = (p.collectiveTitles || 0) + 1;
         checkRecord(state, 'mostTitles', p, p.collectiveTitles);
         if (p.agentId === 'player') state.agent.careerStats.titlesWonAsAgent = (state.agent.careerStats.titlesWonAsAgent || 0) + 1;
+        else creditRivalTitle(state, p);
       }
     }
   }
@@ -3599,10 +3737,14 @@ function processEndOfSeason(state, news) {
   }
   evaluateAgentLegendScores(state);
   checkAgentCashRecord(state);
+  awardAgentOfTheYear(state, news, summary);
   checkSeasonGoals(state, news);
+  state.agent.lastSeasonCommissions = summary.seasonCommissions || 0;
+  state.agent.careerStats.seasonBestFee = 0;
   for (const lg of Object.values(state.leagues)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
   state.meta.totalSeasonsPlayed = (state.meta.totalSeasonsPlayed || 0) + 1;
-  state.agent.seasonStartStats = { commissions: state.agent.careerStats.totalCommissions || 0, transfersDone: state.agent.careerStats.transfersDone || 0 };
+  state.agent.seasonStartStats = { commissions: state.agent.careerStats.totalCommissions || 0, transfersDone: state.agent.careerStats.transfersDone || 0, titles: state.agent.careerStats.titlesWonAsAgent || 0 };
+  for (const ra of state.rivalAgents) { ra.seasonCommissions = 0; ra.seasonTitles = 0; }
   return summary;
 }
 
@@ -4543,7 +4685,8 @@ if (typeof module !== 'undefined') {
     maybeGenerateReferral,
     // V8.3 : exports ajoutés pour les tests (tests/engine.test.js) ; newsItemHTML (fonction d'affichage) retiré :
     // il rendait le moteur impossible à charger seul dans Node (ReferenceError).
-    evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
+    evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, goalProgress, agentRank, awardAgentOfTheYear,
+    launchImageCampaign, imageCampaignCost, signClubPartnership, clubPartnershipCost, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
     neededPositionForClub, releaseToFreeAgency, updateContractsAndListings, stableRand, SQUAD_PLAN, PLAYER_SAVE_FIELDS,
   };
 }
@@ -5097,7 +5240,8 @@ function careerTierCardHTML(a) {
     <div class="career-hero-row">
       <div>
         <div class="tier">${esc(tier.label)}</div>
-        <div class="spec">${esc((SPECIALTIES.find(s => s.id === a.specialty) || {}).label || '')} · ${esc(OFFICE_LEVELS[a.officeLevel - 1].label)}</div>
+        <div class="spec">${esc((SPECIALTIES.find(s => s.id === a.specialty) || {}).label || '')} · ${esc(OFFICE_LEVELS[a.officeLevel - 1].label)} · ${agentRank(G)}e agent mondial</div>
+        ${a.careerStats.agentOfYear ? `<div class="small" style="margin-top:6px;color:var(--gold-soft);font-weight:700">${icon('trophy',13)} Agent de l'année ×${a.careerStats.agentOfYear}</div>` : ''}
       </div>
       <div class="ovr-ring" style="--v:${rep};--c:${prestige ? 'var(--gold)' : 'var(--accent)'}"><b>${rep}</b><span>Répu.</span></div>
     </div>
@@ -5112,10 +5256,11 @@ function renderDashboard() {
   const deadlines = computeUpcomingDeadlines(G);
   const deadlinesHTML = deadlines.length ? `<div class="card"><div class="card-title">Prochainement</div>${deadlines.map(d => `
     <div class="row-between small" style="padding:5px 0;${d.playerId ? 'cursor:pointer' : ''}" ${d.playerId ? `onclick="openPlayerDetail('${d.playerId}','dashboard')"` : ''}><span style="display:inline-flex;align-items:center;gap:8px"><span style="color:var(--accent);display:inline-flex">${icon(d.icon, 15)}</span>${esc(d.text)}</span></div>`).join('')}</div>` : '';
-  const goalsHTML = (G.seasonGoals && G.seasonGoals.length) ? `<div class="card"><div class="card-title">Objectifs de la saison</div>${G.seasonGoals.map(g => {
-    const cur = a.careerStats[g.metric] || 0;
-    const prog = clamp(Math.round(((cur - g.startVal) / g.amount) * 100), 0, 100);
-    return `<div style="margin-bottom:10px"><div class="row-between small"><span>${esc(g.label)}</span><span class="num">${prog}%</span></div>${meterHTML(prog, 100, 'var(--emerald)')}</div>`;
+  const goalsHTML = (G.seasonGoals && G.seasonGoals.length) ? `<div class="card"><div class="card-title">${icon('target',15)} Défis de la saison</div>${G.seasonGoals.map(g => {
+    const prog = goalProgress(G, g);
+    const right = g.type === 'rank' ? `actuellement ${agentRank(G)}e` : `${prog}%`;
+    const reward = `<span style="color:var(--gold-soft)">+${fmtMoneyShort(g.reward.cash || 0)}${g.reward.rep ? ` · +${g.reward.rep} répu.` : ''}</span>`;
+    return `<div style="margin-bottom:12px"><div class="row-between small"><span style="color:var(--ink)">${esc(g.label)}</span><span class="num">${right}</span></div>${meterHTML(prog, 100, prog >= 100 ? 'var(--accent)' : 'var(--emerald)')}<div class="small" style="margin-top:3px">Récompense ${reward}</div></div>`;
   }).join('')}</div>` : '';
   return `
     ${onboardingCardHTML()}
@@ -5486,6 +5631,9 @@ function renderClubDetail() {
     ${c.history && c.history.length >= 2 ? `<div class="card"><div class="card-title">Évolution (valeur d'effectif)</div>${sparklineHTML(c.history, 'v', { color: 'var(--emerald)', fmt: fmtMoneyShort })}</div>
     <div class="card"><div class="card-title">Évolution (réputation)</div>${sparklineHTML(c.history, 'r', { color: 'var(--blue)', fmt: v => Math.round(v) + '/100' })}</div>` : ''}
     <div class="card"><div class="row-between small"><span>Vos relations avec ce club</span><span class="num">${rel}/100</span></div>${meterHTML(rel, 100, rel >= 50 ? 'var(--emerald)' : 'var(--red)')}
+      ${(G.agent.clubPartnerships || {})[c.id] === seasonIdx(G)
+        ? `<p class="small" style="margin-top:8px;color:var(--emerald-soft)">Partenariat en cours cette saison.</p>`
+        : `<button class="btn btn-sm btn-block" style="margin-top:10px" onclick="handleClubPartnership('${c.id}')" ${G.agent.cash < clubPartnershipCost(c) ? 'disabled' : ''}>Financer un partenariat — ${fmtMoneyShort(clubPartnershipCost(c))} (+12 relation)</button>`}
       ${(() => {
         const log = (G.agent.clubRelationLog && G.agent.clubRelationLog[c.id]) || [];
         if (!log.length) return '';
@@ -5999,6 +6147,7 @@ function renderAgency() {
       ${next ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="handleUpgradeOffice()">Passer à « ${next.label} » — ${fmtMoneyShort(next.cost)}</button>` : '<p class="small">Niveau maximum atteint : empire mondial.</p>'}
     </div>
     ${investmentsCardHTML(a)}
+    ${influenceCardHTML(a)}
     <div class="card"><div class="card-title">Spécialité</div><b>${spec.label || ''}</b><p class="small">${spec.desc || ''}</p></div>
     <div class="card"><div class="card-title">Personnel</div>
       ${STAFF_TYPES.map(s => `<div class="list-row" style="cursor:default"><div><div class="name">${s.label} <span class="small num">×${a.staff[s.id] || 0}</span></div><div class="sub">${s.effect}</div></div><div class="right"><button class="btn btn-sm" onclick="handleHireStaff('${s.id}')">+ ${fmtMoneyShort(s.cost)}</button></div></div>`).join('')}
@@ -6006,6 +6155,19 @@ function renderAgency() {
     ${achievementsCardHTML()}
   `;
 }
+function influenceCardHTML(a) {
+  const cost = imageCampaignCost(G);
+  const done = a.lastImageCampaign === seasonIdx(G);
+  return `<div class="card"><div class="card-title">${icon('megaphone',15)} Leviers d'influence</div>
+    <div class="list-row" style="cursor:default">
+      <div><div class="name">Campagne d'image</div><div class="sub">Presse, réseaux, événements : +réputation (plus cher à mesure que vous montez). Une fois par saison.</div></div>
+      <div class="right">${done ? '<span class="small">Faite cette saison</span>' : `<button class="btn btn-sm btn-primary" onclick="handleImageCampaign()" ${a.cash < cost ? 'disabled' : ''}>${fmtMoneyShort(cost)}</button>`}</div>
+    </div>
+    <p class="small" style="margin-top:8px">Partenariats avec les clubs : depuis la fiche d'un club, financez une partie de son projet pour gagner sa confiance dans les négociations.</p>
+  </div>`;
+}
+function handleImageCampaign() { const r = launchImageCampaign(G); saveGame(); toast(r.ok ? `Campagne lancée : +${r.gain.toFixed(1)} de réputation.` : r.reason); renderPage(); }
+function handleClubPartnership(id) { const r = signClubPartnership(G, id); saveGame(); toast(r.ok ? 'Partenariat signé : la relation avec le club progresse nettement.' : r.reason); renderPage(); }
 function investmentsCardHTML(a) {
   const tierNow = a.careerTier || 0;
   return `<div class="card"><div class="card-title">Investissements</div>
@@ -6078,13 +6240,17 @@ function renderRanking() {
   const list = [
     { name: `${G.agent.name} (${G.agent.agency})`, reputation: G.agent.reputation, portfolio: G.agent.portfolio.length, mine: true, score: agentLegendScore(G.agent, G), rivalry: null },
     ...G.rivalAgents.map(r => ({ id: r.id, name: r.name, focus: rivalFocus(G, r).label, reputation: r.reputation, portfolio: r.portfolio.length, mine: false, score: agentLegendScore(r, G), rivalry: r.rivalry || 0 })),
-  ].sort((a, b) => b.score - a.score);
+  ];
+  // course à l'agent de l'année : classement sur l'indice de la saison en cours (l'indice historique reste affiché)
+  const season = agentRankingList(G);
+  for (const row of list) { const m = season.find(x => row.mine ? x.mine : x.id === row.id); row.season = m ? m.score : 0; }
+  list.sort((a, b) => b.season - a.season);
   const recentRivalry = G.rivalAgents.flatMap(r => (r.rivalryLog || []).map(e => ({ ...e, season: e.season })))
     .slice(-6).reverse();
   return `<div class="page-title">Classement des agents</div>
-    <p class="small">Indice combinant réputation, valeur du portefeuille, commissions et titres. Touchez un rival pour voir sa fiche.</p>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th></th><th>Agent</th><th>Indice</th><th>Répu.</th><th>Joueurs</th><th>Rivalité</th></tr></thead><tbody>
-    ${list.map((a, i) => `<tr class="${a.mine ? 'me' : ''}" ${a.id ? `style="cursor:pointer" onclick="openRivalDetail('${a.id}')"` : ''}><td class="rk">${i + 1}</td><td class="name-cell"><div>${esc(a.name)}${a.focus ? `<div class="small" style="font-weight:400;color:var(--ink-faint);line-height:1.2">${esc(a.focus)}</div>` : ''}</div></td><td class="num">${a.score}</td><td>${Math.round(a.reputation)}</td><td>${a.portfolio}</td><td class="num">${a.rivalry === null ? '—' : Math.round(a.rivalry)}</td></tr>`).join('')}
+    <p class="small">Classé sur l'indice de la saison en cours (réputation, valeur de l'écurie, commissions et titres de la saison) : le premier en fin de saison est élu agent de l'année. L'indice historique cumule toute la carrière. Touchez un rival pour voir sa fiche.</p>
+    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th></th><th>Agent</th><th>Saison</th><th>Historique</th><th>Répu.</th><th>Joueurs</th><th>Rivalité</th></tr></thead><tbody>
+    ${list.map((a, i) => `<tr class="${a.mine ? 'me' : ''}" ${a.id ? `style="cursor:pointer" onclick="openRivalDetail('${a.id}')"` : ''}><td class="rk">${i + 1}</td><td class="name-cell"><div>${esc(a.name)}${a.focus ? `<div class="small" style="font-weight:400;color:var(--ink-faint);line-height:1.2">${esc(a.focus)}</div>` : ''}</div></td><td class="num" style="color:var(--accent)">${a.season}</td><td class="num">${a.score}</td><td>${Math.round(a.reputation)}</td><td>${a.portfolio}</td><td class="num">${a.rivalry === null ? '—' : Math.round(a.rivalry)}</td></tr>`).join('')}
     </tbody></table></div>
     ${recentRivalry.length ? `<div class="card"><div class="card-title">Derniers accrochages</div>${recentRivalry.map(e => `<div class="small" style="padding:3px 0">${esc(e.text)} — ${e.season}</div>`).join('')}</div>` : ''}
   `;
@@ -6353,6 +6519,7 @@ function seasonReportHTML(summary) {
       <div class="kpi"><b class="num">${summary.seasonTransfers || 0}</b><span>Transferts conclus</span></div>
       <div class="kpi"><b class="num">${fmtMoneyShort(summary.seasonCommissions || 0)}</b><span>Commissions cette saison</span></div>
     </div>
+    ${summary.agentRank ? `<p class="small" style="font-weight:700;color:${summary.agentOfYear ? 'var(--gold-soft)' : 'var(--ink-dim)'}">${summary.agentOfYear ? `${icon('trophy',14)} Élu agent de l'année !` : `Classement des agents : ${summary.agentRank}e`}</p>` : ''}
     ${summary.seasonTax ? `<p class="small">Impôt sur les bénéfices prélevé : <b class="num" style="color:var(--red-soft)">-${fmtMoneyShort(summary.seasonTax)}</b></p>` : ''}
     ${standout ? `<p class="small" style="color:var(--gold-soft);font-weight:700">${icon('star',14)} Joueur de la saison chez vous : ${esc(standout.name)} — note moyenne ${standout.entry.avgRating}</p>` : ''}
     <div class="sep"></div>
