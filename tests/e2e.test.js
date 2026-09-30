@@ -53,6 +53,10 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       const before = await page.evaluate(() => serializeState(G));
       await page.reload(); await page.waitForTimeout(800);
       assert.equal(await page.evaluate(() => serializeState(G)), before);
+      // novembre : hors mercato, la recherche de transfert l'annonce d'emblée, sans bouton « Accepter » voué à l'échec (V8.5)
+      await page.evaluate(id => { G.players[id].lastTransferMonth = -99; openTransferSearch(id); }, sid);
+      assert.match(await page.textContent('#transferSearchResults'), /mercato est fermé/);
+      assert.equal(await page.$$eval('.modal button', bs => bs.filter(b => /Accepter|Chercher/.test(b.textContent)).length), 0);
     });
   });
 }
