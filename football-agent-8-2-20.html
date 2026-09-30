@@ -2382,6 +2382,8 @@ function acceptIncomingOffer(state, offerId) {
   if (!win.ok) return { ok: false, reason: win.reason }; // l'offre reste sur la table jusqu'à l'ouverture
   const cd = evaluateTransferCooldown(state, p);
   if (!cd.ok) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: cd.reason }; }
+  const consent = evaluateClientConsent(state, p, buyer);
+  if (!consent.ok) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: consent.reason }; }
   // le budget a pu fondre depuis l'offre (audit B-17) : le club ne peut plus payer, l'offre tombe
   if (offer.fee > buyer.budget * 1.3) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: `${buyer.name} n'a plus les moyens de payer cette indemnité : l'offre est retirée.` }; }
   if (offer.wage) p.wage = offer.wage;
@@ -2550,11 +2552,26 @@ function evaluateMercatoWindow(state, player) {
   const inM = monthsUntilNextMercato(state);
   return { ok: false, reason: `Le mercato est fermé : ${player.name} ne peut pas changer de club avant ${MONTH_NAMES[calMonth(state) >= 2 && calMonth(state) <= 6 ? 7 : 1].toLowerCase()} (dans ${inM} mois).` };
 }
+// Le client a son mot à dire (V8.3, suite de l'audit P1-4) : un joueur qui vient de poser ses valises ne veut
+// pas repartir dans l'année, sauf pour un vrai pas en avant (club d'un standing supérieur). Sans ça, accepter
+// chaque offre à chaque mercato restait la stratégie dominante — et le moteur de la richesse sans limite.
+const SETTLE_MONTHS = 12;
+function evaluateClientConsent(state, player, targetClub) {
+  if (player.agentId !== 'player' || !player.club || player.lastTransferMonth == null || !targetClub) return { ok: true };
+  const since = state.date.absMonth - player.lastTransferMonth;
+  const cur = state.clubs[player.club];
+  if (since < SETTLE_MONTHS && !(cur && targetClub.tier > cur.tier)) {
+    return { ok: false, reason: `${player.name} vient d'arriver à ${cur ? cur.name : 'son club'} et veut s'y installer : il ne partira pas avant ${SETTLE_MONTHS - since} mois, sauf pour un club plus huppé.` };
+  }
+  return { ok: true };
+}
 function evaluateTransferGate(state, targetClub, player, offer) {
   const win = evaluateMercatoWindow(state, player);
   if (!win.ok) return win;
   const cd = evaluateTransferCooldown(state, player);
   if (!cd.ok) return cd;
+  const consent = evaluateClientConsent(state, player, targetClub);
+  if (!consent.ok) return consent;
   return evaluateClubTransferAcceptance(state, targetClub, player, offer);
 }
 // Un club ne signe pas n'importe quel contrat (V9.3, chasse aux exploits) : jusqu'ici, une PROLONGATION n'était
@@ -4526,7 +4543,7 @@ if (typeof module !== 'undefined') {
     maybeGenerateReferral,
     // V8.3 : exports ajoutés pour les tests (tests/engine.test.js) ; newsItemHTML (fonction d'affichage) retiré :
     // il rendait le moteur impossible à charger seul dans Node (ReferenceError).
-    evaluateNegotiationGate, evaluateMercatoWindow, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
+    evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
     neededPositionForClub, releaseToFreeAgency, updateContractsAndListings, stableRand, SQUAD_PLAN, PLAYER_SAVE_FIELDS,
   };
 }

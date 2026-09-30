@@ -70,6 +70,17 @@ test('P1-2 : probabilité d\'accord et décision stable pour une même offre', (
   for (let i = 0; i < 10; i++) assert.equal(E.evaluateOffer(s, p, offer).accept, first);
 });
 
+test('Un client tout juste transféré refuse de repartir dans l\'année, sauf pour un club plus huppé', () => {
+  const s = newGame();
+  const p = Object.values(s.players).find(x => x.club && s.clubs[x.club].tier <= 3);
+  p.agentId = 'player'; s.agent.portfolio.push(p.id); p.lastTransferMonth = s.date.absMonth;
+  const cur = s.clubs[p.club];
+  const same = Object.values(s.clubs).find(c => c.id !== cur.id && c.tier === cur.tier);
+  const bigger = Object.values(s.clubs).find(c => c.tier > cur.tier);
+  assert.equal(E.evaluateClientConsent(s, p, same).ok, false);
+  assert.equal(E.evaluateClientConsent(s, p, bigger).ok, true);
+});
+
 test('P1-4 : impôt progressif sur les commissions', () => {
   assert.equal(E.seasonTaxOn(150000), 0);
   assert.equal(E.seasonTaxOn(1000000), 200000);
