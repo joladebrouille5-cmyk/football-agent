@@ -558,6 +558,20 @@ input[type=range]::-moz-range-thumb{width:18px; height:18px; border-radius:50%; 
 .region-card.active{border-color:var(--accent); background:linear-gradient(160deg, rgba(215,255,60,.18), rgba(215,255,60,.04)); color:var(--accent);}
 .region-card.active .small{color:var(--accent-soft);}
 .region-card .flag{font-size:24px; display:block; margin-bottom:5px;}
+/* écrans tactiles : cibles d'au moins 44 px (audit : 6 à 13 boutons trop petits par écran) */
+@media (pointer:coarse){
+  .btn-sm{min-height:44px; padding:8px 14px;}
+  .tab-btn{min-height:40px;}
+  .modal-close{width:44px; height:44px;}
+  .chip{padding:9px 12px;}
+}
+/* Paramètres (V8.3) */
+body.text-large .content, body.text-large .modal{zoom:1.12;}
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after{animation:none !important; transition:none !important;}
+.setting-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-bottom:1px solid var(--line-soft);}
+.setting-row:last-child{border-bottom:none;}
+.setting-row .opts{display:flex; gap:6px; flex-shrink:0;}
+.corrupt-warning{background:#2d1210; border:1px solid var(--red); color:var(--red-soft); border-radius:var(--r-md); padding:12px; margin-bottom:16px; font-size:13px;}
 @media (prefers-reduced-motion: reduce){ *, *::before, *::after{animation:none !important; transition:none !important;} }
 </style>
 </head>
@@ -1394,6 +1408,13 @@ function checkRecord(state, key, player, value, extra = {}) {
     state.records[key] = { value, name: player.name, nat: player.nat, club: player.club, season: seasonLabel(state), agentWasMine: player.agentId === 'player', ...extra };
   }
 }
+// Qui marque / qui passe (V8.3, audit « simulation ») : le poids ne dépendait que de la ligne et (linéairement) du
+// niveau, si bien que les buts se diluaient sur tout le onze — meilleur buteur d'une saison à ~18 buts. Le poste
+// précis (avant-centre > ailier > milieu offensif...) et le talent (au cube) pèsent désormais vraiment.
+const SCORER_POS_WEIGHT = { BU: 4.2, AG: 2.4, AD: 2.4, MOC: 1.8, MC: 0.9, MDC: 0.45, DC: 0.35, DL: 0.3, DR: 0.3, GK: 0 };
+const ASSIST_POS_WEIGHT = { MOC: 2.4, AG: 2.0, AD: 2.0, MC: 1.6, BU: 1.0, DL: 0.9, DR: 0.9, MDC: 0.7, DC: 0.3, GK: 0.05 };
+function scorerWeight(p) { return (SCORER_POS_WEIGHT[p.pos] ?? 1) * Math.pow(p.ovr / 70, 3); }
+function assistWeight(p) { return (ASSIST_POS_WEIGHT[p.pos] ?? 1) * Math.pow(p.ovr / 70, 2); }
 function weightedPickOne(list, weightFn) { return list.length ? weightedChoice(list, weightFn) : null; }
 function weightedPickMany(list, n, weightFn) {
   const res = [];
@@ -1421,7 +1442,8 @@ function applyMatchResult(state, club, xi, goalsFor, goalsAgainst) {
     p.monthsSinceLastMatch = 0;
     p.fatigue = clamp((p.fatigue || 0) + 8, 0, 100);
     // note de base : découle du résultat collectif, de la forme et du temps de jeu — bruit réduit, ajusté ensuite par les actions individuelles
-    ratingBase[p.id] = 6.1 + (goalsFor - goalsAgainst) * 0.1 + (p.form - 50) / 160 + (mins - 75) / 220 + (Math.random() - 0.5) * 0.5;
+    // V8.3 : notes resserrées entre 6,0 et 6,6 sur une saison — le niveau propre du joueur compte désormais
+    ratingBase[p.id] = 6.2 + (goalsFor - goalsAgainst) * 0.12 + (p.ovr - 70) / 28 + (p.form - 50) / 160 + (mins - 75) / 220 + (Math.random() - 0.5) * 0.9;
     const proProneness = 1 - (p.consistency - 0.5) * 0.4; // les pros écopent un peu moins de cartons
     if (Math.random() < 0.012 * proProneness) {
       p.seasonStats.cardR = (p.seasonStats.cardR || 0) + 1; log.cardsR.push({ id: p.id, name: p.name });
@@ -1434,7 +1456,7 @@ function applyMatchResult(state, club, xi, goalsFor, goalsAgainst) {
     }
   }
   if (outfield.length) {
-    const scorers = weightedPickMany(outfield, goalsFor, p => (p.posLine === 'FW' ? 3 : p.posLine === 'MF' ? 1.4 : 0.3) * (p.ovr / 70));
+    const scorers = weightedPickMany(outfield, goalsFor, scorerWeight);
     for (const scorer of scorers) {
       scorer.seasonStats.goals = (scorer.seasonStats.goals || 0) + 1;
       scorer.careerGoals++;
@@ -1442,7 +1464,7 @@ function applyMatchResult(state, club, xi, goalsFor, goalsAgainst) {
       ratingBase[scorer.id] += 0.9; // la note reflète la contribution réelle, pas seulement le hasard
       const entry = { id: scorer.id, name: scorer.name, min: randInt(1, 90) };
       const passers = outfield.filter(p => p !== scorer);
-      const passer = weightedPickOne(passers, p => (p.posLine === 'MF' ? 2 : p.posLine === 'FW' ? 1.2 : 0.5) * (p.ovr / 70));
+      const passer = weightedPickOne(passers, assistWeight);
       if (passer && Math.random() < 0.72) {
         passer.seasonStats.assists = (passer.seasonStats.assists || 0) + 1;
         passer.careerAssists++;
@@ -1461,6 +1483,7 @@ function applyMatchResult(state, club, xi, goalsFor, goalsAgainst) {
       gk.careerCS = (gk.careerCS || 0) + 1;
       checkRecord(state, 'topCleanSheets', gk, gk.careerCS);
       ratingBase[gk.id] += 0.6;
+      for (const d of xi) if (d.posLine === 'DF') ratingBase[d.id] += 0.25; // la défense aussi a son clean sheet
     }
   }
   for (const p of xi) {
@@ -3422,7 +3445,7 @@ function initEuropeSeason(state, news) {
   // eliminatedAt trace le stade auquel chaque club sort de la compétition (utilisé pour la réputation dynamique
   // des clubs/championnats en fin de saison, avant que la campagne suivante n'écrase ces données) ;
   // le champion n'y figure pas : il est identifié séparément par state.europe.champion.
-  state.europe = { stage: 'groups', groups, fixtures, table, bracket: null, champion: null, eliminatedAt: {} };
+  state.europe = { stage: 'groups', groups, fixtures, table, bracket: null, champion: null, eliminatedAt: {}, history: [] };
   news.push({ text: `Tirage de la Ligue des Champions : ${qualified.length} clubs qualifiés pour la phase de groupes.`, tag: 'trophee' });
 }
 function applyEuroStatsOnly(state, xi, goalsFor, goalsAgainst) {
@@ -3434,16 +3457,16 @@ function applyEuroStatsOnly(state, xi, goalsFor, goalsAgainst) {
     p.seasonStats.minutes = (p.seasonStats.minutes || 0) + mins;
     p.careerMinutes = (p.careerMinutes || 0) + mins;
     p.monthsSinceLastMatch = 0;
-    const ratingBase = 6.0 + (goalsFor - goalsAgainst) * 0.15 + (Math.random() - 0.5) * 1.2 + (p.form - 50) / 120;
+    const ratingBase = 6.2 + (goalsFor - goalsAgainst) * 0.12 + (p.ovr - 70) / 28 + (Math.random() - 0.5) * 0.9 + (p.form - 50) / 160;
     p.seasonStats.ratingSum += clamp(ratingBase, 3, 10);
   }
   if (outfield.length) {
-    const scorers = weightedPickMany(outfield, goalsFor, p => (p.posLine === 'FW' ? 3 : p.posLine === 'MF' ? 1.4 : 0.3) * (p.ovr / 70));
+    const scorers = weightedPickMany(outfield, goalsFor, scorerWeight);
     for (const scorer of scorers) {
       scorer.seasonStats.goals = (scorer.seasonStats.goals || 0) + 1;
       scorer.careerGoals++;
       checkRecord(state, 'topScorer', scorer, scorer.careerGoals);
-      const passer = weightedPickOne(outfield.filter(p => p !== scorer), p => (p.posLine === 'MF' ? 2 : p.posLine === 'FW' ? 1.2 : 0.5) * (p.ovr / 70));
+      const passer = weightedPickOne(outfield.filter(p => p !== scorer), assistWeight);
       if (passer && Math.random() < 0.72) {
         passer.seasonStats.assists = (passer.seasonStats.assists || 0) + 1;
         passer.careerAssists++;
@@ -3499,6 +3522,7 @@ function advanceEuropeMonth(state, news, month) {
     if (month !== roundMonth || !eu.bracket) return;
     const winners = [];
     let finalLoser = null;
+    const roundResults = []; // scores conservés pour l'affichage du tableau final (V8.3, audit)
     for (const tie of eu.bracket.ties) {
       const res = simulateEuroMatch(state, tie[0], tie[1]);
       if (!res) continue;
@@ -3506,6 +3530,7 @@ function advanceEuropeMonth(state, news, month) {
       if (res.goalsHome === res.goalsAway) { winner = Math.random() < 0.5 ? tie[0] : tie[1]; }
       else winner = res.goalsHome > res.goalsAway ? tie[0] : tie[1];
       loser = winner === tie[0] ? tie[1] : tie[0];
+      roundResults.push({ h: tie[0], a: tie[1], sh: res.goalsHome, sa: res.goalsAway, w: winner, tab: res.goalsHome === res.goalsAway });
       winners.push(winner);
       finalLoser = loser;
       eu.eliminatedAt[loser] = eu.stage; // le stade où ce club vient de sortir (r16/qf/sf), ou 'sf' pour le finaliste malheureux ci-dessous
@@ -3516,6 +3541,8 @@ function advanceEuropeMonth(state, news, month) {
         news.push({ text: `Sensation en Ligue des Champions : ${wc.name} élimine ${lc.name} !`, tag: 'trophee', clubId: wc.id });
       }
     }
+    eu.history = eu.history || [];
+    eu.history.push({ round: eu.stage, results: roundResults });
     if (eu.stage === 'final') {
       const championId = winners[0];
       const champ = state.clubs[championId];
@@ -3569,6 +3596,63 @@ function advanceEuropeMonth(state, news, month) {
       eu.stage = nextStage;
       news.push({ text: `${winners.length} clubs qualifiés pour ${roundLabel(nextStage)} de la Ligue des Champions.`, tag: 'trophee' });
     }
+  }
+}
+
+// ---------- Coupes nationales (V8.3, audit « compétitions ») ----------
+// Une coupe à élimination directe par pays, ouverte aux 32 clubs les plus réputés des deux divisions (16 pour le
+// Portugal) : des surprises possibles, un titre de plus à viser pour les clients, un match par tour.
+const CUP_DEFS = [
+  { id: 'FR', name: 'Coupe de France', leagues: ['L1', 'L2'] },
+  { id: 'EN', name: 'FA Cup', leagues: ['PL', 'CH'] },
+  { id: 'ES', name: 'Copa del Rey', leagues: ['LIGA', 'SEG'] },
+  { id: 'IT', name: 'Coppa Italia', leagues: ['SA', 'SB'] },
+  { id: 'DE', name: 'DFB-Pokal', leagues: ['BL', 'B2'] },
+  { id: 'PT', name: 'Taça de Portugal', leagues: ['PT'] },
+];
+const CUP_ROUND_MONTHS = { r32: 9, r16: 11, qf: 1, sf: 3, final: 5 };
+const CUP_NEXT_ROUND = { r32: 'r16', r16: 'qf', qf: 'sf', sf: 'final' };
+const CUP_ROUND_LABEL = { r32: '16es de finale', r16: '8es de finale', qf: 'Quarts de finale', sf: 'Demi-finales', final: 'Finale' };
+function initCups(state) {
+  state.cups = {};
+  for (const def of CUP_DEFS) {
+    const clubs = def.leagues.flatMap(l => (state.leagues[l] || { clubIds: [] }).clubIds).map(id => state.clubs[id]).filter(Boolean)
+      .sort((a, b) => (b.reputation || 0) - (a.reputation || 0));
+    const size = clubs.length >= 32 ? 32 : 16;
+    if (clubs.length < size) continue;
+    const entrants = clubs.slice(0, size).map(c => c.id).sort(() => Math.random() - 0.5);
+    state.cups[def.id] = { id: def.id, name: def.name, season: seasonLabel(state), round: size === 32 ? 'r32' : 'r16', ties: pairUp(entrants), history: [], winner: null };
+  }
+}
+function advanceCupsMonth(state, news, month) {
+  for (const cup of Object.values(state.cups || {})) {
+    if (cup.winner || CUP_ROUND_MONTHS[cup.round] !== month) continue;
+    const results = [], winners = [];
+    for (const [h, a] of cup.ties) {
+      const res = simulateEuroMatch(state, h, a);
+      if (!res) continue;
+      const w = res.goalsHome === res.goalsAway ? (Math.random() < 0.5 ? h : a) : (res.goalsHome > res.goalsAway ? h : a);
+      results.push({ h, a, sh: res.goalsHome, sa: res.goalsAway, w, tab: res.goalsHome === res.goalsAway });
+      winners.push(w);
+      const wc = state.clubs[w], lc = state.clubs[w === h ? a : h];
+      if (wc && lc && lc.tier - wc.tier >= 2 && cup.round !== 'r32') news.push({ text: `Exploit en ${cup.name} : ${wc.name} élimine ${lc.name} !`, tag: 'trophee', clubId: wc.id });
+    }
+    cup.history.push({ round: cup.round, results });
+    if (cup.round !== 'final') { cup.round = CUP_NEXT_ROUND[cup.round]; cup.ties = pairUp(winners.sort(() => Math.random() - 0.5)); continue; }
+    const champ = state.clubs[winners[0]];
+    cup.winner = winners[0]; cup.round = 'done';
+    if (!champ) continue;
+    champ.cupsWon = (champ.cupsWon || 0) + 1;
+    champ.budget += dampedClubIncome(champ, Math.round(tierBudget(champ.tier) * 0.05));
+    for (const pid of champ.squad) {
+      const p = state.players[pid]; if (!p) continue;
+      p.trophies.push({ season: seasonLabel(state), title: `Vainqueur ${cup.name}` });
+      p.collectiveTitles = (p.collectiveTitles || 0) + 1;
+      checkRecord(state, 'mostTitles', p, p.collectiveTitles);
+      if (p.agentId === 'player') { state.agent.careerStats.titlesWonAsAgent = (state.agent.careerStats.titlesWonAsAgent || 0) + 1; gainReputation(state, 1); }
+      else creditRivalTitle(state, p);
+    }
+    news.push({ text: `${champ.name} remporte la ${cup.name} !`, tag: 'trophee', clubId: champ.id });
   }
 }
 
@@ -3679,6 +3763,7 @@ function processEndOfSeason(state, news) {
   computeSeasonAwards(state, news);
   applyPromotionRelegation(state, news);
   initEuropeSeason(state, news);
+  initCups(state);
   for (const c of Object.values(state.clubs)) c.table = emptyTableRow();
   summary.portfolioReport = [];
   for (const p of Object.values(state.players)) {
@@ -3837,7 +3922,7 @@ const EVENTS = [
       } },
       { label: 'Ignorer, ce n\u2019est pas votre problème', effect: () => {} },
     ] },
-  { id: 'offre_surprise', weight: 2, scope: 'represented', cond: state => state.agent.portfolio.some(id => state.players[id] && !state.players[id].retired && state.players[id].ovr >= 68),
+  { id: 'offre_surprise', weight: 2, scope: 'represented', strictTarget: true, targetCond: p => p.ovr >= 68 && !!p.club, cond: state => state.agent.portfolio.some(id => state.players[id] && !state.players[id].retired && state.players[id].ovr >= 68),
     text: (p, state) => `Un club huppé formule sans prévenir une offre concrète pour ${p.name}.`,
     choices: [
       { label: 'Faire monter les enchères publiquement', effect: (state, p, news) => {
@@ -3891,7 +3976,7 @@ const EVENTS = [
       } },
       { label: 'Refuser par souci d\u2019image', effect: (state, p, news) => { gainReputation(state, 2); news.push({ text: `Vous refusez un partenariat jugé trop risqué. Votre sérieux est salué.`, tag: 'business' }); } },
     ] },
-  { id: 'selection_nationale', weight: 2, scope: 'represented', cond: state => state.agent.portfolio.some(id => state.players[id] && !state.players[id].retired && state.players[id].ovr >= 72),
+  { id: 'selection_nationale', weight: 2, scope: 'represented', strictTarget: true, targetCond: p => p.ovr >= 72, cond: state => state.agent.portfolio.some(id => state.players[id] && !state.players[id].retired && state.players[id].ovr >= 72),
     text: (p, state) => `${p.name} reçoit sa première convocation en sélection nationale !`,
     choices: [
       { label: 'Pousser à jouer malgré la fatigue accumulée', effect: (state, p, news) => {
@@ -3901,7 +3986,7 @@ const EVENTS = [
       } },
       { label: 'Gérer sa charge de travail avec prudence', effect: (state, p, news) => { p.form = clamp(p.form + 5, 0, 100); p.morale = clamp(p.morale + 4, 0, 100); news.push({ text: `${p.name} savoure sa sélection sans se mettre en danger.`, tag: 'perf', playerId: p.id }); } },
     ] },
-  { id: 'retraite_approche', weight: 1, scope: 'represented', cond: state => state.agent.portfolio.some(id => state.players[id] && !state.players[id].retired && state.players[id].age >= 33),
+  { id: 'retraite_approche', weight: 1, scope: 'represented', strictTarget: true, targetCond: p => p.age >= 33, cond: state => state.agent.portfolio.some(id => state.players[id] && !state.players[id].retired && state.players[id].age >= 33),
     text: (p, state) => `${p.name} évoque sérieusement la fin de sa carrière avec vous.`,
     choices: [
       { label: 'Lui conseiller de raccrocher au sommet', effect: (state, p, news) => { p.morale = clamp(p.morale + 15, 0, 100); news.push({ text: `${p.name} envisage sereinement l'après-carrière à vos côtés.`, tag: 'agence', playerId: p.id }); } },
@@ -3928,7 +4013,7 @@ const EVENTS = [
       } },
       { label: 'Laisser la concurrence s\u2019en charger', effect: () => {} },
     ] },
-  { id: 'clause_declenchee', weight: 1, scope: 'represented', cond: state => state.agent.portfolio.some(id => { const pl = state.players[id]; return pl && pl.club && !pl.retired && pl.ovr >= 65; }),
+  { id: 'clause_declenchee', weight: 1, scope: 'represented', strictTarget: true, targetCond: p => !!p.club && p.ovr >= 65, cond: state => state.agent.portfolio.some(id => { const pl = state.players[id]; return pl && pl.club && !pl.retired && pl.ovr >= 65; }),
     text: (p, state) => `Un grand club veut activer une clause libératoire dans le contrat de ${p.name} !`,
     choices: [
       { label: 'Laisser le transfert se faire (rapide, mais à prix fixe)', effect: (state, p, news) => {
@@ -3947,7 +4032,7 @@ const EVENTS = [
         else { p.morale = clamp(p.morale - 10, 0, 100); news.push({ text: `Malgré vos efforts, la clause de ${p.name} reste activée et le club s'impatiente.`, tag: 'agence', playerId: p.id }); }
       } },
     ] },
-  { id: 'agent_rival_debauche', weight: 2, scope: 'represented',
+  { id: 'agent_rival_debauche', weight: 2, scope: 'represented', strictTarget: true, targetCond: p => p.morale < 55 || p.ambition > 65,
     cond: state => state.agent.portfolio.some(id => { const pl = state.players[id]; return pl && !pl.retired && (pl.morale < 55 || pl.ambition > 65); }),
     text: (p, state) => `Un agent rival approche discrètement ${p.name} en coulisses, laissant entendre qu'il serait mieux représenté ailleurs.`,
     choices: [
@@ -4285,10 +4370,19 @@ function applicableEvents(state) {
     return true;
   });
 }
+// Anti-répétition (V8.3, audit) : sans mémoire, les mêmes messages revenaient à quelques mois d'intervalle — jusqu'à
+// une « première convocation en sélection » reçue plusieurs fois par le même joueur. Un même événement ne revient
+// pas avant 6 mois, ne vise pas le même joueur avant 18 mois, et certains ne peuvent arriver qu'une fois par joueur.
+const EVENT_COOLDOWN = 6, EVENT_PLAYER_COOLDOWN = 18;
+const ONCE_PER_PLAYER_EVENTS = ['selection_nationale', 'retour_formateur', 'retraite_approche'];
+function eventRecentlySeen(state, key, months) {
+  const at = (state.eventLog || {})[key];
+  return at !== undefined && (months === Infinity || state.date.absMonth - at < months);
+}
 function maybeTriggerEvent(state) {
   if (state.pendingEvent) return;
   if (Math.random() > 0.35) return;
-  const applicable = applicableEvents(state);
+  const applicable = applicableEvents(state).filter(e => !eventRecentlySeen(state, e.id, EVENT_COOLDOWN));
   if (!applicable.length) return;
   const ev = weightedChoice(applicable, e => e.weight);
   let target = null;
@@ -4298,11 +4392,17 @@ function maybeTriggerEvent(state) {
     // restreint le tirage à ces joueurs quand c'est précisé, plutôt que de piocher n'importe qui au hasard dans
     // le portefeuille et de lui prêter un texte qui ne correspond pas à sa situation réelle.
     if (ev.targetCond) { const eligible = pool.filter(p => ev.targetCond(p, state)); if (eligible.length) pool = eligible; else if (ev.strictTarget) return; }
+    const once = ONCE_PER_PLAYER_EVENTS.includes(ev.id);
+    pool = pool.filter(p => !eventRecentlySeen(state, `${ev.id}:${p.id}`, once ? Infinity : EVENT_PLAYER_COOLDOWN));
     if (!pool.length) return;
     target = choice(pool);
+    state.eventLog = state.eventLog || {};
+    state.eventLog[`${ev.id}:${target.id}`] = state.date.absMonth;
   } else if (ev.scope === 'rival') {
     target = choice(state.rivalAgents);
   }
+  state.eventLog = state.eventLog || {};
+  state.eventLog[ev.id] = state.date.absMonth;
   state.pendingEvent = {
     id: ev.id,
     playerId: (ev.scope === 'represented' && target) ? target.id : null,
@@ -4393,6 +4493,9 @@ function advanceMonth(state) {
     }
   }
   advanceEuropeMonth(state, news, month);
+  // coupes nationales : une ancienne sauvegarde reçoit les siennes au début de la saison suivante si le 1er tour est passé
+  if (!state.cups) { if (state.date.absMonth % 12 <= 1) initCups(state); else state.cups = {}; }
+  advanceCupsMonth(state, news, month);
   const injuryReactionCandidates = []; // V9.3 : « réactions après blessure », même principe que matchReactionCandidates
   state.pendingRecoveryQueue = state.pendingRecoveryQueue || []; // V9.3 : réponse différée — persiste tant qu'elle n'a pas été consommée (voir maybeTriggerRecoveryReaction), contrairement aux candidats de match/blessure qui sont des réactions instantanées, pas des suites promises
   // bornée (V8.3) : un seul retour par joueur, et au plus 10 en attente — la file grossissait sans fin dans la sauvegarde
@@ -4485,6 +4588,7 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
   };
   initWorld(state);
   for (const lg of Object.values(state.leagues)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
+  initCups(state);
   // Premiers pas (addictivité, retour de terrain) : plutôt que de lâcher le joueur dans un monde de 5000 profils
   // sans direction, un contact lui recommande un premier talent prometteur, déjà sous contrat avec son agence —
   // la toute première décision consiste à lui trouver un club, pas à se demander par où commencer.
@@ -4639,9 +4743,14 @@ function flushPendingSaveOnUnload() {
   if (!pendingSaveJSON) return;
   try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); } catch (e) { /* trop gros pour le format brut : tant pis */ }
 }
+// Sauvegarde présente mais illisible (V8.3, audit) : on la garde en mémoire pour la proposer au téléchargement
+// au lieu de la laisser écraser en silence par une nouvelle partie.
+let corruptSaveRaw = null;
 async function loadFromLocalStorage() {
   // les deux formats peuvent coexister (secours écrit à la fermeture) : on garde le plus récent
   const found = [];
+  let rawSeen = null;
+  try { rawSeen = localStorage.getItem(SAVE_KEY_GZ) || localStorage.getItem(SAVE_KEY); } catch (e) { /* stockage inaccessible */ }
   try {
     const gz = localStorage.getItem(SAVE_KEY_GZ);
     if (gz && canCompressSave()) found.push(deserializeState(await base64ToGunzip(gz)));
@@ -4650,7 +4759,7 @@ async function loadFromLocalStorage() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) found.push(deserializeState(raw));
   } catch (e) { /* idem */ }
-  if (!found.length) return null;
+  if (!found.length) { corruptSaveRaw = rawSeen; return null; }
   return found.sort((a, b) => ((b.meta && b.meta.saveCounter) || 0) - ((a.meta && a.meta.saveCounter) || 0))[0];
 }
 function deleteLocalStorageSave() {
@@ -4686,7 +4795,7 @@ if (typeof module !== 'undefined') {
     // V8.3 : exports ajoutés pour les tests (tests/engine.test.js) ; newsItemHTML (fonction d'affichage) retiré :
     // il rendait le moteur impossible à charger seul dans Node (ReferenceError).
     evaluateNegotiationGate, evaluateMercatoWindow, evaluateClientConsent, goalProgress, agentRank, awardAgentOfTheYear,
-    launchImageCampaign, imageCampaignCost, signClubPartnership, clubPartnershipCost, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
+    launchImageCampaign, imageCampaignCost, signClubPartnership, clubPartnershipCost, initCups, advanceCupsMonth, CUP_DEFS, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
     neededPositionForClub, releaseToFreeAgency, updateContractsAndListings, stableRand, SQUAD_PLAN, PLAYER_SAVE_FIELDS,
   };
 }
@@ -4905,9 +5014,38 @@ function setSaveWarning(on) {
   document.body.appendChild(div);
 }
 
+/* ---------- Paramètres (V8.3, audit : écran absent) ----------
+   Préférences d'affichage propres à ce navigateur, gardées à part de la partie (jamais exportées avec elle). */
+const SETTINGS_KEY = 'football_agent_settings';
+const DEFAULT_SETTINGS = { recap: 'full', text: 'normal', motion: 'on' };
+function loadSettings() { try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); } }
+let settings = loadSettings();
+function applySettings() {
+  document.body.classList.toggle('text-large', settings.text === 'large');
+  document.body.classList.toggle('reduce-motion', settings.motion === 'off');
+}
+function setSetting(key, value) {
+  settings[key] = value;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* préférence non retenue : sans gravité */ }
+  applySettings();
+  openSettingsModal();
+}
+function settingRowHTML(key, label, sub, options) {
+  return `<div class="setting-row"><div><div style="font-weight:700;font-size:14px">${label}</div><div class="small">${sub}</div></div>
+    <div class="opts">${options.map(([v, l]) => `<button class="tab-btn ${settings[key] === v ? 'active' : ''}" onclick="setSetting('${key}','${v}')">${l}</button>`).join('')}</div></div>`;
+}
+function downloadRawCorruptSave() {
+  if (!corruptSaveRaw) return;
+  const blob = new Blob([corruptSaveRaw], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'football-agent-sauvegarde-illisible.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 /* ---------- Amorçage ---------- */
 async function boot() {
   window.addEventListener('pagehide', flushPendingSaveOnUnload);
+  applySettings();
   const loaded = await loadFromLocalStorage();
   if (loaded && loaded.clubs && loaded.players && loaded.agent) {
     migrateOldSave(loaded);
@@ -4938,6 +5076,8 @@ function renderOnboarding() {
     <div class="onboard-kicker">Football Agent</div>
     <div class="onboard-title">Créez votre agence</div>
     <div class="onboard-sub">Débutez petit. Bâtissez un empire mondial, saison après saison.</div>
+    ${corruptSaveRaw ? `<div class="corrupt-warning"><b>Votre sauvegarde n'a pas pu être lue</b> (données endommagées). Téléchargez-la avant de lancer une nouvelle partie, qui l'effacera.
+      <button class="btn btn-sm btn-danger btn-block" style="margin-top:8px" onclick="downloadRawCorruptSave()">Télécharger la sauvegarde illisible</button></div>` : ''}
     <div class="field"><label>Nom de l'agent</label><input type="text" id="obName" placeholder="Ex. Alex Moreau"></div>
     <div class="field"><label>Nom de l'agence</label><input type="text" id="obAgency" placeholder="Ex. Apex Sports Management"></div>
     <div class="field"><label>Nationalité</label><select id="obNat">${ONBOARD_NATIONS.map(n => `<option>${n}</option>`).join('')}</select></div>
@@ -4961,6 +5101,7 @@ function submitNewGame() {
   const nationality = ONBOARD_NAT_CODE[natLabel] || 'FR';
   const specialty = ui.chosenSpec || 'negociateur';
   G = createNewGame({ agentName: name, agency, nationality, specialty });
+  corruptSaveRaw = null;
   saveGame();
   renderApp();
 }
@@ -4988,7 +5129,7 @@ function renderApp() {
       <div class="sidenav-brand"><div class="crest">${esc(playerInitials(G.agent.agency))}</div><div style="min-width:0"><b>${esc(G.agent.agency)}</b><span>${esc(G.agent.name)} · ${flagFor(G.agent.nationality)}</span></div></div>
       ${NAV_ITEMS.map(n => `<div class="nav-item" data-nav="${n.id}" onclick="navigate('${n.id}')"><span class="ico">${icon(n.ico)}</span>${n.label}</div>`).join('')}
       <div class="sep"></div>
-      <div class="nav-item" onclick="openSettingsModal()"><span class="ico">${icon('gear')}</span>Sauvegarde</div>
+      <div class="nav-item" onclick="openSettingsModal()"><span class="ico">${icon('gear')}</span>Paramètres</div>
     </nav>
     <header class="topbar">
       <div class="topbar-brand">${esc(G.agent.agency)}</div>
@@ -5013,7 +5154,7 @@ function openMoreSheet() {
     <div class="modal-head"><h3>Plus</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     ${MORE_ITEMS.map(it => `<div class="nav-item" style="padding:14px 12px" onclick="closeModal(); navigate('${it.id}')"><span class="ico">${icon(it.ico)}</span>${it.label}</div>`).join('')}
     <div class="sep"></div>
-    <div class="nav-item" style="padding:14px 12px" onclick="closeModal(); openSettingsModal()"><span class="ico">${icon('gear')}</span>Sauvegarde</div>
+    <div class="nav-item" style="padding:14px 12px" onclick="closeModal(); openSettingsModal()"><span class="ico">${icon('gear')}</span>Paramètres</div>
   `);
 }
 
@@ -5291,7 +5432,7 @@ function renderMyPlayers() {
 }
 
 /* ---------- Fiche joueur ---------- */
-function openPlayerDetail(id, returnTo) { ui.selectedPlayerId = id; ui.returnTo = returnTo || ui.page; navigate('playerdetail'); }
+function openPlayerDetail(id, returnTo) { if (ui.selectedPlayerId !== id) ui.playerTab = 'apercu'; ui.selectedPlayerId = id; ui.returnTo = returnTo || ui.page; navigate('playerdetail'); }
 // ---------- Fiche joueur enrichie (V7) ----------
 // Profil détaillé façon rapport de scouting : dérivé du niveau global et du poste, avec une variation stable par
 // joueur (même id = toujours le même profil affiché au fil des visites). Purement présentation, n'affecte jamais
@@ -5440,6 +5581,8 @@ function renderPlayerDetail() {
   const rel = club ? clubRelation(G, club.id) : null;
   const interestedClubs = (isMine && club) ? computeInterestedClubs(G, p) : [];
   const careerStatus = computeCareerStatus(p);
+  // fiche en onglets (V8.3, audit P2-4) : 2 000 px d'un seul tenant sur mobile ; l'en-tête et les actions restent visibles
+  const pTab = ['apercu', 'stats', 'profil'].includes(ui.playerTab) ? ui.playerTab : 'apercu';
   const statusColors = { 'Prospect': 'var(--ink-dim)', 'Espoir': 'var(--blue)', 'Joueur de rotation': 'var(--ink-dim)', 'Titulaire': 'var(--emerald-soft)', 'Star': 'var(--emerald)', 'Superstar': 'var(--gold-soft)', 'Légende vivante': 'var(--gold)' };
   const ambitionText = traitLabel(p.ambition, ['se satisfait de sa situation', 'cherche à progresser', 'vise le très haut niveau']);
   const egoText = traitLabel(p.ego, ['profil discret', 'attentes ordinaires', 'demande une attention particulière']);
@@ -5469,17 +5612,14 @@ function renderPlayerDetail() {
       ${(!isMine && p.referralUntil && G.date.absMonth <= p.referralUntil) ? `<p class="small" style="margin-top:8px;color:var(--accent);font-weight:700">${icon('star',13)} Piste exclusive via ${esc(p.referredByName || 'un de vos joueurs')} — encore valable ${Math.max(0, p.referralUntil - G.date.absMonth)} mois</p>` : ''}
     </div>
     <div class="card">${actionsHTML}</div>
+    <div class="tabs" style="margin-bottom:12px">${[['apercu', 'Aperçu'], ['stats', 'Statistiques'], ['profil', 'Profil']].map(([k, l]) => `<button class="tab-btn ${pTab === k ? 'active' : ''}" onclick="ui.playerTab='${k}';renderPage()">${l}</button>`).join('')}</div>
+    ${pTab === 'apercu' ? `
     <div class="card"><div class="card-title">État</div>
       ${club ? `<div class="meter-row"><span>Relation avec le club</span><span class="num">${rel}/100</span></div>${meterHTML(rel, 100, rel >= 50 ? 'var(--emerald)' : 'var(--red)')}` : ''}
       ${isMine ? `<div class="meter-row"><span>Confiance envers vous</span><span class="num">${p.agentTrust ?? 50}/100</span></div>${meterHTML(p.agentTrust ?? 50, 100, 'var(--blue)')}` : ''}
       <div class="meter-row"><span>Moral</span><span class="num">${p.morale}/100</span></div>${meterHTML(p.morale, 100, 'var(--emerald)')}
       <div class="meter-row"><span>Forme</span><span class="num">${p.form}/100</span></div>${meterHTML(p.form, 100, 'var(--blue)')}
       <div class="meter-row"><span>Endurance</span><span class="num">${endurance}/100</span></div>${meterHTML(endurance, 100, 'var(--violet)')}
-    </div>
-    <div class="card"><div class="card-title">Personnalité</div>
-      <div class="meter-row"><span>Ambition</span><span class="small">${ambitionText}</span></div>${meterHTML(p.ambition ?? 50, 100, 'var(--blue-soft)')}
-      <div class="meter-row"><span>Ego</span><span class="small">${egoText}</span></div>${meterHTML(p.ego ?? 50, 100, 'var(--violet-soft)')}
-      <div class="meter-row"><span>Loyauté</span><span class="small">${loyaltyText}</span></div>${meterHTML(p.loyalty ?? 50, 100, 'var(--emerald-soft)')}
     </div>
     <div class="card"><div class="card-title">Contrat</div>
       <div class="row-between small"><span>Salaire</span><span class="num">${fmtMoneyShort(p.wage)}/mois</span></div>
@@ -5501,6 +5641,18 @@ function renderPlayerDetail() {
           </div>
         </div>`).join('')}
     </div>` : ''}
+    ` : ''}
+    ${pTab === 'stats' ? `
+    <div class="card"><div class="card-title">Saison en cours</div>${statBlocks}</div>
+    <div class="card"><div class="card-title">Historique saison par saison</div>${historyTable}</div>
+    <div class="card"><div class="card-title">Palmarès</div>${trophies}</div>
+    ` : ''}
+    ${pTab === 'profil' ? `
+    <div class="card"><div class="card-title">Personnalité</div>
+      <div class="meter-row"><span>Ambition</span><span class="small">${ambitionText}</span></div>${meterHTML(p.ambition ?? 50, 100, 'var(--blue-soft)')}
+      <div class="meter-row"><span>Ego</span><span class="small">${egoText}</span></div>${meterHTML(p.ego ?? 50, 100, 'var(--violet-soft)')}
+      <div class="meter-row"><span>Loyauté</span><span class="small">${loyaltyText}</span></div>${meterHTML(p.loyalty ?? 50, 100, 'var(--emerald-soft)')}
+    </div>
     <div class="card"><div class="card-title">Informations</div>
       <div class="row-between small"><span>Équipe</span><span>${club ? `${esc(club.name)} · ${clubLeaguePositionLabel(G, club)}` : 'Libre'}</span></div>
       <div class="row-between small"><span>Nation</span><span>${flagFor(p.nat)} ${esc(NAT_NAME[p.nat] || p.nat)}</span></div>
@@ -5509,9 +5661,7 @@ function renderPlayerDetail() {
       ${p.homegrownClub && G.clubs[p.homegrownClub] ? `<div class="row-between small"><span>Formé à</span><span>${esc(G.clubs[p.homegrownClub].name)}${p.homegrownClub !== p.club ? ' (parti depuis)' : ''}</span></div>` : ''}
       <div class="row-between small"><span>Rêve de rejoindre</span><span>${flagFor(p.dreamCountry || 'FR')} ${esc(NAT_NAME[p.dreamCountry] || '')}</span></div>
     </div>
-    <div class="card"><div class="card-title">Saison en cours</div>${statBlocks}</div>
-    <div class="card"><div class="card-title">Historique saison par saison</div>${historyTable}</div>
-    <div class="card"><div class="card-title">Palmarès</div>${trophies}</div>
+    ` : ''}
   `;
 }
 function handleRepresent(id) {
@@ -6186,8 +6336,15 @@ function investmentsCardHTML(a) {
 function handleBuyInvestment(id) { const r = buyInvestment(G, id); saveGame(); toast(r.ok ? 'Investissement en place !' : r.reason); renderPage(); }
 function handleCloseInvestment(id) {
   const inv = AGENCY_INVESTMENTS.find(i => i.id === id);
-  if (!confirm(`Fermer « ${inv.label} » ? La mise de départ ne sera pas remboursée.`)) return;
-  closeInvestment(G, id); saveGame(); toast(`${inv.label} fermé.`); renderPage();
+  renderModal(`
+    <div class="modal-head"><h3>Fermer « ${esc(inv.label)} » ?</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
+    <p>La mise de départ ne sera pas remboursée ; seuls les frais mensuels s'arrêtent.</p>
+    <button class="btn btn-danger btn-block" onclick="doCloseInvestment('${id}')">Oui, fermer</button>
+    <button class="btn btn-block" style="margin-top:8px" onclick="closeModal()">Annuler</button>`);
+}
+function doCloseInvestment(id) {
+  const inv = AGENCY_INVESTMENTS.find(i => i.id === id);
+  closeInvestment(G, id); saveGame(); closeModal(); toast(`${inv.label} fermé.`); renderPage();
 }
 function handleUpgradeOffice() { const r = upgradeOffice(G); saveGame(); toast(r.ok ? 'Agence agrandie !' : (r.reason || 'Impossible.')); renderPage(); }
 function handleHireStaff(id) { const r = hireStaff(G, id); saveGame(); toast(r.ok ? 'Nouvelle recrue en poste !' : (r.reason || 'Impossible.')); renderPage(); }
@@ -6262,9 +6419,10 @@ function renderWorld() {
     <div class="tabs">
       <button class="tab-btn ${ui.worldTab === 'classements' ? 'active' : ''}" onclick="setWorldTab('classements')">Classements</button>
       <button class="tab-btn ${ui.worldTab === 'europe' ? 'active' : ''}" onclick="setWorldTab('europe')">Coupe d'Europe</button>
+      <button class="tab-btn ${ui.worldTab === 'cups' ? 'active' : ''}" onclick="setWorldTab('cups')">Coupes nationales</button>
       <button class="tab-btn ${ui.worldTab === 'records' ? 'active' : ''}" onclick="setWorldTab('records')">Records éternels</button>
     </div>
-    ${ui.worldTab === 'records' ? renderRecords() : (ui.worldTab === 'europe' ? renderEurope() : renderStandings())}
+    ${ui.worldTab === 'records' ? renderRecords() : (ui.worldTab === 'europe' ? renderEurope() : (ui.worldTab === 'cups' ? renderCups() : renderStandings()))}
   `;
 }
 const EURO_STAGE_LABEL = { none: 'Aucune compétition en cours', groups: 'Phase de groupes', r16: 'Huitièmes de finale', qf: 'Quarts de finale', sf: 'Demi-finales', final: 'Finale', done: 'Terminée' };
@@ -6295,9 +6453,29 @@ function renderEurope() {
   if (eu.stage === 'done' && eu.champion && G.clubs[eu.champion]) {
     body = `<div class="card" style="text-align:center;padding:24px"><div style="display:flex;justify-content:center;color:var(--gold)">${icon('trophy',40)}</div>${clubBadgeHTML(G.clubs[eu.champion], 'lg')}<h3 style="margin-top:10px">${esc(G.clubs[eu.champion].name)}</h3><p class="small">Vainqueur de la Ligue des Champions</p></div>` + body;
   }
-  return `<p class="small">Statut : ${EURO_STAGE_LABEL[eu.stage] || eu.stage}</p>${body}`;
+  const past = (eu.history || []).slice().reverse().map(h => knockoutResultsHTML(EURO_STAGE_LABEL[h.round] || h.round, h.results)).join('');
+  return `<p class="small">Statut : ${EURO_STAGE_LABEL[eu.stage] || eu.stage}</p>${body}${past}`;
 }
 function setWorldTab(t) { ui.worldTab = t; renderPage(); }
+// Tableau d'une phase à élimination directe avec les scores (tirs au but signalés), vos clients mis en avant.
+function knockoutResultsHTML(title, results) {
+  const mine = id => G.agent.portfolio.some(pid => G.players[pid] && G.players[pid].club === id);
+  const side = (id, win) => { const c = G.clubs[id]; return `<span style="display:inline-flex;align-items:center;gap:6px;${win ? 'font-weight:800;color:var(--ink)' : 'color:var(--ink-faint)'}">${clubBadgeHTML(c, 'sm')}${esc(c ? c.short : '?')}${mine(id) ? ` <span style="color:var(--accent)">●</span>` : ''}</span>`; };
+  return `<div class="card"><div class="card-title">${esc(title)}</div>${results.map(r => `<div class="row-between small" style="padding:7px 0;border-bottom:1px solid var(--line-soft)">
+      ${side(r.h, r.w === r.h)}<b class="num" style="color:var(--ink)">${r.sh} - ${r.sa}${r.tab ? ' <span class="small">(t.a.b.)</span>' : ''}</b>${side(r.a, r.w === r.a)}</div>`).join('')}</div>`;
+}
+function renderCups() {
+  const cups = Object.values(G.cups || {});
+  if (!cups.length) return emptyStateHTML('trophy', 'Les coupes nationales démarrent en septembre.', 'Elles se mettent en place au début de la prochaine saison.');
+  ui.cupTab = G.cups[ui.cupTab] ? ui.cupTab : cups[0].id;
+  const cup = G.cups[ui.cupTab];
+  const winner = cup.winner && G.clubs[cup.winner];
+  const upcoming = !cup.winner && cup.ties && cup.ties.length ? `<div class="card"><div class="card-title">${esc(CUP_ROUND_LABEL[cup.round] || cup.round)} — ${MONTH_NAMES[CUP_ROUND_MONTHS[cup.round]]}</div>${cup.ties.map(([h, a]) => `<div class="row-between small" style="padding:7px 0;border-bottom:1px solid var(--line-soft)"><span>${clubBadgeHTML(G.clubs[h], 'sm')} ${esc(G.clubs[h] ? G.clubs[h].short : '?')}</span><span class="small">vs</span><span>${esc(G.clubs[a] ? G.clubs[a].short : '?')} ${clubBadgeHTML(G.clubs[a], 'sm')}</span></div>`).join('')}</div>` : '';
+  return `<div class="tabs">${cups.map(c => `<button class="tab-btn ${c.id === cup.id ? 'active' : ''}" onclick="ui.cupTab='${c.id}';renderPage()">${esc(c.name)}</button>`).join('')}</div>
+    ${winner ? `<div class="card" style="text-align:center;padding:22px"><div style="display:flex;justify-content:center;color:var(--gold)">${icon('trophy', 36)}</div>${clubBadgeHTML(winner, 'lg')}<h3 style="margin-top:10px">${esc(winner.name)}</h3><p class="small">Vainqueur de la ${esc(cup.name)}</p></div>` : ''}
+    ${upcoming}
+    ${cup.history.slice().reverse().map(h => knockoutResultsHTML(CUP_ROUND_LABEL[h.round] || h.round, h.results)).join('')}`;
+}
 function form5HTML(club) {
   const f = club.form5 || [];
   const color = { V: 'var(--emerald)', N: 'var(--ink-faint)', D: 'var(--red)' };
@@ -6412,6 +6590,14 @@ function doAdvanceMonth() {
   const before = snapshotForRecap(G);
   const { news, seasonSummary } = advanceMonth(G);
   saveGame();
+  if (settings.recap === 'short' && !seasonSummary) {
+    // résumé court : un toast plutôt qu'une fenêtre, les événements et les bilans de saison restent affichés
+    const d = Math.round(G.agent.cash - before.cash);
+    renderPage();
+    toast(`${before.label} terminé · trésorerie ${d >= 0 ? '+' : ''}${fmtMoneyShort(d)}`);
+    if (G.pendingEvent) showEventModal();
+    return;
+  }
   showRecap(news, seasonSummary, before);
 }
 function closeRecapAndContinue() {
@@ -6536,7 +6722,12 @@ function showSeasonReport() {
 /* ---------- Sauvegarde / export / import / reset ---------- */
 function openSettingsModal() {
   renderModal(`
-    <div class="modal-head"><h3>Sauvegarde</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
+    <div class="modal-head"><h3>Paramètres</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
+    <div class="card-title">Affichage</div>
+    ${settingRowHTML('recap', 'Résumé du mois', 'Détaillé à chaque mois, ou seulement les bilans de saison.', [['full', 'Détaillé'], ['short', 'Court']])}
+    ${settingRowHTML('text', 'Taille du texte', 'Agrandit tout le contenu du jeu.', [['normal', 'Normale'], ['large', 'Grande']])}
+    ${settingRowHTML('motion', 'Animations', 'Désactivez-les pour un affichage plus sobre.', [['on', 'Oui'], ['off', 'Non']])}
+    <div class="card-title" style="margin-top:18px">Sauvegarde</div>
     <p class="small">Votre partie est sauvegardée automatiquement à chaque mois dans ce navigateur.</p>
     <button class="btn btn-block" style="margin-bottom:8px" onclick="handleExport()">⬇️ Exporter la sauvegarde (.json)</button>
     <label class="btn btn-block" style="margin-bottom:8px; display:flex;">⬆️ Importer une sauvegarde

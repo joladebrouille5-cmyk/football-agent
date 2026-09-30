@@ -109,6 +109,30 @@ test('Leviers d\'influence : campagne d\'image une fois par saison, partenariat 
   assert.equal(E.signClubPartnership(s, club.id).ok, false, 'un partenariat par club et par saison');
 });
 
+test('Coupes nationales : six coupes, jouées jusqu\'à un vainqueur dans la saison', () => {
+  const s = newGame();
+  assert.equal(Object.keys(s.cups).length, 6);
+  playMonths(s, 10); // août -> mai inclus
+  for (const cup of Object.values(s.cups)) {
+    assert.ok(cup.winner, cup.name + ' a un vainqueur');
+    assert.ok(cup.history.every(h => h.results.every(r => r.w === r.h || r.w === r.a)));
+  }
+});
+
+test('Événements : pas de répétition rapprochée ni de double « première sélection »', () => {
+  const s = newGame();
+  const seen = {}, sel = {};
+  for (let m = 0; m < 120; m++) {
+    if (s.pendingEvent) {
+      const e = s.pendingEvent;
+      if (!/contact|performance|status_|goal_/.test(e.id)) { if (seen[e.id] !== undefined) assert.ok(m - seen[e.id] >= 6, e.id); seen[e.id] = m; }
+      if (e.id === 'selection_nationale') { sel[e.playerId] = (sel[e.playerId] || 0) + 1; assert.equal(sel[e.playerId], 1); }
+      E.resolveEvent(s, 0);
+    }
+    E.advanceMonth(s);
+  }
+});
+
 test('Simulation de 5 saisons : monde cohérent (contrats, gardiens, effectifs, sauvegarde)', () => {
   const s = newGame();
   playMonths(s, 5 * 12);
