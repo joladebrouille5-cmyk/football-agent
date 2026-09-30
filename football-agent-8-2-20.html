@@ -549,6 +549,9 @@ input[type=range]::-moz-range-thumb{width:18px; height:18px; border-radius:50%; 
 .toast::before{content:''; width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); flex-shrink:0;}
 @media (min-width:900px){ .toast{bottom:calc(var(--fab-h) + 34px); left:calc(50% + var(--sidenav-w) / 2);} }
 @keyframes toastin{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
+.filter-bar{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:12px;}
+.filter-bar .tab-btn{padding:7px 12px; font-size:12px;}
+.filter-bar select{padding:7px 10px; background:var(--bg-2); border:1px solid var(--line-strong); color:var(--ink); border-radius:999px; font-size:12.5px; font-weight:600; margin-left:auto;}
 .region-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(104px,1fr)); gap:8px;}
 .region-card{border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:12px 8px; text-align:center; cursor:pointer; background:rgba(16,24,28,.8); font-size:13px; font-weight:600;}
 .region-card:hover{border-color:var(--accent-dim); background:var(--bg-3);}
@@ -1963,7 +1966,7 @@ function clientFollowUpCost(state) {
 // Impôt sur les bénéfices de l'agence (V8.3, audit P1-4) : prélevé en fin de saison sur les commissions de la
 // saison, avec un barème progressif — l'argent reste le moteur de la carrière sans s'accumuler sans limite.
 function seasonTaxOn(amount) {
-  const brackets = [[200000, 0], [2000000, 0.25], [20000000, 0.40], [Infinity, 0.55]];
+  const brackets = [[200000, 0], [2000000, 0.25], [10000000, 0.45], [Infinity, 0.60]];
   let tax = 0, prev = 0;
   for (const [cap, rate] of brackets) { if (amount > prev) tax += (Math.min(amount, cap) - prev) * rate; prev = cap; }
   return Math.round(tax);
@@ -3551,7 +3554,13 @@ function processEndOfSeason(state, news) {
   let toGenerate = clamp(targetPop - clubPop, 0, 400);
   for (let i = 0; i < toGenerate; i++) {
     const club = pickClubNeedingYouth(state);
-    const p = generatePlayer(state, { club, isYouth: true, forcedPos: neededPositionForClub(state, club) });
+    // un tiers des arrivants sont des joueurs formés (21-27 ans) venus de championnats non simulés (V8.3, audit P2-3) :
+    // n'intégrer que des 15-19 ans déformait la pyramide des âges (34 % de moins de 21 ans après 20 saisons, contre
+    // 19 % au départ) et faisait baisser le niveau médian du monde saison après saison.
+    const experienced = Math.random() < 0.35;
+    const p = generatePlayer(state, experienced
+      ? { club, ageMin: 21, ageMax: 27, forcedPos: neededPositionForClub(state, club) }
+      : { club, isYouth: true, forcedPos: neededPositionForClub(state, club) });
     // la date n'a pas encore basculé sur la nouvelle saison : sans ce décalage, certains jeunes arrivaient avec un
     // contrat déjà échu (V8.3)
     p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 3);
@@ -4513,8 +4522,12 @@ if (typeof module !== 'undefined') {
     computeAgentInterest, specialtyFitsPlayer, evaluateClubTransferAcceptance, evaluateRenewalCooldown,
     evaluateTransferCooldown, evaluateTransferGate,
     computeCareerStatus, checkCareerStatusChanges, CAREER_STATUS_ORDER, resolveDropClient,
-    isNewsworthy, maybeGenerateRumor, RUMOR_TEMPLATES, runAIClubTransfers, newsItemHTML,
-    maybeGenerateReferral, computeAgentInterest, applyAcceptedOffer, checkRolePromises,
+    isNewsworthy, maybeGenerateRumor, RUMOR_TEMPLATES, runAIClubTransfers,
+    maybeGenerateReferral,
+    // V8.3 : exports ajoutés pour les tests (tests/engine.test.js) ; newsItemHTML (fonction d'affichage) retiré :
+    // il rendait le moteur impossible à charger seul dans Node (ReferenceError).
+    evaluateNegotiationGate, evaluateMercatoWindow, isMercatoOpen, acceptanceChance, seasonTaxOn, pickLineup,
+    neededPositionForClub, releaseToFreeAgency, updateContractsAndListings, stableRand, SQUAD_PLAN, PLAYER_SAVE_FIELDS,
   };
 }
 /* ============================================================
@@ -5108,8 +5121,10 @@ function renderDashboard() {
 
 /* ---------- Mes joueurs ---------- */
 function renderMyPlayers() {
-  const list = G.agent.portfolio.map(id => G.players[id]).filter(Boolean);
-  return `<div class="page-title">Mes joueurs <small>${list.length}/${OFFICE_LEVELS[G.agent.officeLevel - 1].cap}</small></div>
+  const all = G.agent.portfolio.map(id => G.players[id]).filter(Boolean);
+  const list = applyListFilter(all, listFilterState('myplayers'));
+  return `<div class="page-title">Mes joueurs <small>${all.length}/${OFFICE_LEVELS[G.agent.officeLevel - 1].cap}</small></div>
+  ${all.length > 3 ? filterBarHTML('myplayers', { noYoung: true }) : ''}
   ${list.length ? `<div class="player-card-grid">${list.map(p => playerCardHTML(p, { returnTo: 'myplayers' })).join('')}</div>` : emptyStateHTML('star', 'Aucun joueur sous contrat avec vous.', 'Scoutez ou approchez des joueurs libres pour bâtir votre écurie.')}`;
 }
 
@@ -5522,12 +5537,38 @@ function openMatchDetail(leagueId, idx) {
 }
 
 /* ---------- Marché ---------- */
+// Filtres et tris (V8.3, audit P2-5) : le marché et le fil d'actus s'étiraient sur 6 000 à 11 000 px sans
+// aucun moyen de chercher. Un état d'affichage par liste, jamais sauvegardé (préférence de session).
+const LIST_SORTS = { ovr: ['Niveau', (a, b) => b.ovr - a.ovr], value: ['Valeur', (a, b) => b.value - a.value], age: ['Âge', (a, b) => a.age - b.age], wage: ['Salaire', (a, b) => b.wage - a.wage] };
+function listFilterState(key) { ui.filters = ui.filters || {}; return ui.filters[key] = ui.filters[key] || { line: 'all', sort: 'ovr', young: false, limit: 40 }; }
+function setListFilter(key, field, value) { const f = listFilterState(key); f[field] = value; if (field !== 'limit') f.limit = 40; renderPage(); }
+function applyListFilter(list, f) {
+  return list.filter(p => (f.line === 'all' || p.posLine === f.line) && (!f.young || p.age <= 21)).sort(LIST_SORTS[f.sort][1]);
+}
+function filterBarHTML(key, opts) {
+  opts = opts || {};
+  const f = listFilterState(key);
+  const lines = [['all', 'Tous'], ['GK', 'Gardiens'], ['DF', 'Défense'], ['MF', 'Milieu'], ['FW', 'Attaque']];
+  return `<div class="filter-bar">
+    ${lines.map(([v, l]) => `<button class="tab-btn ${f.line === v ? 'active' : ''}" onclick="setListFilter('${key}','line','${v}')">${l}</button>`).join('')}
+    ${opts.noYoung ? '' : `<button class="tab-btn ${f.young ? 'active' : ''}" onclick="setListFilter('${key}','young',${!f.young})">≤ 21 ans</button>`}
+    <select onchange="setListFilter('${key}','sort',this.value)" aria-label="Trier">${Object.entries(LIST_SORTS).map(([v, [l]]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>Tri : ${l}</option>`).join('')}</select>
+  </div>`;
+}
+function limitedRowsHTML(key, list, returnTo) {
+  const f = listFilterState(key);
+  if (!list.length) return '<p class="small">Aucun joueur ne correspond à ces filtres.</p>';
+  return list.slice(0, f.limit).map(p => playerRowHTML(p, { returnTo })).join('')
+    + (list.length > f.limit ? `<button class="btn btn-block btn-sm" style="margin-top:8px" onclick="setListFilter('${key}','limit',${f.limit + 40})">Afficher plus (${list.length - f.limit} restants)</button>` : '');
+}
 function renderMarket() {
-  const listed = (G.transferListed || []).map(id => G.players[id]).filter(p => p && !p.retired).sort((a, b) => b.ovr - a.ovr);
-  const freeAgents = (G.freeAgents || []).map(id => G.players[id]).filter(Boolean);
+  const f = listFilterState('market');
+  const listed = applyListFilter((G.transferListed || []).map(id => G.players[id]).filter(p => p && !p.retired), f);
+  const freeAgents = applyListFilter((G.freeAgents || []).map(id => G.players[id]).filter(p => p && !p.retired && !p.club), f);
   return `<div class="page-title">Marché des transferts</div>
-    ${freeAgents.length ? `<div class="card"><div class="card-title">Talents libres (scoutés)</div>${freeAgents.map(p => playerRowHTML(p, { returnTo: 'market' })).join('')}</div>` : ''}
-    <div class="card"><div class="card-title">Sur le marché (${listed.length})</div>
+    ${filterBarHTML('market')}
+    <div class="card"><div class="card-title">Joueurs libres (${freeAgents.length})</div>${limitedRowsHTML('market', freeAgents, 'market')}</div>
+    <div class="card"><div class="card-title">Sur la liste des transferts (${listed.length})</div>
     ${listed.length ? listed.slice(0, 60).map(p => playerRowHTML(p, { returnTo: 'market' })).join('') : '<p class="small">Aucun joueur sur le marché en ce moment.</p>'}</div>
   `;
 }
@@ -5900,9 +5941,19 @@ function renderPhone() {
     ${(!contacts.length && !rivalContacts.length) ? `<div class="card"><p class="small">Aucune conversation pour l'instant. Elles apparaîtront ici au fil des événements avec vos joueurs et vos rivaux.</p></div>` : ''}
   `;
 }
+const NEWS_FILTERS = {
+  all: ['Tout', () => true],
+  mine: ['Mon agence', n => (n.playerId && G.agent.portfolio.includes(n.playerId)) || ['agence', 'message', 'finance', 'business', 'objectif', 'haut_fait', 'contrat'].includes(n.tag)],
+  market: ['Transferts', n => ['transfert', 'mercato', 'rumeur'].includes(n.tag)],
+  world: ['Compétitions', n => ['trophee', 'ballondor', 'promotion', 'relegation', 'carriere'].includes(n.tag)],
+};
+function setNewsFilter(k) { ui.newsFilter = k; renderPage(); }
 function renderNews() {
-  const items = G.news || [];
-  return `<div class="page-title">Actualités</div><div class="card">${items.length ? items.map(newsItemHTML).join('') : '<p class="small">Rien pour le moment.</p>'}</div>`;
+  const k = NEWS_FILTERS[ui.newsFilter] ? ui.newsFilter : 'all';
+  const items = (G.news || []).filter(NEWS_FILTERS[k][1]);
+  return `<div class="page-title">Actualités</div>
+    <div class="filter-bar">${Object.entries(NEWS_FILTERS).map(([v, [l]]) => `<button class="tab-btn ${k === v ? 'active' : ''}" onclick="setNewsFilter('${v}')">${l}</button>`).join('')}</div>
+    <div class="card">${items.length ? items.map(newsItemHTML).join('') : '<p class="small">Rien dans cette catégorie pour le moment.</p>'}</div>`;
 }
 
 /* ---------- Agence ---------- */
@@ -5990,7 +6041,7 @@ function financeLedgerHTML(a) {
     <div class="row-between small"><span>Suivi des clients (${a.portfolio.length})</span><span class="num">${fmtMoneyFull(clientsNow)}</span></div>
     ${investmentsUpkeep(G) ? `<div class="row-between small"><span>Investissements</span><span class="num">${fmtMoneyFull(investmentsUpkeep(G))}</span></div>` : ''}
     <div class="row-between small"><b>Total</b><b class="num">${fmtMoneyFull(officeRent(G) + staffNow + clientsNow + investmentsUpkeep(G))}</b></div>
-    <p class="small" style="margin-top:8px">Impôt en fin de saison sur les commissions : 0 % jusqu'à 200 k€, puis 25 %, 40 % au-delà de 2 M€ et 55 % au-delà de 20 M€.</p></div>`;
+    <p class="small" style="margin-top:8px">Impôt en fin de saison sur les commissions : 0 % jusqu'à 200 k€, puis 25 %, 45 % au-delà de 2 M€ et 60 % au-delà de 10 M€.</p></div>`;
   if (!last) return fixed + '<div class="card"><p class="small">Le compte du mois apparaîtra après votre premier passage au mois suivant.</p></div>';
   const line = (label, v) => `<div class="row-between small"><span>${label}</span><span class="num" style="color:${v > 0 ? 'var(--emerald)' : v < 0 ? 'var(--red-soft)' : 'var(--ink-faint)'}">${v > 0 ? '+' : ''}${fmtMoneyFull(v)}</span></div>`;
   const maxAbs = Math.max(1, ...hist.map(h => Math.abs(h.result)));
