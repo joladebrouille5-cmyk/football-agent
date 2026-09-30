@@ -6378,7 +6378,17 @@ function openSettingsModal() {
     <button class="btn btn-danger btn-block" onclick="confirmReset()">Nouvelle partie (efface tout)</button>
   `);
 }
-function handleExport() {
+async function handleExport() {
+  const filename = `football-agent-${seasonLabel(G)}.json`;
+  // Dans la visionneuse claude.ai, une page ne peut pas déclencher de téléchargement elle-même : elle passe par
+  // la capacité « downloads » (le joueur confirme). Ailleurs (fichier ouvert directement, GitHub Pages), window.claude
+  // n'existe pas et on garde le téléchargement classique.
+  const downloads = (window.claude && typeof window.claude.use === 'function') ? await window.claude.use('downloads').catch(() => null) : null;
+  if (downloads) {
+    try { await downloads.save({ filename, data: serializeState(G) }); toast('Sauvegarde exportée.'); }
+    catch (e) { if (!e || e.code !== 'declined') toast('Export impossible dans cette fenêtre.'); }
+    return;
+  }
   const blob = new Blob([serializeState(G)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
