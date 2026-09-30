@@ -955,6 +955,16 @@ const RIVAL_AGENT_NAMES = [
 function rand(min, max) { return Math.random() * (max - min) + min; }
 function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+// Tirage stable (V8.3, audit B-15 / P1-2) : même clé = même nombre dans [0,1[. Sert aux montants et aux
+// décisions qui ne doivent pas pouvoir être « retirés » en boucle dans le même mois (relancer une recherche,
+// resoumettre la même offre) — sans changer le comportement d'un mois sur l'autre.
+function stableRand(key) {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h += 0x6D2B79F5; let t = h;
+  t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
 function choice(arr) { return arr[randInt(0, arr.length - 1)]; }
 function weightedChoice(items, weightFn) {
   const total = items.reduce((s, it) => s + weightFn(it), 0);
@@ -1947,6 +1957,17 @@ function checkReleaseClauses(state, news) {
   }
 }
 function officeRent(state) { const lvl = OFFICE_LEVELS[state.agent.officeLevel - 1]; return lvl ? (lvl.rent || 0) : 0; }
+function clientFollowUpCost(state) {
+  return state.agent.portfolio.reduce((s, id) => { const p = state.players[id]; return s + (p ? 1000 + Math.round((p.wage || 0) * 0.04) : 0); }, 0);
+}
+// Impôt sur les bénéfices de l'agence (V8.3, audit P1-4) : prélevé en fin de saison sur les commissions de la
+// saison, avec un barème progressif — l'argent reste le moteur de la carrière sans s'accumuler sans limite.
+function seasonTaxOn(amount) {
+  const brackets = [[200000, 0], [2000000, 0.25], [20000000, 0.40], [Infinity, 0.55]];
+  let tax = 0, prev = 0;
+  for (const [cap, rate] of brackets) { if (amount > prev) tax += (Math.min(amount, cap) - prev) * rate; prev = cap; }
+  return Math.round(tax);
+}
 function monthlyAgencyIncomeExpense(state, news) {
   let sponsor = 0;
   if (state.agent.officeLevel >= 2 && Math.random() < 0.5) {
@@ -1955,11 +1976,19 @@ function monthlyAgencyIncomeExpense(state, news) {
   }
   const staffKeys = Object.keys(state.agent.staff).filter(k => state.agent.staff[k] > 0);
   const staffCount = staffKeys.reduce((a, k) => a + state.agent.staff[k], 0);
-  const staffCost = staffCount * 3500;
+  // frais de suivi des clients (V8.3, audit P1-4) : déplacements, juristes, image... proportionnels au train de
+  // vie de chaque client — un portefeuille de stars coûte réellement plus cher à entretenir qu'un vivier de jeunes.
+  const clientCost = clientFollowUpCost(state);
+  const staffCost = staffCount * 3500 + clientCost;
   const rent = officeRent(state);
   const invest = investmentsUpkeep(state);
   state.agent.cash -= staffCost + rent + invest;
   state.agent.monthLedger = { sponsor, staff: staffCost, rent, invest };
+  // dette durable (audit B-21) : au-delà de 100 k€ de découvert, la profession le sait — la réputation s'effrite
+  if (state.agent.cash < -100000) {
+    gainReputation(state, -0.4);
+    if (news && calMonth(state) % 3 === 0) news.push({ text: `Votre agence croule sous les dettes : le milieu commence à le savoir et votre réputation en pâtit.`, tag: 'finance' });
+  }
   if (hasInvestment(state, 'fondation')) gainReputation(state, 0.2);
   // garde-fou : dans le rouge au-delà de trois mois de charges, l'investissement le plus coûteux ferme en premier
   // (avant le déménagement ci-dessous) — une conséquence visible et réversible plutôt qu'une spirale
@@ -2316,7 +2345,8 @@ function generateIncomingOffers(state, news) {
     for (const pid of state.agent.portfolio) {
       const p = state.players[pid];
       if (!p || p.retired) continue;
-      if (Math.random() > (!p.club ? 0.22 : 0.12)) continue;
+      if (p.club && monthsUntilNextMercato(state) > 1) continue; // V8.3 : hors mercato, les clubs attendent la fenêtre
+      if (Math.random() > (!p.club ? 0.22 : 0.18)) continue;
       const maxOffers = p.ovr >= 75 ? 2 : 1; // les joueurs très courtisés peuvent recevoir plusieurs offres à la fois
       if (state.incomingOffers.filter(o => o.playerId === pid).length >= maxOffers) continue;
       const idealTier = idealTierForOvr(p.ovr); // un club ne s'intéresse à un joueur que si le niveau colle à peu près
@@ -2345,8 +2375,12 @@ function acceptIncomingOffer(state, offerId) {
   // un joueur qui vient d'accepter une autre offre ne peut pas aussi honorer celle-ci (V8.2, chasse aux
   // exploits) : sans ce garde-fou, deux offres reçues le même mois pour un même joueur (possible dès 75 OVR)
   // permettaient d'encaisser deux commissions coup sur coup pour un seul et même joueur.
+  const win = evaluateMercatoWindow(state, p);
+  if (!win.ok) return { ok: false, reason: win.reason }; // l'offre reste sur la table jusqu'à l'ouverture
   const cd = evaluateTransferCooldown(state, p);
   if (!cd.ok) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: cd.reason }; }
+  // le budget a pu fondre depuis l'offre (audit B-17) : le club ne peut plus payer, l'offre tombe
+  if (offer.fee > buyer.budget * 1.3) { state.incomingOffers.splice(idx, 1); return { ok: false, reason: `${buyer.name} n'a plus les moyens de payer cette indemnité : l'offre est retirée.` }; }
   if (offer.wage) p.wage = offer.wage;
   executeTransfer(state, p, buyer, offer.fee, news, { silent: false });
   state.incomingOffers.splice(idx, 1);
@@ -2425,6 +2459,7 @@ const PITCH_RETRY_MONTHS = 6;
 function pitchStatus(state, p, clubId) {
   const now = state.date.absMonth;
   if (p.lastPitchAt === now) return { ok: false, reason: `Vous avez déjà démarché un club pour ${p.name} ce mois-ci.` };
+  if (monthsUntilNextMercato(state) > 1) return { ok: false, reason: `Les clubs ne discutent pas transferts si loin du mercato : revenez le mois précédant son ouverture.` };
   const last = (p.pitchLog || {})[clubId];
   if (last !== undefined && now - last < PITCH_RETRY_MONTHS) return { ok: false, reason: `Ce club vous a répondu il y a peu : réessayez dans ${PITCH_RETRY_MONTHS - (now - last)} mois.` };
   return { ok: true };
@@ -2503,7 +2538,18 @@ function evaluateTransferCooldown(state, player) {
 }
 // Un transfert doit passer les deux garde-fous : le joueur n'est pas en plein "cooldown", ET le club acheteur
 // a les moyens/l'intérêt de le faire (V8.2, chasse aux exploits).
+// Mercato (V8.3, audit P1-1 / B-14) : les fenêtres de janvier et de juillet ne s'appliquaient qu'à l'IA — l'agent
+// pouvait transférer ou prêter n'importe quel mois. Un joueur libre peut toujours signer à tout moment, comme
+// en vrai ; un joueur sous contrat ne change de club que mercato ouvert.
+function isMercatoOpen(state) { const m = calMonth(state); return m === 1 || m === 7; }
+function evaluateMercatoWindow(state, player) {
+  if (!player.club || isMercatoOpen(state)) return { ok: true };
+  const inM = monthsUntilNextMercato(state);
+  return { ok: false, reason: `Le mercato est fermé : ${player.name} ne peut pas changer de club avant ${MONTH_NAMES[calMonth(state) >= 2 && calMonth(state) <= 6 ? 7 : 1].toLowerCase()} (dans ${inM} mois).` };
+}
 function evaluateTransferGate(state, targetClub, player, offer) {
+  const win = evaluateMercatoWindow(state, player);
+  if (!win.ok) return win;
   const cd = evaluateTransferCooldown(state, player);
   if (!cd.ok) return cd;
   return evaluateClubTransferAcceptance(state, targetClub, player, offer);
@@ -2637,8 +2683,15 @@ function evaluateOffer(state, player, offer) {
   score += (state.agent.staff.negociateurs || 0) * 3 + (state.agent.staff.avocats || 0) * 1.5;
   if (state.agent.specialty === 'negociateur') score += 4;
   score = clamp(Math.round(score), 0, 100);
-  return { score, reactions, accept: score >= 55 };
+  // V8.3 (audit P1-2) : l'accord était certain dès 55 et impossible à 54 — le « pourcentage » affiché n'était
+  // qu'un seuil à atteindre. Désormais une vraie probabilité (50 % à 55, ~88 % à 63, ~12 % à 47), tirée de façon
+  // stable pour un même joueur, un même club et un même mois : resoumettre la même offre ne change rien, seule
+  // une meilleure offre améliore les chances.
+  const chance = acceptanceChance(score);
+  const roll = stableRand(`neg:${player.id}:${offer.targetClubId || player.club || '-'}:${state.date.absMonth}`);
+  return { score, chance, reactions, accept: roll < chance };
 }
+function acceptanceChance(score) { return clamp(1 / (1 + Math.exp(-(score - 55) / 4)), 0, 1); }
 function applyAcceptedOffer(state, player, offer, news) {
   // double garde-fou (V8.3, audit P0-1) : aucun contrat ne se signe sans club, quel que soit le chemin d'appel
   if (!(offer.targetClubId || player.club)) return false;
@@ -2697,14 +2750,15 @@ function generateCounterOffer(state, player, offer) {
   tries.sort((a, b) => a.cost - b.cost);
   for (const t of tries) {
     const ev = evaluateOffer(state, player, t.candidate);
-    if (ev.score >= 58 && evaluateNegotiationGate(state, player, t.candidate).ok) return { offer: t.candidate, ev };
+    if (ev.score >= 62 && evaluateNegotiationGate(state, player, t.candidate).ok) return { offer: t.candidate, ev };
   }
   return null;
 }
 // l'indemnité de transfert se règle entre les deux clubs, l'agent n'a pas la main dessus (il gère le contrat du joueur)
-function estimateTransferFee(player, buyerClub) {
+function estimateTransferFee(player, buyerClub, state) {
   if (!player || !player.club || !buyerClub) return 0; // joueur libre = aucune indemnité entre clubs
-  return Math.max(30000, Math.round(player.value * (0.95 + rand(0, 0.25)) / 5000) * 5000);
+  const r = state ? stableRand(`est:${player.id}:${buyerClub.id}:${state.date.absMonth}`) : Math.random();
+  return Math.max(30000, Math.round(player.value * (0.95 + r * 0.25) / 5000) * 5000);
 }
 // ---------- Recherche de clubs intéressés (selon le pays rêvé par le joueur) ----------
 // Score d'attractivité d'un club pour un joueur donné : combine niveau (proximité de tier), réputation,
@@ -2721,7 +2775,7 @@ function scoreClubForPlayer(state, p, c, idealTier, opts) {
     + (affinity / 100) * 3.5
     + ((c.reputation || 50) / 40) * ambitionWeight
     + outlook * (opts.outlookWeight === undefined ? 2 : opts.outlookWeight)
-    + rand(0, 2.5);
+    + stableRand(`club:${p.id}:${c.id}:${state.date.absMonth}`) * 2.5; // stable dans le mois (audit B-15)
 }
 function pickInterestedClubs(state, p, idealTier, n, opts) {
   const eligible = Object.values(state.clubs).filter(c => c.id !== p.club && Math.abs(c.tier - idealTier) <= 1);
@@ -2739,7 +2793,7 @@ function findInterestedClubs(state, playerId) {
   const repBonus = 1 + state.agent.reputation / 500;
   const offers = [];
   for (const c of clubs) {
-    const fee = p.club ? Math.max(30000, Math.round(p.value * (0.75 + Math.random() * 0.6) * repBonus / 5000) * 5000) : 0;
+    const fee = p.club ? Math.max(30000, Math.round(p.value * (0.75 + stableRand(`fee:${p.id}:${c.id}:${state.date.absMonth}`) * 0.6) * repBonus / 5000) * 5000) : 0;
     if (fee > c.budget * 1.5) continue;
     const wage = Math.max(1500, Math.round(p.wage * (0.85 + Math.random() * 0.6) / 500) * 500);
     offers.push({ clubId: c.id, fee, wage });
@@ -2762,6 +2816,8 @@ function executeLoan(state, playerId, clubId, durationMonths, news) {
   if (!p || !dest) return { ok: false };
   if (!p.club) return { ok: false, reason: 'Ce joueur est libre : passez par un transfert classique.' };
   if (p.parentClub) return { ok: false, reason: 'Ce joueur est déjà en prêt.' };
+  const win = evaluateMercatoWindow(state, p);
+  if (!win.ok) return { ok: false, reason: win.reason };
   // même garde-fou anti-spam que pour les transferts (V8.2, chasse aux exploits) : sans ça, un joueur tout
   // juste transféré pouvait être immédiatement reprêté ailleurs pour encaisser une deuxième commission.
   const cd = evaluateTransferCooldown(state, p);
@@ -3132,7 +3188,7 @@ const ACHIEVEMENTS = [
   { id: 'reputation_50', label: 'Nom qui compte', desc: 'Atteignez 50 de réputation.', cash: 10000, rep: 0, check: s => s.agent.reputation >= 50 },
   { id: 'reputation_90', label: 'Légende du métier', desc: 'Atteignez 90 de réputation.', cash: 50000, rep: 0, check: s => s.agent.reputation >= 90 },
   { id: 'une_legende', label: 'Une carrière écrite', desc: 'Un joueur que vous avez représenté entre dans les légendes du jeu.', cash: 15000, rep: 4, check: s => (s.legends || []).some(l => l.wasMine) },
-  { id: 'record_du_monde', label: "Dans les livres d'histoire", desc: 'Un de vos joueurs détient un record éternel.', cash: 30000, rep: 6, check: s => Object.values(s.records || {}).some(r => r.agentWasMine) },
+  { id: 'record_du_monde', label: "Dans les livres d'histoire", desc: 'Un de vos joueurs détient un record éternel.', cash: 30000, rep: 6, check: s => (s.meta.totalSeasonsPlayed || 0) >= 3 && Object.values(s.records || {}).some(r => r.agentWasMine) },
   { id: 'dix_saisons', label: 'Vétéran', desc: 'Jouez 10 saisons.', cash: 5000, rep: 0, check: s => (s.meta.totalSeasonsPlayed || 0) >= 10 },
   { id: 'cinquante_saisons', label: 'Une vie de carrière', desc: 'Jouez 50 saisons.', cash: 20000, rep: 0, check: s => (s.meta.totalSeasonsPlayed || 0) >= 50 },
   { id: 'cent_saisons', label: 'Dynastie', desc: 'Jouez 100 saisons.', cash: 60000, rep: 0, check: s => (s.meta.totalSeasonsPlayed || 0) >= 100 },
@@ -3435,6 +3491,11 @@ function processEndOfSeason(state, news) {
   const seasonStart = state.agent.seasonStartStats || { commissions: 0, transfersDone: 0 };
   summary.seasonCommissions = (state.agent.careerStats.totalCommissions || 0) - seasonStart.commissions;
   summary.seasonTransfers = (state.agent.careerStats.transfersDone || 0) - seasonStart.transfersDone;
+  summary.seasonTax = seasonTaxOn(Math.max(0, summary.seasonCommissions));
+  if (summary.seasonTax > 0) {
+    state.agent.cash -= summary.seasonTax;
+    news.push({ text: `Impôt sur les bénéfices de la saison : ${fmtMoneyShort(summary.seasonTax)} prélevés sur ${fmtMoneyShort(summary.seasonCommissions)} de commissions.`, tag: 'finance' });
+  }
   for (const lg of Object.values(state.leagues)) {
     const ranked = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const championId = ranked[0];
@@ -3443,7 +3504,10 @@ function processEndOfSeason(state, news) {
       champ.titlesWon = (champ.titlesWon || 0) + 1;
       summary.champions[lg.id] = { clubId: championId, clubName: champ.name };
       news.push({ text: `${champ.name} sacré champion de ${lg.name} !`, tag: 'trophee', clubId: champ.id });
-      for (const pid of champ.squad) {
+      // l'effectif titré est celui de la fin des matchs (mai), pas celui d'après le mercato d'été (audit B-18)
+      const frozen = state.titleSquads && state.titleSquads[lg.id];
+      const titleSquad = frozen && frozen.clubId === championId ? frozen.squad : champ.squad;
+      for (const pid of titleSquad) {
         const p = state.players[pid]; if (!p) continue;
         p.trophies.push({ season: seasonLabel(state), title: `Champion ${lg.name}` });
         p.collectiveTitles = (p.collectiveTitles || 0) + 1;
@@ -3630,7 +3694,7 @@ const EVENTS = [
         else { p.morale = clamp(p.morale + 4, 0, 100); news.push({ text: `Budget insuffisant pour convaincre ${p.name} en grand.`, tag: 'agence', playerId: p.id }); }
       } },
       { label: 'Laisser faire', effect: (state, p, news) => {
-        if (Math.random() < 0.45) { p.agentId = null; state.agent.portfolio = state.agent.portfolio.filter(id => id !== p.id); news.push({ text: `${p.name} quitte votre agence pour un concurrent.`, tag: 'agence', playerId: p.id }); }
+        if (Math.random() < 0.45) poachClient(state, p, pickPoachingRival(state, p), news); // audit B-19 : il rejoint vraiment un rival
         else news.push({ text: `${p.name} résiste finalement aux sirènes de la concurrence.`, tag: 'agence', playerId: p.id });
       } },
     ] },
@@ -3697,13 +3761,18 @@ const EVENTS = [
       { label: 'Laisser la concurrence s\u2019en charger', effect: () => {} },
     ] },
   { id: 'clause_declenchee', weight: 1, scope: 'represented', cond: state => state.agent.portfolio.some(id => { const pl = state.players[id]; return pl && pl.club && !pl.retired && pl.ovr >= 65; }),
-    text: (p, state) => `Un grand club active sans prévenir une clause libératoire dans le contrat de ${p.name} !`,
+    text: (p, state) => `Un grand club veut activer une clause libératoire dans le contrat de ${p.name} !`,
     choices: [
       { label: 'Laisser le transfert se faire (rapide, mais à prix fixe)', effect: (state, p, news) => {
         const bigClubs = Object.values(state.clubs).filter(c => c.tier >= 4 && c.id !== p.club);
         const buyer = bigClubs.length ? choice(bigClubs) : choice(Object.values(state.clubs).filter(c => c.id !== p.club));
         const fee = Math.round(p.value * 0.85 / 5000) * 5000;
-        if (buyer) { executeTransfer(state, p, buyer, fee, news, { silent: false }); gainReputation(state, 1); }
+        if (!buyer) return;
+        const gate = evaluateTransferGate(state, buyer, p, { fee });
+        if (!gate.ok || !p.club) { news.push({ text: `L'opération autour de ${p.name} capote : ${gate.reason || 'le joueur est libre'}`, tag: 'mercato', playerId: p.id }); return; }
+        executeTransfer(state, p, buyer, fee, news, { silent: false });
+        p.releaseClause = null; p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+        gainReputation(state, 1);
       } },
       { label: 'Négocier en coulisses pour faire capoter l\u2019opération', effect: (state, p, news) => {
         if (Math.random() < 0.5) { nudgeClubRelation(state, p.club, 6, `Activation de clause contrée pour ${p.name}`); news.push({ text: `Vous faites échouer l'activation de la clause de ${p.name}.`, tag: 'agence', playerId: p.id }); }
@@ -4146,6 +4215,14 @@ function advanceMonth(state) {
       }
     }
     pushMatchdayNews(state, news);
+    // dernier mois de matchs : on fige l'effectif des futurs champions avant tout transfert estival (audit B-18)
+    if (month === MATCH_MONTHS[MATCH_MONTHS.length - 1]) {
+      state.titleSquads = {};
+      for (const lg of Object.values(state.leagues)) {
+        const top = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table))[0];
+        if (top) state.titleSquads[lg.id] = { clubId: top, squad: [...state.clubs[top].squad] };
+      }
+    }
   }
   advanceEuropeMonth(state, news, month);
   const injuryReactionCandidates = []; // V9.3 : « réactions après blessure », même principe que matchReactionCandidates
@@ -4183,7 +4260,7 @@ function advanceMonth(state) {
   const wasLastMonthOfSeason = (month === 7);
   let seasonSummary = null;
   // traité AVANT l'avancée de la date : les trophées/records/actus de fin de saison portent ainsi le bon millésime
-  if (wasLastMonthOfSeason) seasonSummary = processEndOfSeason(state, news);
+  if (wasLastMonthOfSeason) { seasonSummary = processEndOfSeason(state, news); state.titleSquads = null; }
   advanceDate(state);
   // déclenché après une éventuelle transition de saison : la cible existe forcément encore à ce stade
   // priorité : blessure (rare, mérite le plus d'attention) > retour de blessure (réponse différée) > objectif atteint (jalon unique) > changement de statut > réaction post-match > tirage mensuel générique
@@ -4240,7 +4317,6 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
   };
   initWorld(state);
   for (const lg of Object.values(state.leagues)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
-  generateSeasonGoals(state);
   // Premiers pas (addictivité, retour de terrain) : plutôt que de lâcher le joueur dans un monde de 5000 profils
   // sans direction, un contact lui recommande un premier talent prometteur, déjà sous contrat avec son agence —
   // la toute première décision consiste à lui trouver un club, pas à se demander par où commencer.
@@ -4254,6 +4330,7 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
   state.agent.portfolio.push(starter.id);
   assignPersonalGoal(state, starter);
   state.agent.careerStats.playersSignedEver = 1;
+  generateSeasonGoals(state); // après le joueur offert (audit B-06 : sinon « signez un joueur » était validé d'office)
   state.onboarding = { active: true, starterPlayerId: starter.id };
   return state;
 }
@@ -4779,7 +4856,8 @@ function renderPage() {
   renderTopbar();
 }
 function renderTopbar() {
-  document.getElementById('topbarDate').innerHTML = `${MONTH_NAMES[calMonth(G)]} <span class="num">${calYear(G)}</span><span class="season">Saison ${seasonLabel(G)}</span>`;
+  const mercatoTag = isMercatoOpen(G) ? ` · <b style="color:var(--accent)">Mercato ouvert</b>` : ` · Mercato dans ${monthsUntilNextMercato(G)} mois`;
+  document.getElementById('topbarDate').innerHTML = `${MONTH_NAMES[calMonth(G)]} <span class="num">${calYear(G)}</span><span class="season">Saison ${seasonLabel(G)}${mercatoTag}</span>`;
   const cashCls = G.agent.cash < 0 ? 'chip cash neg' : 'chip cash';
   document.getElementById('topbarStats').innerHTML = `
     <div class="${cashCls}"><span class="ico">${icon('coin',14)}</span><span class="num">${fmtMoneyShort(G.agent.cash)}</span></div>
@@ -4939,7 +5017,7 @@ function computeAgentActions(state) {
       title: 'Piste exclusive à explorer', text: n.text,
       cta: n.playerId ? `openPlayerDetail('${n.playerId}','dashboard')` : `navigate('scouting')` });
   }
-  const monthlyFixed = officeRent(state) + Object.values(state.agent.staff).reduce((x, y) => x + y, 0) * 3500 + investmentsUpkeep(state);
+  const monthlyFixed = officeRent(state) + Object.values(state.agent.staff).reduce((x, y) => x + y, 0) * 3500 + investmentsUpkeep(state) + clientFollowUpCost(state);
   if (monthlyFixed > 0 && state.agent.cash < monthlyFixed * 3) actions.push({ urgency: state.agent.cash < 0 ? 90 : 65, icon: 'bank', tone: 'red',
     title: state.agent.cash < 0 ? 'Trésorerie dans le rouge' : 'Trésorerie tendue',
     text: `Moins de 3 mois de charges fixes (${fmtMoneyShort(monthlyFixed)}/mois). Un transfert ou une prolongation renflouerait les caisses.`,
@@ -5099,6 +5177,22 @@ function clubLeaguePositionLabel(state, club) {
   const rank = ranked.indexOf(club.id) + 1;
   return `${lg.name}, ${rank}${rank === 1 ? 're' : 'e'} place`;
 }
+// Potentiel affiché (V8.3, audit P1-3 / B-07) : la fiche révélait le potentiel exact de tout joueur sans agent,
+// ce qui rendait le scouting (précision, recruteurs, « Observer + ») inutile. Exact pour vos clients ; sinon la
+// fourchette de votre rapport de scouting s'il existe ; sinon une estimation d'autant plus large que votre réseau
+// de recrutement est faible, stable d'une visite à l'autre.
+function potentialLabel(state, p) {
+  if (p.agentId === 'player') return String(p.pot);
+  if (p.agentId) return '?';
+  for (const m of (state.scoutMissions || [])) {
+    const r = m.ready && (m.results || []).find(x => x.playerId === p.id);
+    if (r) return `${r.shownRange[0]}–${r.shownRange[1]}`;
+  }
+  const acc = scoutingAccuracy(state) + 4;
+  const shift = (stableRand('pot:' + p.id) - 0.5) * acc;
+  const lo = clamp(Math.round(p.pot - acc * 0.6 + shift), Math.max(30, p.ovr), 99);
+  return `${lo}–${clamp(Math.round(lo + acc * 1.2), lo + 1, 99)}`;
+}
 function renderPlayerDetail() {
   const p = G.players[ui.selectedPlayerId];
   if (!p) return `<p>Joueur introuvable (peut-être retraité).</p><button class="btn" onclick="navigate('${ui.returnTo}')">← Retour</button>`;
@@ -5187,7 +5281,7 @@ function renderPlayerDetail() {
         ${clubBadgeHTML(club, 'lg')}
       </div>
       <div class="grid-3" style="margin-top:14px">
-        <div class="kpi"><b class="num">${(isMine || !p.agentId) ? p.pot : '?'}</b><span>Potentiel</span></div>
+        <div class="kpi"><b class="num">${potentialLabel(G, p)}</b><span>Potentiel${isMine ? '' : ' estimé'}</span></div>
         <div class="kpi"><b class="num">${fmtMoneyShort(p.value)}</b><span>Valeur</span></div>
         <div class="kpi"><b class="num">${fmtMoneyShort(p.wage)}</b><span>Salaire/mois</span></div>
       </div>
@@ -5588,10 +5682,13 @@ function handleAcceptLoan(clubId, durationMonths) {
 function openNegotiation(playerId, mode, presetClubId, presetFee) {
   const p = G.players[playerId];
   let fee = 0;
-  if (mode === 'transfer' && presetClubId) fee = (presetFee !== undefined) ? presetFee : estimateTransferFee(p, G.clubs[presetClubId]);
+  if (mode === 'transfer' && presetClubId) fee = (presetFee !== undefined) ? presetFee : estimateTransferFee(p, G.clubs[presetClubId], G);
+  // valeurs par défaut qui ont une chance d'aboutir (audit) : prolonger d'au moins un an le contrat en cours,
+  // commission raisonnable (au-delà de 12 %, le club la juge excessive)
+  const minYears = (mode !== 'transfer' && p.contractUntil) ? clamp(p.contractUntil - seasonStartYear(G) + 1, 1, maxContractYearsForAge(p.age)) : 2;
   ui.negotiation = {
-    playerId, mode, salary: p.wage, years: 2, roleProm: 'titulaire',
-    commissionPct: Math.round(agentCommissionRate(G) * 100),
+    playerId, mode, salary: p.wage, years: Math.max(2, minYears), roleProm: 'titulaire',
+    commissionPct: Math.min(12, Math.round(agentCommissionRate(G) * 100)),
     targetClubId: mode === 'transfer' ? (presetClubId || '') : p.club, fee,
     signingBonus: 0, sellOnPct: 0, releaseClause: p.releaseClause || 0,
   };
@@ -5655,14 +5752,14 @@ function negResultHTML() {
   const offer = { salary: neg.salary, years: neg.years, roleProm: neg.roleProm, commissionPct: neg.commissionPct, targetClubId: neg.targetClubId || null, fee: neg.fee, signingBonus: neg.signingBonus, sellOnPct: neg.sellOnPct, releaseClause: neg.releaseClause };
   const gateCheck = evaluateNegotiationGate(G, p, offer);
   if (!gateCheck.ok) {
-    return `<div class="row-between"><span class="small">Probabilité d'accord</span><b class="num">0%</b></div>
+    return `<div class="row-between"><span class="small">Chances d'accord</span><b class="num">0%</b></div>
       ${meterHTML(0, 100, 'var(--red)')}
       <div class="reaction">${esc(gateCheck.reason)}</div>`;
   }
   const ev = evaluateOffer(G, p, offer);
   return `
-    <div class="row-between"><span class="small">Probabilité d'accord</span><b class="num">${ev.score}%</b></div>
-    ${meterHTML(ev.score, 100, ev.score >= 55 ? 'var(--emerald)' : 'var(--red)')}
+    <div class="row-between"><span class="small">Chances d'accord</span><b class="num">${Math.round(ev.chance * 100)}%</b></div>
+    ${meterHTML(Math.round(ev.chance * 100), 100, ev.chance >= 0.7 ? 'var(--emerald)' : (ev.chance >= 0.35 ? 'var(--gold)' : 'var(--red)'))}
     ${ev.reactions.map(r => `<div class="reaction">${esc(r)}</div>`).join('')}
   `;
 }
@@ -5679,7 +5776,7 @@ function updateNeg(key, val) {
   if (key === 'targetClubId') {
     // l'indemnité entre clubs est recalculée automatiquement selon le club visé — l'agent ne la fixe pas lui-même
     const p = G.players[ui.negotiation.playerId];
-    ui.negotiation.fee = val ? estimateTransferFee(p, G.clubs[val]) : 0;
+    ui.negotiation.fee = val ? estimateTransferFee(p, G.clubs[val], G) : 0;
     renderModal(negotiationModalHTML());
     return;
   }
@@ -5693,6 +5790,7 @@ function announceAchievements(list) {
 }
 function submitNegotiation() {
   const neg = ui.negotiation;
+  if (!neg) return; // modale déjà refermée (double clic) : rien à soumettre
   const p = G.players[neg.playerId];
   const offer = { playerId: neg.playerId, salary: neg.salary, years: neg.years, roleProm: neg.roleProm, commissionPct: neg.commissionPct, targetClubId: neg.targetClubId || null, fee: neg.fee, signingBonus: neg.signingBonus, sellOnPct: neg.sellOnPct, releaseClause: neg.releaseClause };
   const news = [];
@@ -5708,7 +5806,7 @@ function submitNegotiation() {
   }
   const ev = evaluateOffer(G, p, offer);
   if (ev.accept) { applyAcceptedOffer(G, p, offer, news); toast('Accord trouvé !'); pushNews(G, news); saveGame(); closeModal(); renderPage(); announceAchievements(checkAchievements(G)); return; }
-  if (ev.score >= 30) {
+  if (ev.score >= 30 && !ev.accept) {
     const counter = generateCounterOffer(G, p, offer);
     if (counter) { ui.counterOffer = { original: offer, candidate: counter.offer, ev: counter.ev }; renderModal(counterOfferModalHTML()); return; }
   }
@@ -5731,8 +5829,8 @@ function counterOfferModalHTML() {
     <div class="modal-head"><h3>Contre-proposition</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     <p class="small">${esc(p.name)} (ou le club) refuse votre offre telle quelle, mais reviendrait volontiers sur ces conditions :</p>
     <div class="card">${diffs.length ? diffs.map(d => `<div class="small" style="padding:4px 0">${d}</div>`).join('') : '<p class="small">Un ajustement mineur suffirait.</p>'}</div>
-    <div class="row-between small" style="margin-top:8px"><span>Probabilité d'accord avec cette contre-offre</span><b class="num">${ev.score}%</b></div>
-    ${meterHTML(ev.score, 100, 'var(--emerald)')}
+    <div class="row-between small" style="margin-top:8px"><span>Le joueur s'engage sur ces conditions</span><b class="num">Accord</b></div>
+    ${meterHTML(100, 100, 'var(--emerald)')}
     <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="acceptCounterOffer()">Accepter la contre-offre</button>
     <button class="btn btn-block" style="margin-top:8px" onclick="backToOwnOffer()">Revenir à mon offre</button>
     <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="declineCounterOffer()">Refuser et abandonner</button>
@@ -5885,16 +5983,19 @@ function financeLedgerHTML(a) {
   const hist = a.financeHistory || [];
   const last = hist[hist.length - 1];
   const staffNow = Object.values(a.staff).reduce((x, y) => x + y, 0) * 3500;
+  const clientsNow = clientFollowUpCost(G);
   const fixed = `<div class="card"><div class="card-title">Charges fixes mensuelles</div>
     <div class="row-between small"><span>Loyer (${esc(OFFICE_LEVELS[a.officeLevel - 1].label)})</span><span class="num">${fmtMoneyFull(officeRent(G))}</span></div>
     <div class="row-between small"><span>Personnel</span><span class="num">${fmtMoneyFull(staffNow)}</span></div>
+    <div class="row-between small"><span>Suivi des clients (${a.portfolio.length})</span><span class="num">${fmtMoneyFull(clientsNow)}</span></div>
     ${investmentsUpkeep(G) ? `<div class="row-between small"><span>Investissements</span><span class="num">${fmtMoneyFull(investmentsUpkeep(G))}</span></div>` : ''}
-    <div class="row-between small"><b>Total</b><b class="num">${fmtMoneyFull(officeRent(G) + staffNow + investmentsUpkeep(G))}</b></div></div>`;
+    <div class="row-between small"><b>Total</b><b class="num">${fmtMoneyFull(officeRent(G) + staffNow + clientsNow + investmentsUpkeep(G))}</b></div>
+    <p class="small" style="margin-top:8px">Impôt en fin de saison sur les commissions : 0 % jusqu'à 200 k€, puis 25 %, 40 % au-delà de 2 M€ et 55 % au-delà de 20 M€.</p></div>`;
   if (!last) return fixed + '<div class="card"><p class="small">Le compte du mois apparaîtra après votre premier passage au mois suivant.</p></div>';
   const line = (label, v) => `<div class="row-between small"><span>${label}</span><span class="num" style="color:${v > 0 ? 'var(--emerald)' : v < 0 ? 'var(--red-soft)' : 'var(--ink-faint)'}">${v > 0 ? '+' : ''}${fmtMoneyFull(v)}</span></div>`;
   const maxAbs = Math.max(1, ...hist.map(h => Math.abs(h.result)));
   return fixed + `<div class="card"><div class="card-title">Compte de ${MONTH_NAMES[last.month]}</div>
-      ${line('Commissions', last.commissions)}${line('Revenus commerciaux', last.sponsor)}${line('Personnel', -last.staff)}${line('Loyer', -last.rent)}${last.invest ? line('Investissements', -last.invest) : ''}${last.other ? line('Autres (scouting, événements, primes...)', last.other) : ''}
+      ${line('Commissions', last.commissions)}${line('Revenus commerciaux', last.sponsor)}${line('Personnel et suivi des clients', -last.staff)}${line('Loyer', -last.rent)}${last.invest ? line('Investissements', -last.invest) : ''}${last.other ? line('Autres (scouting, événements, primes...)', last.other) : ''}
       <div style="border-top:1px solid var(--line-soft);margin-top:6px;padding-top:6px">${line('<b>Résultat du mois</b>', last.result)}</div></div>
     <div class="card"><div class="card-title">Résultat des derniers mois</div>
       <div style="display:flex;gap:3px;height:72px">${hist.map(h => { const hgt = h.result ? Math.max(3, Math.round(Math.abs(h.result) / maxAbs * 34)) : 0; return `<div title="${MONTH_NAMES[h.month]} : ${fmtMoneyFull(h.result)}" style="flex:1;display:flex;flex-direction:column">
@@ -6184,6 +6285,7 @@ function seasonReportHTML(summary) {
       <div class="kpi"><b class="num">${summary.seasonTransfers || 0}</b><span>Transferts conclus</span></div>
       <div class="kpi"><b class="num">${fmtMoneyShort(summary.seasonCommissions || 0)}</b><span>Commissions cette saison</span></div>
     </div>
+    ${summary.seasonTax ? `<p class="small">Impôt sur les bénéfices prélevé : <b class="num" style="color:var(--red-soft)">-${fmtMoneyShort(summary.seasonTax)}</b></p>` : ''}
     ${standout ? `<p class="small" style="color:var(--gold-soft);font-weight:700">${icon('star',14)} Joueur de la saison chez vous : ${esc(standout.name)} — note moyenne ${standout.entry.avgRating}</p>` : ''}
     <div class="sep"></div>
     ${rows}
