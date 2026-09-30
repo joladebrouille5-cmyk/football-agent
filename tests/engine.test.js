@@ -87,6 +87,28 @@ test('P1-4 : impôt progressif sur les commissions', () => {
   assert.ok(E.seasonTaxOn(50000000) > E.seasonTaxOn(10000000));
 });
 
+test('Défis de saison : trois objectifs, dont les commissions, avec récompense', () => {
+  const s = newGame();
+  assert.equal(s.seasonGoals.length, 3);
+  assert.ok(s.seasonGoals.some(g => g.id === 'commissions'));
+  for (const g of s.seasonGoals) { assert.ok(g.reward.cash > 0); assert.ok(E.goalProgress(s, g) >= 0); }
+});
+
+test('Leviers d\'influence : campagne d\'image une fois par saison, partenariat club', () => {
+  const s = newGame();
+  s.agent.cash = 50000000;
+  const rep0 = s.agent.reputation;
+  assert.equal(E.launchImageCampaign(s).ok, true);
+  assert.ok(s.agent.reputation > rep0);
+  assert.equal(E.launchImageCampaign(s).ok, false, 'une seule campagne par saison');
+  const club = Object.values(s.clubs)[0];
+  const budget0 = club.budget;
+  assert.equal(E.signClubPartnership(s, club.id).ok, true);
+  assert.ok(club.budget > budget0);
+  assert.equal(E.clubRelation(s, club.id), 62);
+  assert.equal(E.signClubPartnership(s, club.id).ok, false, 'un partenariat par club et par saison');
+});
+
 test('Simulation de 5 saisons : monde cohérent (contrats, gardiens, effectifs, sauvegarde)', () => {
   const s = newGame();
   playMonths(s, 5 * 12);
@@ -98,6 +120,8 @@ test('Simulation de 5 saisons : monde cohérent (contrats, gardiens, effectifs, 
     assert.ok(c.squad.length >= 15, `${c.name} : effectif jouable (${c.squad.length})`);
     for (const id of c.squad) assert.equal(s.players[id] && s.players[id].club, c.id, 'effectif cohérent');
   }
+  assert.ok(s.rivalAgents.some(r => (r.careerStats.totalCommissions || 0) > 500000), 'les rivaux font des affaires');
+  assert.ok(E.agentRank(s) >= 1 && E.agentRank(s) <= 13);
   const round = E.deserializeState(E.serializeState(s));
   assert.equal(E.serializeState(round), E.serializeState(s), 'aller-retour de sauvegarde fidèle');
 });
