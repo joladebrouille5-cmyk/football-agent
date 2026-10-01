@@ -63,7 +63,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'pas de débordement horizontal');
       await page.waitForTimeout(500); // la sauvegarde compressée est asynchrone
       const before = await page.evaluate(() => serializeState(G));
-      await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
+      await page.reload(); await page.waitForTimeout(800);
       assert.equal(await page.evaluate(() => serializeState(G)), before);
       // novembre : hors mercato, la recherche de transfert l'annonce d'emblée, sans bouton « Accepter » voué à l'échec (V8.5)
       await page.evaluate(id => { G.players[id].lastTransferMonth = -99; openTransferSearch(id); }, sid);
@@ -133,7 +133,7 @@ test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouv
     await advanceMonth(page);
     assert.equal(await page.evaluate(() => saveGame()), true, 'écriture réussie grâce au repli');
     const before = await page.evaluate(() => serializeState(G));
-    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
+    await page.reload(); await page.waitForTimeout(800);
     assert.equal(await page.evaluate(() => serializeState(G)), before, 'partie identique après rechargement');
     assert.equal(await page.$$eval('.save-warning, .banner-warning', els => els.length), 0);
   }, { portraits: 'simple' });
@@ -173,7 +173,7 @@ test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'
     assert.match(await page.textContent('#content'), /Gestion du club/);
     await page.click('text=Formation');
     await page.click('text=+1.0M€');
-    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
+    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     const st = await page.evaluate(() => ({ pct: stakePct(G, 'amiens'), pol: G.clubs.amiens.ownerPolicy, injected: G.agent.stakes.amiens.injected }));
     assert.ok(st.pct > 51, 'l\'apport fait monter la part (augmentation de capital)');
     assert.equal(st.pol.strategy, 'formation');
@@ -201,7 +201,7 @@ test('V8.11 : propriétaire — rachat des parts d\'un rival, augmentation de ca
     const pid = await page.evaluate(() => G.clubs.amiens.squad[0]);
     await page.evaluate(id => openPlayerDetail(id, 'world'), pid);
     await page.click('text=Rendre intransférable');
-    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
+    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     assert.equal(await page.evaluate(id => G.players[id].untouchable, pid), true, 'intransférable conservé au rechargement');
     await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'L2'; navigate('world'); });
     assert.match(await page.textContent('#content'), /3e = barrage/);
