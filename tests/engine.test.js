@@ -614,3 +614,35 @@ test('V8.13 : sélections nationales — trêves, Coupe du monde, Euro, Copa Am�
   const capped = Object.values(s.players).find(p => p.caps);
   assert.equal(round.players[capped.id].caps, capped.caps, 'sélections sauvegardées');
 });
+
+test('V8.15 : avancer par semaine — 4 semaines valent un mois', () => {
+  const s = newGame();
+  const lg = s.leagues.L1, month = E.calMonth(s);
+  const weeks = E.fixtureWeeks(lg, month);
+  assert.ok(weeks.length > 0 && new Set(weeks.map(x => x.week)).size >= 3, 'journées réparties sur les semaines');
+  const abs0 = s.date.absMonth;
+  for (let w = 0; w < 3; w++) {
+    const r = E.advanceWeek(s);
+    assert.equal(r.monthEnd, false);
+    assert.equal(s.date.absMonth, abs0, 'toujours le même mois');
+    assert.equal(E.currentWeek(s), w + 1);
+    const done = weeks.filter(x => x.f.played);
+    assert.ok(done.every(x => x.week <= w) && weeks.filter(x => x.week <= w).every(x => x.f.played), 'semaine ' + (w + 1) + ' jouée, pas plus');
+  }
+  const r = E.advanceWeek(s);
+  assert.equal(r.monthEnd, true);
+  assert.equal(s.date.absMonth, abs0 + 1, 'la 4e semaine boucle le mois');
+  assert.equal(E.currentWeek(s), 0);
+  assert.ok(weeks.every(x => x.f.played), 'tout le mois joué');
+  assert.ok(!s.weekCarry, 'réactions de la semaine consommées');
+  // repasser au mois en pleine semaine joue le reste du mois
+  E.advanceWeek(s);
+  E.advanceMonth(s);
+  assert.equal(E.currentWeek(s), 0);
+  assert.ok(Object.values(s.leagues).every(l => l.fixtures.filter(f => f.month === 9).every(f => f.played)), 'septembre entièrement joué');
+  // une saison complète à la semaine : tous les matchs joués
+  while (E.calMonth(s) !== 7) { if (s.pendingEvent) E.resolveEvent(s, 0); E.advanceWeek(s); }
+  assert.ok(Object.values(s.leagues).every(l => l.fixtures.every(f => f.played || !s.clubs[f.home] || !s.clubs[f.away])), 'saison complète jouée');
+  const back = E.deserializeState(E.serializeState(s));
+  assert.equal(E.currentWeek(back), E.currentWeek(s), 'semaine sauvegardée');
+});

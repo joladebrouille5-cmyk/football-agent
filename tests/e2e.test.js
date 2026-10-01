@@ -256,9 +256,37 @@ test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au 
     txt = await page.innerText('#app');
     assert.match(txt, /Panel[\s\S]*Mis jugadores/);
     assert.doesNotMatch(txt, /Tableau de bord|Mes joueurs/);
-    await page.reload(); await page.waitForTimeout(800);
+    await page.reload();
+    // attendre que le jeu soit réaffiché (un délai fixe ne suffit pas toujours sur la machine de CI)
+    await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance'), null, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
     assert.match(await page.innerText('#app'), /Mis jugadores/, 'langue conservée au rechargement');
     await page.evaluate(() => { setSetting('lang', 'fr'); closeModal(); });
     assert.match(await page.innerText('#app'), /Tableau de bord[\s\S]*Mes joueurs/, 'retour au français');
+  }, { portraits: 'simple' });
+});
+
+test('V8.15 : avancer par semaine depuis le bouton', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    // le message de la semaine s'efface après 2,6 s : on le relève au passage plutôt que de dépendre de la vitesse de la machine
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); renderPage(); window.__toasts = []; const t = toast; toast = m => { window.__toasts.push(m); t(m); }; });
+    await page.click('#fabStep');
+    assert.match(await page.textContent('#fabAdvance'), /semaine suivante/i);
+    assert.match(await page.textContent('#topbarDate'), /Sem\. 1/);
+    for (let w = 2; w <= 4; w++) {
+      await page.click('#fabAdvance');
+      assert.match(await page.textContent('#topbarDate'), new RegExp('Sem\\. ' + w));
+      assert.match(await page.evaluate(() => window.__toasts[window.__toasts.length - 1]), new RegExp('^Semaine ' + (w - 1) + ' · '));
+    }
+    assert.match(await page.textContent('#fabAdvance'), /fin du mois/);
+    const month0 = await page.evaluate(() => G.date.absMonth);
+    await page.click('#fabAdvance');
+    assert.equal(await page.evaluate(() => G.date.absMonth), month0 + 1, 'la 4e semaine boucle le mois');
+    assert.match(await page.textContent('#modalRoot'), /Bilan du mois/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+    await page.evaluate(() => { closeModal(); G.pendingEvent = null; renderPage(); });
+    await page.click('#fabStep');
+    assert.match(await page.textContent('#fabAdvance'), /mois suivant/i);
   }, { portraits: 'simple' });
 });
