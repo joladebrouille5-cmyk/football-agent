@@ -4118,7 +4118,7 @@ const TICKET_POLICIES = {
 const DIVIDEND_POLICIES = {
   reinvestir: { label: 'Tout réinvestir', desc: "Aucun dividende : l'argent reste dans le club.", mult: 0, rep: 0 },
   normal: { label: 'Dividende normal', desc: 'Une part des bénéfices selon les résultats.', mult: 1, rep: 0 },
-  max: { label: 'Dividende maximal', desc: 'Double dividende, mais le club s’appauvrit et les supporters grondent.', mult: 2, rep: -1 },
+  max: { label: 'Dividende maximal', desc: 'Dividende +60 %, mais le club s’appauvrit et les supporters grondent.', mult: 1.6, rep: -1 },
 };
 // « d'Amiens SC », « du Havre AC », « de Lens »
 function deName(name) {
@@ -4240,8 +4240,9 @@ function payClubDividends(state, news, summary) {
     const ranked = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const rank = ranked.indexOf(clubId), n = ranked.length;
     const posScore = n > 1 ? 1 - rank / (n - 1) : 1;
-    const yieldRate = 0.01 + 0.03 * posScore + (rank === 0 ? 0.02 : 0);
-    const pool = Math.min(clubValuation(state, club) * yieldRate, Math.max(0, club.budget) * 0.25) * (pol ? DIVIDEND_POLICIES[pol.dividends].mult : 1);
+    // rendement de 0,5 % (lanterne rouge) à 3,5 % (champion) de la valorisation, plafonné à 20 % de la trésorerie
+    const yieldRate = 0.005 + 0.02 * posScore + (rank === 0 ? 0.01 : 0);
+    const pool = Math.min(clubValuation(state, club) * yieldRate, Math.max(0, club.budget) * 0.2) * (pol ? DIVIDEND_POLICIES[pol.dividends].mult : 1);
     const amount = Math.round(pool * st.pct / 100 / 1000) * 1000;
     if (amount <= 0) continue;
     club.budget -= amount;
