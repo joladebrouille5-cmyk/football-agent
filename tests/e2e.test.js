@@ -121,3 +121,20 @@ test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, dé
     assert.equal(await page.$$eval('.has-photo', els => els.length), 0, 'silhouettes en mode simple');
   });
 });
+
+test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouvée après rechargement', async () => {
+  await withGame({ width: 1280, height: 900 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    // quota dépassé simulé pour la sauvegarde compressée
+    await page.evaluate(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { if (k === 'football_agent_save_v3') throw new DOMException('quota', 'QuotaExceededError'); return set.call(this, k, v); };
+    });
+    await advanceMonth(page);
+    assert.equal(await page.evaluate(() => saveGame()), true, 'écriture réussie grâce au repli');
+    const before = await page.evaluate(() => serializeState(G));
+    await page.reload(); await page.waitForTimeout(800);
+    assert.equal(await page.evaluate(() => serializeState(G)), before, 'partie identique après rechargement');
+    assert.equal(await page.$$eval('.save-warning, .banner-warning', els => els.length), 0);
+  }, { portraits: 'simple' });
+});

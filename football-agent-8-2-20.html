@@ -5324,6 +5324,33 @@ async function base64ToGunzip(b64) {
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return await new Response(stream).text();
 }
+// Repli IndexedDB (V8.9) : le monde a doublé (446 clubs) et la sauvegarde compressée atteint ~2,3 M caractères après
+// 20 saisons — sous le quota de Chrome, mais trop près de celui de certains navigateurs (Safari). Si localStorage
+// refuse l'écriture, la partie va dans IndexedDB, qui n'a pas cette limite ; le chargement lit les deux.
+let saveDbPromise = null;
+function saveDB() {
+  // connexion gardée ouverte : à la fermeture de la page, l'écriture de secours démarre sans attendre une ouverture
+  return saveDbPromise || (saveDbPromise = new Promise(resolve => {
+    try {
+      if (typeof indexedDB === 'undefined') return resolve(null);
+      const req = indexedDB.open('football_agent_save', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('s');
+      req.onsuccess = () => { saveDbHandle = req.result; resolve(req.result); }; req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  }));
+}
+let saveDbHandle = null; // connexion déjà ouverte, utilisable de façon synchrone à la fermeture de la page
+async function saveIdb(op, key, value) {
+  const db = await saveDB(); if (!db) return op === 'get' ? null : false;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction('s', op === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore('s');
+      const r = op === 'get' ? st.get(key) : op === 'put' ? st.put(value, key) : st.delete(key);
+      if (op === 'get') { r.onsuccess = () => resolve(r.result || null); r.onerror = () => resolve(null); }
+      else { tx.oncomplete = () => resolve(true); tx.onerror = tx.onabort = () => resolve(false); }
+    } catch (e) { resolve(op === 'get' ? null : false); }
+  });
+}
 // La compression est asynchrone : un compteur garantit qu'une écriture lente ne remplace jamais une plus récente,
 // et le dernier état reste disponible pour une écriture de secours si la page se ferme pendant la compression.
 let saveSeq = 0, pendingSaveJSON = null;
@@ -5338,8 +5365,17 @@ async function saveToLocalStorage(state) {
     const packed = await gzipToBase64(json);
     if (seq !== saveSeq) return true; // une sauvegarde plus récente est en cours : elle écrira à notre place
     pendingSaveJSON = null;
-    localStorage.setItem(SAVE_KEY_GZ, packed);
+    try {
+      localStorage.setItem(SAVE_KEY_GZ, packed);
+    } catch (quota) {
+      // trop gros pour localStorage : IndexedDB (sinon l'échec remonte et le bandeau d'alerte s'affiche)
+      if (!(await saveIdb('put', 'gz', packed))) throw quota;
+      try { localStorage.removeItem(SAVE_KEY_GZ); localStorage.removeItem(SAVE_KEY); } catch (e) { /* sans gravité */ }
+      saveIdb('del', 'raw');
+      return true;
+    }
     localStorage.removeItem(SAVE_KEY); // libère l'ancien format (et un éventuel secours de fermeture)
+    saveIdb('del', 'gz'); saveIdb('del', 'raw'); // une ancienne copie IndexedDB ne doit pas passer pour plus récente
     return true;
   } catch (e) {
     if (seq === saveSeq) pendingSaveJSON = null;
@@ -5348,7 +5384,11 @@ async function saveToLocalStorage(state) {
 }
 function flushPendingSaveOnUnload() {
   if (!pendingSaveJSON) return;
-  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); } catch (e) { /* trop gros pour le format brut : tant pis */ }
+  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); }
+  catch (e) {
+    // trop gros pour localStorage (monde V8.9) : secours IndexedDB, transaction lancée tout de suite
+    try { if (saveDbHandle) { const tx = saveDbHandle.transaction('s', 'readwrite', { durability: 'relaxed' }); tx.objectStore('s').put(pendingSaveJSON, 'raw'); if (tx.commit) tx.commit(); } } catch (e2) { /* tant pis */ }
+  }
 }
 // Sauvegarde présente mais illisible (V8.3, audit) : on la garde en mémoire pour la proposer au téléchargement
 // au lieu de la laisser écraser en silence par une nouvelle partie.
@@ -5366,11 +5406,20 @@ async function loadFromLocalStorage() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) found.push(deserializeState(raw));
   } catch (e) { /* idem */ }
+  try {
+    const idb = canCompressSave() ? await saveIdb('get', 'gz') : null;
+    if (idb) { rawSeen = rawSeen || idb; found.push(deserializeState(await base64ToGunzip(idb))); }
+  } catch (e) { /* copie IndexedDB illisible */ }
+  try {
+    const rawIdb = await saveIdb('get', 'raw');
+    if (rawIdb) found.push(deserializeState(rawIdb));
+  } catch (e) { /* secours de fermeture illisible */ }
   if (!found.length) { corruptSaveRaw = rawSeen; return null; }
   return found.sort((a, b) => ((b.meta && b.meta.saveCounter) || 0) - ((a.meta && a.meta.saveCounter) || 0))[0];
 }
 function deleteLocalStorageSave() {
   saveSeq++; pendingSaveJSON = null; // annule une écriture en cours
+  saveIdb('del', 'gz'); saveIdb('del', 'raw');
   try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_GZ); return true; } catch (e) { return false; }
 }
 
