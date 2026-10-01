@@ -6,6 +6,10 @@ Football Agent - jeu de gestion et carrière d'agent de football
 Ouvrir `football-agent-8-2-20.html` dans un navigateur récent. La partie est sauvegardée automatiquement dans le
 navigateur (format compressé) ; l'export/import `.json` se fait depuis le menu « Sauvegarde ».
 
+Les portraits des joueurs (3D ou 2D, au choix dans « Paramètres ») viennent du dossier `portraits/` : servez le dossier entier (GitHub Pages ou un petit
+serveur local, par exemple `npx serve .`) pour les voir ; en ouvrant le fichier seul, le jeu garde des silhouettes.
+Détails et licences : [portraits/README.md](portraits/README.md).
+
 ## Tests
 
 ```bash
