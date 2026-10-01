@@ -344,3 +344,78 @@ test('V8.9 : noms uniques et cohérents avec l\'origine', () => {
   assert.ok(naf.filter(p => maghreb.has(p.name.split(' ').slice(1).join(' '))).length / naf.length > 0.6);
 });
 
+
+// partie « 8.8 » : le monde sans les championnats V8.9 (comme une ancienne sauvegarde)
+function stripV89(s) {
+  for (const lg of E.LEAGUES_V89) {
+    for (const cid of s.leagues[lg.id].clubIds) { for (const pid of s.clubs[cid].squad) delete s.players[pid]; delete s.clubs[cid]; }
+    delete s.leagues[lg.id];
+  }
+  for (const id of Object.keys(s.cups)) if (!E.CUP_DEFS.find(d => d.id === id).leagues.some(l => s.leagues[l])) delete s.cups[id];
+  s.freeAgents = (s.freeAgents || []).filter(id => s.players[id]);
+}
+
+test('V8.9.1 : partie en cours convertie en novembre — nouveaux championnats tout de suite, coupes, Ligue des Champions à 32', () => {
+  const s = newGame();
+  playMonths(s, 3);
+  stripV89(s);
+  const res = E.integrateMissingLeagues(s);
+  assert.equal(res.count, E.LEAGUES_V89.length);
+  for (const lg of E.LEAGUES_V89) {
+    const st = s.leagues[lg.id];
+    assert.ok(st && st.fixtures.length > 0, lg.id + ' a un calendrier resserré');
+    const months = new Set(st.fixtures.map(f => f.month));
+    assert.ok(![8, 9, 10].some(m => months.has(m)), lg.id + ' : aucun match dans un mois déjà passé');
+  }
+  assert.equal(Object.keys(s.cups).length, E.CUP_DEFS.length, 'une coupe par pays dès cette saison');
+  playMonths(s, 7); // novembre -> mai
+  for (const lg of E.LEAGUES_V89) assert.ok(s.leagues[lg.id].fixtures.every(f => f.played), lg.id + ' : toute la saison resserrée jouée');
+  playMonths(s, 2); // juin, juillet : fin de saison
+  assert.ok(s.news.some(n => /sacré champion de Eredivisie/.test(n.text)), 'un champion des Pays-Bas');
+  assert.equal(s.europe.stage, 'groups', 'Ligue des Champions jouée la saison suivante');
+  assert.equal(s.europe.groups.flat().length, 32);
+  assert.equal(Object.keys(s.cups).length, E.CUP_DEFS.length);
+});
+
+test('V8.9.1 : conversion trop tardive (mai) — pas de titre ni de montée pour un championnat qui n\'a pas joué', () => {
+  const s = newGame();
+  playMonths(s, 9); // mai : dernier mois de matchs
+  stripV89(s);
+  const ptBefore = [...s.leagues.PT.clubIds].sort();
+  E.integrateMissingLeagues(s);
+  assert.ok(E.LEAGUES_V89.every(l => s.leagues[l.id].catchUp === 'next' && s.leagues[l.id].fixtures.length === 0));
+  playMonths(s, 3); // fin de saison
+  for (const l of E.LEAGUES_V89) assert.ok(s.leagues[l.id].clubIds.every(c => !s.clubs[c].titlesWon), l.id + ' : aucun titre attribué');
+  assert.deepEqual([...s.leagues.PT.clubIds].sort(), ptBefore, 'pas de montée/descente avec une Liga Portugal 2 qui n\'a pas joué');
+  assert.equal(s.europe.stage, 'groups');
+  assert.equal(s.europe.groups.flat().length, 32, 'places complétées par les 5 grands');
+  assert.ok(E.LEAGUES_V89.every(l => s.leagues[l.id].fixtures.length > 0), 'saison complète l\'année suivante');
+});
+
+test('V8.9.1 : aucun vrai footballeur recréé, ni à la génération ni dans une partie existante (hors clients)', () => {
+  for (let k = 0; k < 3; k++) {
+    const s = newGame();
+    const hits = Object.values(s.players).filter(p => E.FAMOUS_PLAYERS.has(p.name)).map(p => p.name);
+    assert.deepEqual(hits, [], 'monde neuf sans vrai footballeur');
+  }
+  // partie existante : un joueur du monde et un client de l'agence portent un nom célèbre
+  const s = newGame();
+  const [a, b] = Object.values(s.players).filter(p => !p.retired);
+  a.name = 'Thomas Müller'; b.name = 'Bruno Fernandes'; b.agentId = 'player';
+  s.meta.famousCleanup = 0;
+  assert.ok(E.renameFamousPlayers(s) >= 1);
+  assert.notEqual(a.name, 'Thomas Müller', 'joueur du monde renommé');
+  assert.equal(b.name, 'Bruno Fernandes', 'le client de l\'agence garde son nom');
+  assert.equal(E.renameFamousPlayers(s), 0, 'une seule fois');
+});
+
+test('V8.9.1 : prépositions des pays', () => {
+  assert.equal(E.inCountry('FR'), 'en France');
+  assert.equal(E.inCountry('JP'), 'au Japon');
+  assert.equal(E.inCountry('US'), 'aux États-Unis');
+  assert.equal(E.inCountry('EC'), 'en Équateur');
+  assert.equal(E.ofCountry('PT'), 'du Portugal');
+  assert.equal(E.ofCountry('EN'), "de l'Angleterre");
+  assert.equal(E.ofCountry('NL'), 'des Pays-Bas');
+  for (const c of E.NAT_CODES) assert.match(E.inCountry(c), /^(en|au|aux) /);
+});

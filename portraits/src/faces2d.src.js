@@ -37,6 +37,8 @@ const HEADS = male('head'), EYES = bins(male('eye'), 5), NOSES = bins(male('nose
   MOUTHS = bins(male('mouth').filter(id => !['angry', 'side'].includes(id)), 4), BROWS = bins(male('eyebrow'), 4);
 const EYE_T = ['amande', 'ronds', 'enfoncés', 'écartés', 'rapprochés'], NOSE_T = ['fin', 'droit', 'large', 'aquilin', 'court', 'long'], BROW_T = ['épais', 'fins', 'droits', 'arqués'];
 const NOSE_SIZE = { fin: 0.7, droit: 0.9, large: 1.2, aquilin: 1.05, court: 0.75, long: 1.1 };
+// yeux plus fins et étirés pour les joueurs d'Asie de l'Est (V8.9.1 : les Japonais et Coréens avaient des traits peu typés)
+const EAST_ASIAN_EYES = ['eye7', 'eye9', 'eye13', 'eye14', 'eye18', 'eye19', 'eye6'];
 
 export function faceConfig(p) {
   const g = genome(p), r = rng('face2d:' + p.id), a = g.arch, ai = ARCHETYPES.indexOf(a);
@@ -58,9 +60,10 @@ export function faceConfig(p) {
     jersey: { id: 'football' },
     head: { id: HEADS[(ai * 7 + Math.floor(r() * 3)) % HEADS.length], shave: `rgba(0,0,0,${STUBBLE[g.beard] || 0})` },
     ear: { ...f.ear, size: clamp(0.8 + (g.m['ear-scale'] || 0) * 0.4, 0.5, 1.3) },
-    eye: { id: pick(r, EYES[EYE_T.indexOf(a.eyes)]), angle: clamp((g.m['eye-corner2'] || 0) * 10 + (g.anc[1] > 0.5 ? 6 : 0), -8, 12) },
+    eye: g.anc[1] > 0.5 ? { id: pick(r, EAST_ASIAN_EYES), angle: clamp(6 + (g.m['eye-corner2'] || 0) * 6, 3, 11) }
+      : { id: pick(r, EYES[EYE_T.indexOf(a.eyes)]), angle: clamp((g.m['eye-corner2'] || 0) * 10, -8, 12) },
     eyebrow: { id: pick(r, BROWS[BROW_T.indexOf(a.brows)]), angle: clamp(g.browArch * 18 - 6, -8, 12) },
-    nose: { ...f.nose, id: pick(r, NOSES[NOSE_T.indexOf(a.nose)]), size: clamp(NOSE_SIZE[a.nose] + (g.m['nose-scale-horiz'] || 0) * 0.15 + g.anc[0] * 0.1, 0.55, 1.3) },
+    nose: { ...f.nose, id: pick(r, NOSES[NOSE_T.indexOf(a.nose)]), size: clamp(NOSE_SIZE[a.nose] + (g.m['nose-scale-horiz'] || 0) * 0.15 + g.anc[0] * 0.1 - g.anc[1] * 0.15, 0.55, 1.3) },
     mouth: { ...f.mouth, id: pick(r, MOUTHS[lips]) },
     hair: { ...f.hair, id: hair, color: hairColor },
     facialHair: { id: BEARD[g.beard] ? pick(r, BEARD[g.beard]) : 'none' },
