@@ -232,3 +232,14 @@ test('V8.12 : trois parties, mode clair, page d\'aide', async () => {
     assert.equal(await page.evaluate(() => readSlotIndex().meta[2].agency), 'Agence B');
   }, { portraits: 'simple' });
 });
+
+test('V8.13 : onglet Sélections — tournoi de l\'été, classement des sélections', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { for (let i = 0; i < 11; i++) { G.pendingEvent = null; advanceMonth(G); } ui.worldTab = 'nations'; navigate('world'); });
+    const txt = await page.textContent('#content');
+    assert.match(txt, /Coupe d'Afrique des nations 2027/);
+    assert.match(txt, /Classement des sélections/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});

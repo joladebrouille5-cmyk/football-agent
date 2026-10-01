@@ -587,3 +587,30 @@ test('V8.11 : plafond de masse salariale indexé sur la valeur des joueurs', () 
   const ratios = s.leagues.L1.clubIds.map(id => { const c = s.clubs[id]; return c.squad.reduce((t, pid) => t + (s.players[pid] ? s.players[pid].wage : 0), 0) / c.wageBudget; }).sort((a, b) => a - b);
   assert.ok(ratios[ratios.length >> 1] < 1.25, 'masse salariale médiane proche du plafond : ' + ratios[ratios.length >> 1].toFixed(2));
 });
+
+test('V8.13 : sélections nationales — trêves, Coupe du monde, Euro, Copa América, CAN', () => {
+  const s = newGame();
+  const ranking = E.nationRanking(s);
+  assert.ok(ranking.length >= 40, 'presque tous les pays ont une sélection');
+  for (const t of ranking) assert.ok(t.squad.length <= 23 && t.squad.filter(p => p.pos === 'GK').length >= 1, t.nat);
+  assert.equal(E.theCountry('AR'), "l'Argentine");
+  assert.equal(E.theCountry('BR'), 'le Brésil');
+  assert.equal(E.theCountry('US'), 'les États-Unis');
+  // tournois des années 2030 (Coupe du monde), 2028 (Euro + Copa), 2029 (CAN)
+  const wcDef = E.INTL_TOURNAMENTS.find(d => d.id === 'wc');
+  assert.ok(wcDef.when(2030) && !wcDef.when(2028));
+  const news = [];
+  const wc = E.playIntlTournament(s, wcDef, 2030, news);
+  assert.equal(wc.groups.length, 8);
+  assert.deepEqual(wc.rounds.map(r => r.name), ['Huitièmes de finale', 'Quarts de finale', 'Demi-finales', 'Finale']);
+  assert.ok(news.some(n => /remporte la Coupe du monde 2030/.test(n.text)));
+  const winners = Object.values(s.players).filter(p => (p.trophies || []).some(t => t.title === 'Coupe du monde 2030'));
+  assert.ok(winners.length >= 15 && winners.every(p => p.nat === wc.winner), 'les champions du monde ont leur trophée');
+  // une saison jouée : trêves (sélections) et tournoi de l'été 2027 (CAN)
+  playMonths(s, 12);
+  assert.ok(Object.values(s.players).some(p => p.caps >= 8), 'des sélections comptées');
+  assert.ok(s.intl.history.some(r => r.id === 'can' && r.year === 2027), 'CAN 2027 jouée');
+  const round = E.deserializeState(E.serializeState(s));
+  const capped = Object.values(s.players).find(p => p.caps);
+  assert.equal(round.players[capped.id].caps, capped.caps, 'sélections sauvegardées');
+});

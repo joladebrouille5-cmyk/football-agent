@@ -1343,6 +1343,11 @@ function inCountry(nat) {
   const n = NAT_NAME[nat] || nat, g = NAT_GENDER[nat] || 'f';
   return g === 'p' ? `aux ${n}` : g === 'm' && !startsWithVowel(n) ? `au ${n}` : `en ${n}`;
 }
+function theCountry(nat) { // « la France », « l'Argentine », « le Brésil », « les États-Unis » (V8.13)
+  const n = NAT_NAME[nat] || nat, g = NAT_GENDER[nat] || 'f';
+  return g === 'p' ? `les ${n}` : startsWithVowel(n) ? `l'${n}` : g === 'm' ? `le ${n}` : `la ${n}`;
+}
+const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
 function ofCountry(nat) { // « loin de la France », « loin du Japon », « loin des États-Unis », « loin de l'Angleterre »
   const n = NAT_NAME[nat] || nat, g = NAT_GENDER[nat] || 'f';
   return g === 'p' ? `des ${n}` : startsWithVowel(n) ? `de l'${n}` : g === 'm' ? `du ${n}` : `de la ${n}`;
@@ -4564,6 +4569,154 @@ function stakesPortfolio(state) {
   }).filter(Boolean).sort((a, b) => b.value - a.value);
 }
 
+// ---------- Sélections nationales (V8.13) ----------
+// Chaque pays aligne ses 23 meilleurs joueurs (3 gardiens). Trêves internationales en septembre, octobre, novembre
+// et mars (sélections et buts comptés) ; chaque été (juin), un grand tournoi : Coupe du monde les années « 2 »
+// (2030, 2034…), Euro et Copa América les années multiples de 4, Coupe d'Afrique des nations les années impaires.
+const INTL_WINDOWS = [9, 10, 11, 3];
+const INTL_MIN_PLAYERS = 15;
+const INTL_TOURNAMENTS = [
+  { id: 'wc', name: 'Coupe du monde', when: y => y % 4 === 2, pool: () => true, sizes: [32, 16] },
+  { id: 'euro', name: 'Euro', when: y => y % 4 === 0, pool: nat => NAT_CONTINENT[nat] === 'Europe', sizes: [16, 8] },
+  { id: 'copa', name: 'Copa América', when: y => y % 4 === 0, pool: nat => NAT_CONTINENT[nat] === 'Amériques', sizes: [8] },
+  { id: 'can', name: "Coupe d'Afrique des nations", when: y => y % 2 === 1, pool: nat => NAT_CONTINENT[nat] === 'Afrique', sizes: [16, 8] },
+];
+let intlSquadCache = { key: null, squads: {} };
+// les 23 sélectionnés d'un pays (cache par mois : calcul sur tout le monde des joueurs)
+function nationSquads(state) {
+  const key = state.date.absMonth + ':' + Object.keys(state.players).length;
+  if (intlSquadCache.key === key) return intlSquadCache.squads;
+  const byNat = {};
+  for (const p of Object.values(state.players)) if (!p.retired && p.club) (byNat[p.nat] = byNat[p.nat] || []).push(p);
+  const squads = {};
+  for (const [nat, list] of Object.entries(byNat)) {
+    if (list.length < INTL_MIN_PLAYERS) continue;
+    list.sort((a, b) => b.ovr - a.ovr);
+    const gks = list.filter(p => p.pos === 'GK').slice(0, 3), out = list.filter(p => p.pos !== 'GK').slice(0, 23 - gks.length);
+    squads[nat] = gks.concat(out);
+  }
+  intlSquadCache = { key, squads };
+  return squads;
+}
+function nationStrength(squad) {
+  const gk = squad.find(p => p.pos === 'GK'), out = squad.filter(p => p.pos !== 'GK').slice(0, 10);
+  const xi = (gk ? [gk] : []).concat(out);
+  return xi.length ? Math.round(xi.reduce((s, p) => s + p.ovr, 0) / xi.length * 10) / 10 : 0;
+}
+function nationRanking(state) {
+  return Object.entries(nationSquads(state)).map(([nat, squad]) => ({ nat, strength: nationStrength(squad), squad })).sort((a, b) => b.strength - a.strength);
+}
+function natName(nat) { return NAT_NAME[nat] || nat; }
+// buteurs : surtout attaquants et milieux offensifs
+function pickIntlScorer(squad) {
+  const w = p => ({ BU: 6, AG: 4, AD: 4, MOC: 3.5, MC: 1.6, MDC: 0.8, DL: 0.6, DR: 0.6, DC: 0.6, GK: 0 }[p.pos] || 1) * Math.max(1, p.ovr - 50);
+  return weightedChoice(squad.filter(p => p.pos !== 'GK'), w);
+}
+function playIntlMatch(a, b, squads, scorers, knockout) {
+  const diff = a.strength - b.strength;
+  const lam = d => clamp(1.25 + d * 0.07, 0.25, 3.2);
+  const ga = poissonSample(lam(diff)), gb = poissonSample(lam(-diff));
+  for (const [team, g] of [[a, ga], [b, gb]]) for (let k = 0; k < g; k++) {
+    const p = pickIntlScorer(squads[team.nat]); if (!p) continue;
+    p.intlGoals = (p.intlGoals || 0) + 1; scorers[p.id] = (scorers[p.id] || 0) + 1;
+  }
+  for (const team of [a, b]) for (const p of squads[team.nat].slice(0, 16)) p.caps = (p.caps || 0) + 1;
+  let pens = null;
+  if (knockout && ga === gb) pens = Math.random() < 0.5 + clamp(diff * 0.02, -0.15, 0.15) ? a.nat : b.nat;
+  return { a: a.nat, b: b.nat, ga, gb, pens, winner: ga > gb ? a.nat : gb > ga ? b.nat : pens };
+}
+// trêve internationale : les sélectionnés gagnent une sélection (deux matchs, dont un comme titulaire pour les 16 premiers)
+function runIntlWindow(state, news) {
+  const squads = nationSquads(state);
+  for (const squad of Object.values(squads)) squad.forEach((p, i) => {
+    const first = !p.caps;
+    p.caps = (p.caps || 0) + (i < 16 ? 2 : 1);
+    if (Math.random() < 0.18 && p.pos !== 'GK' && i < 16) p.intlGoals = (p.intlGoals || 0) + 1;
+    if (p.agentId === 'player') {
+      p.morale = clamp((p.morale || 60) + 3, 0, 100);
+      if (first && news) news.push({ text: `${p.name} est appelé pour la première fois avec ${theCountry(p.nat)} !`, tag: 'perf', playerId: p.id });
+    }
+  });
+}
+function runIntlTournaments(state, news) {
+  const year = calYear(state);
+  state.intl = state.intl || { history: [] };
+  for (const def of INTL_TOURNAMENTS) if (def.when(year)) playIntlTournament(state, def, year, news);
+}
+function playIntlTournament(state, def, year, news) {
+  const ranking = nationRanking(state).filter(t => def.pool(t.nat));
+  const size = def.sizes.find(n => ranking.length >= n);
+  if (!size) return null;
+  const teams = ranking.slice(0, size), squads = {}, scorers = {};
+  for (const t of teams) squads[t.nat] = t.squad;
+  // groupes de 4, têtes de série en serpentin
+  const nGroups = size / 4, groups = Array.from({ length: nGroups }, () => []);
+  teams.forEach((t, i) => { const r = Math.floor(i / nGroups), k = i % nGroups; groups[r % 2 === 0 ? k : nGroups - 1 - k].push(t); });
+  const groupTables = groups.map(g => {
+    const rows = g.map(t => ({ nat: t.nat, team: t, pts: 0, gd: 0, gf: 0 }));
+    for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+      const m = playIntlMatch(rows[i].team, rows[j].team, squads, scorers, false);
+      rows[i].gf += m.ga; rows[j].gf += m.gb; rows[i].gd += m.ga - m.gb; rows[j].gd += m.gb - m.ga;
+      if (m.ga > m.gb) rows[i].pts += 3; else if (m.gb > m.ga) rows[j].pts += 3; else { rows[i].pts++; rows[j].pts++; }
+    }
+    return rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || Math.random() - 0.5);
+  });
+  // phase finale : 1er du groupe A contre 2e du groupe B, etc.
+  let bracket = [];
+  for (let k = 0; k < nGroups; k += 2) {
+    const A = groupTables[k], B = groupTables[k + 1] || groupTables[k];
+    bracket.push(A[0].team, B[1].team, B[0].team, A[1].team);
+  }
+  const ROUND_NAMES = { 16: 'Huitièmes de finale', 8: 'Quarts de finale', 4: 'Demi-finales', 2: 'Finale' };
+  const rounds = [];
+  let final = null;
+  while (bracket.length >= 2) {
+    const results = [], next = [];
+    for (let i = 0; i < bracket.length; i += 2) {
+      const m = playIntlMatch(bracket[i], bracket[i + 1], squads, scorers, true);
+      results.push(m); next.push(m.winner === bracket[i].nat ? bracket[i] : bracket[i + 1]);
+    }
+    rounds.push({ name: ROUND_NAMES[bracket.length] || 'Tour', results });
+    if (bracket.length === 2) final = results[0];
+    bracket = next;
+  }
+  const winner = final.winner, runnerUp = final.a === winner ? final.b : final.a;
+  const topId = Object.entries(scorers).sort((a, b) => b[1] - a[1])[0];
+  const top = topId ? state.players[topId[0]] : null;
+  const title = `${def.name} ${year}`;
+  for (const p of squads[winner]) {
+    p.trophies = p.trophies || [];
+    p.trophies.push({ season: seasonLabel(state), title });
+    p.collectiveTitles = (p.collectiveTitles || 0) + 1;
+    p.value = Math.round(p.value * 1.08 / 5000) * 5000;
+    if (p.agentId === 'player') { state.agent.careerStats.titlesWonAsAgent = (state.agent.careerStats.titlesWonAsAgent || 0) + 1; gainReputation(state, 2); }
+    else creditRivalTitle(state, p);
+  }
+  const score = `${final.a === winner ? final.ga : final.gb}-${final.a === winner ? final.gb : final.ga}${final.pens ? ' aux tirs au but' : ''}`;
+  if (news) {
+    news.push({ text: `🏆 ${capFirst(theCountry(winner))} remporte ${def.id === 'euro' ? "l'" : 'la '}${title} en battant ${theCountry(runnerUp)} en finale (${score}).`, tag: 'trophee', breaking: true });
+    if (top) news.push({ text: `Meilleur buteur ${def.id === 'euro' ? "de l'" : 'de la '}${title} : ${top.name} (${natName(top.nat)}), ${topId[1]} but${topId[1] > 1 ? 's' : ''}.`, tag: 'perf', playerId: top.id });
+    for (const nat of Object.keys(squads)) for (const p of squads[nat]) {
+      if (p.agentId !== 'player') continue;
+      news.push({ text: nat === winner ? `${p.name} remporte ${def.id === 'euro' ? "l'" : 'la '}${title} avec ${theCountry(nat)} !` : `${p.name} a disputé ${def.id === 'euro' ? "l'" : 'la '}${title} avec ${theCountry(nat)}${scorers[p.id] ? ` (${scorers[p.id]} but${scorers[p.id] > 1 ? 's' : ''})` : ''}.`, tag: nat === winner ? 'trophee' : 'perf', playerId: p.id });
+    }
+  }
+  const record = {
+    id: def.id, name: def.name, year, winner, runnerUp, final: { a: final.a, b: final.b, ga: final.ga, gb: final.gb, pens: final.pens },
+    top: top ? { id: top.id, name: top.name, nat: top.nat, goals: topId[1] } : null,
+    groups: groupTables.map(g => g.map(r => ({ nat: r.nat, pts: r.pts, gd: r.gd }))),
+    rounds: rounds.map(r => ({ name: r.name, results: r.results.map(m => ({ a: m.a, b: m.b, ga: m.ga, gb: m.gb, pens: m.pens })) })),
+  };
+  state.intl = state.intl || { history: [] };
+  state.intl.history.unshift(record);
+  if (state.intl.history.length > 24) state.intl.history.pop();
+  return record;
+}
+function nextIntlTournaments(state) {
+  const y = calYear(state) + (calMonth(state) >= 7 ? 1 : 0);
+  return INTL_TOURNAMENTS.filter(d => d.when(y)).map(d => `${d.name} ${y}`);
+}
+
 // ---------- Derbys (V8.11) ----------
 // rivalités historiques : un derby rapporte (ou coûte) un peu de réputation, et compte double pour les supporters
 const DERBIES = [
@@ -5849,6 +6002,8 @@ function advanceMonth(state) {
   monthlyAgencyIncomeExpense(state, news);
   monthlyClubFinances(state);
   ownerAlerts(state, news); // V8.11
+  if (INTL_WINDOWS.includes(month)) runIntlWindow(state, news); // V8.13 : trêve internationale
+  if (month === 6) runIntlTournaments(state, news);              // V8.13 : grand tournoi de l'été
   const wasLastMonthOfSeason = (month === 7);
   let seasonSummary = null;
   // traité AVANT l'avancée de la date : les trophées/records/actus de fin de saison portent ainsi le bon millésime
@@ -5970,6 +6125,7 @@ const PLAYER_SAVE_FIELDS = [
   'reservedUntil', // V8.6
   'origin', // V8.9 : origine (nom et visage cohérents)
   'untouchable', // V8.11 : intransférable (choix du propriétaire du club)
+  'caps', 'intlGoals', // V8.13 : sélections et buts en équipe nationale
 ];
 // Compaction de la sauvegarde : au-delà de l'aplatissement du joueur en tableau positionnel (PLAYER_SAVE_FIELDS),
 // les tableaux 'career' et 'trophies' sont eux aussi des tableaux d'objets répétés ~5000 fois (un par joueur actif) :
@@ -6202,6 +6358,7 @@ function deleteLocalStorageSave(n = activeSlot) {
 if (typeof module !== 'undefined') {
   module.exports = {
     liquidateStakesForDebt, capitalIncreasePct, setPlayerUntouchable, setPlayerListed, setOwnerObjective, ownerSeasonReview, runRivalInvestments, buyOutRival, rivalHoldings, availableStakePct, rivalOwner, derbyName, playPlayoff, ownerAlerts, ownedClubs, DIVIDEND_TAX, clubWage, ACADEMY_LEVELS, applyDerbyResult,
+    theCountry, nationSquads, nationRanking, nationStrength, runIntlWindow, runIntlTournaments, playIntlTournament, INTL_TOURNAMENTS, nextIntlTournaments,
     clubValuation, stakeBuyPrice, stakeSellPrice, buyClubStake, sellClubStake, isClubOwner, stakePct, injectClubFunds, setClubPolicy, upgradeClubStadium, payClubDividends, stakesPortfolio, clubBudgetScale, OWNER_THRESHOLD, CLUB_RAW,
     rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES, NAT_ORIGINS, NAME_POOLS, LEAGUES, LEAGUES_V89, addMissingLeagues, integrateMissingLeagues, qualifyForEurope, createCup, leagueHasPlayed, FAMOUS_PLAYERS, renameFamousPlayers, inCountry, ofCountry, NAT_NAME,
     calMonth, seasonIdx, seasonStartYear, calYear, seasonLabel, advanceDate,
@@ -7204,7 +7361,7 @@ function renderPlayerDetail() {
         <div class="ovr-ring" style="--v:${p.ovr};--c:${p.ovr >= 77 ? 'var(--gold)' : 'var(--accent)'}"><b>${p.ovr}</b><span>Niveau</span></div>
         <div class="pd-header-id">
           <h2>${esc(p.name)}</h2>
-          <div class="small" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${posLabel(p.pos)} · ${p.age} ans · ${flagFor(p.nat)}</div>
+          <div class="small" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${posLabel(p.pos)} · ${p.age} ans · ${flagFor(p.nat)}${p.caps ? ` · ${p.caps} sél.${p.intlGoals ? `, ${p.intlGoals} but${p.intlGoals > 1 ? 's' : ''}` : ''}` : ''}</div>
           <div class="pd-status" style="color:${statusColors[careerStatus] || 'var(--ink-dim)'}">${esc(careerStatus)}</div>
         </div>
         ${clubBadgeHTML(club, 'lg')}
@@ -8221,12 +8378,41 @@ function renderWorld() {
       <button class="tab-btn ${ui.worldTab === 'classements' ? 'active' : ''}" onclick="setWorldTab('classements')">Classements</button>
       <button class="tab-btn ${ui.worldTab === 'europe' ? 'active' : ''}" onclick="setWorldTab('europe')">Coupe d'Europe</button>
       <button class="tab-btn ${ui.worldTab === 'cups' ? 'active' : ''}" onclick="setWorldTab('cups')">Coupes nationales</button>
+      <button class="tab-btn ${ui.worldTab === 'nations' ? 'active' : ''}" onclick="setWorldTab('nations')">Sélections</button>
       <button class="tab-btn ${ui.worldTab === 'records' ? 'active' : ''}" onclick="setWorldTab('records')">Records éternels</button>
     </div>
-    ${ui.worldTab === 'records' ? renderRecords() : (ui.worldTab === 'europe' ? renderEurope() : (ui.worldTab === 'cups' ? renderCups() : renderStandings()))}
+    ${ui.worldTab === 'nations' ? renderNations() : ui.worldTab === 'records' ? renderRecords() : (ui.worldTab === 'europe' ? renderEurope() : (ui.worldTab === 'cups' ? renderCups() : renderStandings()))}
   `;
 }
 const EURO_STAGE_LABEL = { none: 'Aucune compétition en cours', groups: 'Phase de groupes', r16: 'Huitièmes de finale', qf: 'Quarts de finale', sf: 'Demi-finales', final: 'Finale', done: 'Terminée' };
+// ---------- Sélections nationales (V8.13) ----------
+function intlTournamentHTML(r) {
+  const nm = n => `${flagFor(n)} ${esc(natName(n))}`;
+  const score = m => `${m.ga}-${m.gb}${m.pens ? ` (t.a.b. ${esc(natName(m.pens))})` : ''}`;
+  return `<div class="card"><div class="card-title">🏆 ${esc(r.name)} ${r.year}</div>
+    <p style="margin:0 0 6px">Vainqueur : <b>${nm(r.winner)}</b></p>
+    <p class="small">Finale : ${nm(r.final.a)} ${score(r.final)} ${nm(r.final.b)}</p>
+    ${r.top ? `<p class="small">Meilleur buteur : ${G.players[r.top.id] ? `<a onclick="openPlayerDetail('${r.top.id}','world')" style="cursor:pointer;text-decoration:underline">${esc(r.top.name)}</a>` : esc(r.top.name)} (${esc(natName(r.top.nat))}), ${r.top.goals} but${r.top.goals > 1 ? 's' : ''}</p>` : ''}
+    <details><summary class="small" style="cursor:pointer">Groupes et phase finale</summary>
+      <div class="grid-2" style="margin-top:8px">${r.groups.map((g, i) => `<div><div class="small"><b>Groupe ${String.fromCharCode(65 + i)}</b></div>${g.map((row, k) => `<div class="row-between small" style="padding:2px 0"><span>${k < 2 ? '✅' : '·'} ${nm(row.nat)}</span><span class="num">${row.pts} pts</span></div>`).join('')}</div>`).join('')}</div>
+      ${r.rounds.map(rd => `<div class="small" style="margin-top:8px"><b>${esc(rd.name)}</b></div>${rd.results.map(m => `<div class="small" style="padding:2px 0">${nm(m.a)} ${score(m)} ${nm(m.b)}</div>`).join('')}`).join('')}
+    </details></div>`;
+}
+function renderNations() {
+  const ranking = nationRanking(G), hist = (G.intl && G.intl.history) || [];
+  const mine = G.agent.portfolio.map(id => G.players[id]).filter(p => p && !p.retired && p.caps).sort((a, b) => b.caps - a.caps);
+  const squads = nationSquads(G);
+  const next = nextIntlTournaments(G);
+  return `<div class="card"><div class="card-title">Prochain grand tournoi</div>
+      <p style="margin:0">${next.length ? `Juin : <b>${next.map(esc).join('</b> et <b>')}</b>.` : 'Aucun cette année.'} Les trêves internationales ont lieu en septembre, octobre, novembre et mars.</p></div>
+    ${mine.length ? `<div class="card"><div class="card-title">Vos internationaux</div>${mine.map(p => `<div class="row-between small" style="padding:4px 0;cursor:pointer" onclick="openPlayerDetail('${p.id}','world')"><span>${flagFor(p.nat)} ${esc(p.name)}${(squads[p.nat] || []).includes(p) ? ' · <b style="color:var(--accent)">sélectionné</b>' : ''}</span><span class="num">${p.caps} sél. · ${p.intlGoals || 0} but${(p.intlGoals || 0) > 1 ? 's' : ''}</span></div>`).join('')}</div>` : ''}
+    ${hist[0] ? intlTournamentHTML(hist[0]) : ''}
+    ${hist.length > 1 ? `<div class="card"><div class="card-title">Palmarès</div>${hist.slice(1).map(r => `<div class="row-between small" style="padding:3px 0"><span>${esc(r.name)} ${r.year}</span><span>${flagFor(r.winner)} ${esc(natName(r.winner))}</span></div>`).join('')}</div>` : ''}
+    <div class="card"><div class="card-title">Classement des sélections</div>
+      ${(() => { const row = (t, i) => { const n = t.squad.filter(p => p.agentId === 'player').length; return `<div class="row-between small" style="padding:3px 0"><span>${i + 1}. ${flagFor(t.nat)} ${esc(natName(t.nat))}${n ? ` · <b style="color:var(--accent)">${n} client${n > 1 ? 's' : ''}</b>` : ''}</span><span class="num">${t.strength}</span></div>`; };
+        return ranking.slice(0, 15).map(row).join('') + (ranking.length > 15 ? `<details><summary class="small" style="cursor:pointer;margin-top:4px">Voir les ${ranking.length - 15} autres</summary>${ranking.slice(15).map((t, i) => row(t, i + 15)).join('')}</details>` : ''); })()}
+      <p class="small" style="margin-top:6px">Note : moyenne du onze type (le meilleur gardien et les dix meilleurs joueurs de champ du pays).</p></div>`;
+}
 function renderEurope() {
   const eu = G.europe || { stage: 'none' };
   if (eu.stage === 'none') {
@@ -8599,7 +8785,7 @@ const HELP_SECTIONS = [
   ['🏢 L’agence', "Agrandissez vos bureaux pour représenter plus de joueurs, embauchez du personnel (scouts, avocats, négociateurs…), lancez des investissements et des campagnes d'image."],
   ['💶 Argent et impôts', "Les commissions sont imposées en fin de saison (impôt progressif). Attention à la trésorerie : six mois sous −250 k€ et la banque restructure l'agence (elle vend d'abord vos parts de clubs)."],
   ['🏟️ Parts de clubs', "Sur la fiche d'un club, achetez des parts (1 %, 5 %, 10 %…). Vous touchez des dividendes selon le classement. Au-delà de 50 %, vous êtes propriétaire : objectif de saison, supporters, stratégie, billetterie, centre de formation, stade, joueurs intransférables. Des agents rivaux investissent aussi."],
-  ['🏆 Compétitions', "26 championnats, montées et descentes (avec barrages en France et en Allemagne), coupes nationales, Ligue des Champions, derbys. Vos clients peuvent gagner des titres et des trophées individuels."],
+  ['🏆 Compétitions', "26 championnats, montées et descentes (avec barrages en France et en Allemagne), coupes nationales, Ligue des Champions, derbys. Sélections nationales : trêves en septembre, octobre, novembre et mars, et un grand tournoi chaque été (Coupe du monde, Euro, Copa América, Coupe d'Afrique). Vos clients peuvent gagner des titres et des trophées individuels."],
   ['⭐ Progression', "Défis de saison, classement des agents (agent de l'année), hauts faits et trophées de président. Une carrière n'a pas de fin : les joueurs vieillissent, de nouveaux talents arrivent."],
   ['💾 Sauvegardes', "La partie est sauvegardée automatiquement. Les Paramètres permettent d'avoir trois parties, d'exporter ou d'importer une sauvegarde, et de choisir le thème et les portraits."],
 ];
