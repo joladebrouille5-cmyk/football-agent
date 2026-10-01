@@ -11,7 +11,7 @@ const { GAME_FILE } = require('./load-engine');
 async function withGame(viewport, fn, settings) {
   const html = fs.readFileSync(GAME_FILE);
   const root = path.dirname(GAME_FILE);
-  const TYPES = { '.js': 'text/javascript', '.json': 'application/json', '.gz': 'application/gzip' };
+  const TYPES = { '.js': 'text/javascript', '.json': 'application/json', '.gz': 'application/gzip', '.webp': 'image/webp' };
   // la page du jeu, plus les fichiers du module de portraits (portraits/…)
   const srv = http.createServer((req, res) => {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
