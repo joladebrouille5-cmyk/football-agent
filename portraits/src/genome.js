@@ -80,8 +80,10 @@ export function genome(p) {
     : [['short', 4], ['fade', 3], ['textured', 2.5], ['buzz', 1.5], ['medium', youngish ? 1.2 : 0.8], ['slick', 1.4], ['shaved', 0.7]];
   const hairStyle = pickW(r, styles);
   // barbe : jamais systématique, rare chez les plus jeunes
-  const beardP = p.age < 19 ? 0.08 : p.age < 23 ? 0.35 : 0.55;
-  const beard = r() < beardP ? pickW(r, [['stubble', 4], ['short', 3], ['goatee', 1.2], ['moustache', 0.7], ['chinstrap', 0.6], ['full', p.age >= 24 ? 1.6 : 0.3]]) : (p.age >= 19 && r() < 0.3 ? 'shadow' : 'none');
+  // V8.9.1 : barbe nettement moins fréquente (et rarement fournie) chez les joueurs d'Asie de l'Est
+  const eas = anc[1] > 0.5;
+  const beardP = (p.age < 19 ? 0.08 : p.age < 23 ? 0.35 : 0.55) * (eas ? 0.35 : 1);
+  const beard = r() < beardP ? pickW(r, [['stubble', 4], ['short', 3], ['goatee', 1.2], ['moustache', 0.7], ['chinstrap', 0.6], ['full', p.age >= 24 && !eas ? 1.6 : 0.3]]) : (p.age >= 19 && r() < 0.3 ? 'shadow' : 'none');
   const g = {
     id: p.id, age: p.age, arch, prof, anc, mel, undertone, hairTex, hairStyle, hairColor, eyeColor, beard,
     hairline: gauss(r) * 0.12, recede: clamp((p.age - 27) / 14 + gauss(r) * 0.35, 0, 1) * (r() < 0.55 ? 1 : 0.25),

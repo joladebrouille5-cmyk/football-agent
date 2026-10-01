@@ -564,6 +564,7 @@ input[type=range]::-moz-range-thumb{width:18px; height:18px; border-radius:50%; 
 .filter-bar .tab-btn{padding:7px 12px; font-size:12px;}
 .filter-bar select{padding:7px 10px; background:var(--bg-2); border:1px solid var(--line-strong); color:var(--ink); border-radius:999px; font-size:12.5px; font-weight:600; margin-left:auto;}
 .region-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(104px,1fr)); gap:8px;}
+.region-continent{font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin:14px 0 8px;} .region-continent:first-of-type{margin-top:4px;}
 .region-card{border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:12px 8px; text-align:center; cursor:pointer; background:rgba(16,24,28,.8); font-size:13px; font-weight:600;}
 .region-card:hover{border-color:var(--accent-dim); background:var(--bg-3);}
 .region-card.active{border-color:var(--accent); background:linear-gradient(160deg, rgba(215,255,60,.18), rgba(215,255,60,.04)); color:var(--accent);}
@@ -858,9 +859,9 @@ const CLUB_RAW = {
     ['sporting','Sporting CP','SPO','Lisbonne','#00843d','#ffffff',3],
     ['benfica','SL Benfica','BEN','Lisbonne','#d0021b','#ffffff',3],
     ['gilvicente','Gil Vicente FC','GIL','Barcelos','#c8102e','#ffffff',1],
-    ['famalicao','FC Famalicão','FAM','Vila Nova de Famalicão','#ffffff','#d0021b',1],
+    ['famalicao','FC Famalicão','FAM','Vila Nova de Famalicão','#ffffff','#d0021b',2],
     ['braga','SC Braga','BRA','Braga','#cc0000','#ffffff',2],
-    ['vitoriasc','Vitória SC','VSC','Guimarães','#ffffff','#000000',1],
+    ['vitoriasc','Vitória SC','VSC','Guimarães','#ffffff','#000000',2],
     ['moreirense','Moreirense FC','MOR','Moreira de Cónegos','#00843d','#000000',1],
     ['alverca','FC Alverca','ALV','Alverca do Ribatejo','#002d5c','#ffffff',1],
     ['rioave','Rio Ave FC','RIO','Vila do Conde','#007a3d','#ffffff',1],
@@ -1235,19 +1236,19 @@ const NAME_POOLS = {
         last:['Diallo','Sylla','Konaté','Camara','Kanté','Soumah','Bah','Barry','Conté','Touré','Cissé','Sow','Kaba','Kouyaté','Fofana','Doumbouya','Bangoura','Kamano','Sankhon','Traoré','Condé','Keïta','Baldé','Haïdara','Kourouma','Fadiga','Diakité'] },
   CD: { first:['Chancel','Cédric','Yoane','Arthur','Théo','Gaël','Simon','Silas','Meschack','Fiston','Joris','Dylan','Samuel','Axel','Aaron','Brian','Grady','Nathanaël','Jordan','Elia','Charles','Gédéon','Junior','Merveille','Trésor','Glody'],
         last:['Kasongo','Ilunga','Tshibangu','Mulumba','Mbuyi','Kabongo','Ngoy','Kalonji','Lukusa','Mukendi','Tshimanga','Nzinga','Kabeya','Mutombo','Banza','Kalala','Kayembe','Mbala','Lokonda','Makiadi','Ndombe','Bokanga','Matondo','Ekanga','Masudi','Kitenge','Lumbala'] },
-  CV: { first:['Garry','Ryan','Jovane','Kenny','Logan','Jamiro','Dylan','Laros','Willy','Hélio','Kevin','Deroy','Yannick','Steven','Patrick','Sidny','João','Telmo','Nuno','Rui','Carlos'],
+  CV: { first:['João','José','Carlos','Paulo','Manuel','Pedro','Nelson','Mário','Rui','Hélder','Jorge','Ivan','Edson','Elton','Wilson','Hugo','Silvino','Adilson','Gilson','Ailton','Nilton','Admilson','Valdir','Arlindo','Alcides','Domingos','Fernando','Lucas','David','Bruno','Mauro'],
         last:['Rodrigues','Mendes','Cabral','Tavares','Monteiro','Semedo','Lopes','Pina','Fortes','Gomes','Varela','Duarte','Andrade','Moreira','Brito','Silva','Rocha','Fernandes','Costa','Correia','Évora','Santos','Spencer','Delgado','Carvalho','Barros'] },
-  MX: { first:['Raúl','Edson','Santiago','Guillermo','Luis','Jorge','César','Johan','Henry','Uriel','Alexis','Héctor','Erick','Julián','Carlos','Diego','Andrés','Jesús','Marcelo','Gerardo','Roberto','Jonathan','Emilio','Rodrigo','Alan','Kevin','Miguel','Ángel','Fernando'],
+  MX: { first:['José','Juan','Luis','Carlos','Jorge','Miguel','Francisco','Antonio','Alejandro','Fernando','Ricardo','Eduardo','Roberto','Daniel','Diego','Javier','Sergio','Raúl','Héctor','Andrés','Santiago','Emiliano','Mateo','Rodrigo','Gerardo','Arturo','Omar','Iván','Óscar','Jesús'],
         last:['Hernández','García','Martínez','López','González','Pérez','Rodríguez','Sánchez','Ramírez','Flores','Torres','Ramos','Mendoza','Castillo','Morales','Ortiz','Guzmán','Cruz','Aguilar','Silva','Delgado','Vázquez','Jiménez','Reyes','Gutiérrez','Chávez','Ruiz','Álvarez','Romero','Herrera','Medina','Domínguez','Vargas'] },
-  CO: { first:['Luis','Juan','Jhon','Daniel','Richard','Rafael','Camilo','Jefferson','Wílmar','Mateus','Jorge','Kevin','Johan','Yáser','Carlos','Duván','Cristian','Andrés','Steven','Santiago','Deiver','Sebastián','Felipe'],
-        last:['Rodríguez','Díaz','Sánchez','Muñoz','Ríos','Santos','Vargas','Barrios','Uribe','Carrascal','Mojica','Córdoba','Machado','Zapata','Arias','Durán','Castaño','Quintero','Valencia','Cuesta','Murillo','Mosquera','Palacios','Gómez','Ospina','Restrepo','Cárdenas','Moreno','Rojas','Bernal'] },
+  CO: { first:['Juan','Carlos','Andrés','Felipe','Santiago','Sebastián','Daniel','David','Alejandro','Nicolás','Mateo','Samuel','Julián','Diego','Camilo','Jhon','Brayan','Kevin','Cristian','Jorge','Luis','Miguel','Óscar','Fabián','Wilson','Edwin','Hernán','Jairo','Yeison','Faber'],
+        last:['Rodríguez','Gómez','González','Martínez','García','López','Hernández','Sánchez','Ramírez','Pérez','Díaz','Muñoz','Rojas','Moreno','Jiménez','Vargas','Ortiz','Castro','Gutiérrez','Suárez','Torres','Romero','Valencia','Mosquera','Mena','Palacios','Caicedo','Rentería','Hurtado','Cárdenas','Restrepo','Ospina','Giraldo','Zuluaga'] },
   CL: { first:['Arturo','Charles','Ben','Erick','Gary','Claudio','Eduardo','Mauricio','Paulo','Guillermo','Darío','Víctor','Marcelino','Diego','Rodrigo','Brayan','Felipe','Esteban','Gabriel','Matías','Ignacio','Sebastián','Cristóbal'],
         last:['González','Muñoz','Rojas','Díaz','Pérez','Soto','Contreras','Silva','Martínez','Sepúlveda','Morales','Rodríguez','López','Fuentes','Araya','Espinoza','Carrasco','Torres','Núñez','Valenzuela','Castro','Reyes','Gutiérrez','Vergara','Tapia','Figueroa','Cortés','Vidal'] },
-  EC: { first:['Piero','Pervis','William','Ángelo','Félix','Kendry','Jeremy','Gonzalo','Carlos','Alan','Jhegson','Willian','Kevin','Joel','Jordy','John','Ángel','Byron','Michael','Jefferson','Bryan'],
-        last:['Valencia','Torres','Páez','Sarmiento','Plata','Gruezo','Franco','Méndez','Mena','Rodríguez','Ordóñez','Arboleda','Castillo','Cifuentes','Domínguez','Porozo','Hurtado','Quiñónez','Angulo','Corozo','Caicedo','Minda','Ibarra','Reasco','Mina','Cortez','Estrada','Vera'] },
-  JP: { first:['Wataru','Takehiro','Daichi','Ritsu','Junya','Ko','Hidemasa','Takumi','Ayase','Daizen','Shuto','Hiroki','Yuki','Keito','Koki','Daiki','Kento','Sota','Haruto','Yuto','Ren','Riku','Kaito','Shota','Takuma','Yuya','Hiroshi','Kenji'],
+  EC: { first:['Luis','Carlos','José','Juan','Jorge','Miguel','Andrés','Diego','David','Bryan','Kevin','Jefferson','Anthony','Jordan','Cristhian','Joel','Danny','Edison','Fernando','Christian','Ángel','Marlon','Byron','Wilson','Jonathan','Darwin','Eduardo','Pablo'],
+        last:['Quiñónez','Valencia','Caicedo','Angulo','Mina','Cortez','Castillo','Ortiz','Hurtado','Arroyo','Montaño','Preciado','Corozo','Bolaños','Guerrero','Estupiñán','Reasco','Delgado','Vera','Mendoza','Zambrano','Moreira','Cedeño','Macías','Vélez','Chávez','Jaramillo','Torres','Morán','Andrade'] },
+  JP: { first:['Haruto','Yuto','Sota','Yuki','Hayato','Haruki','Ryusei','Koki','Sora','Sosuke','Riku','Kaito','Yuma','Ren','Kenta','Shota','Takuya','Daisuke','Kazuki','Naoki','Tomoya','Yusuke','Ryota','Shun','Kenji','Hiroshi','Takashi','Masato','Yuya','Tatsuya'],
         last:['Sato','Suzuki','Takahashi','Tanaka','Watanabe','Ito','Yamamoto','Nakamura','Kobayashi','Kato','Yoshida','Yamada','Sasaki','Yamaguchi','Matsumoto','Inoue','Kimura','Hayashi','Shimizu','Yamazaki','Mori','Abe','Ikeda','Hashimoto','Ishikawa','Ogawa','Okada','Hasegawa','Fujita','Goto','Kondo','Murakami','Endo','Aoki','Sakamoto'] },
-  KR: { first:['Min-jae','Hee-chan','Woo-yeong','Jae-sung','In-beom','Gue-sung','Seung-ho','Young-gwon','Jin-su','Seol-young','Hyeon-gyu','Jun-ho','Tae-hwan','Seung-woo','Dong-gyeong','Sang-ho','Myung-jae','Chang-hoon','Jin-woo','Min-kyu','Ji-hoon','Hyun-woo','Sung-min'],
+  KR: { first:['Min-jun','Seo-jun','Do-yun','Ye-jun','Si-woo','Ha-jun','Ju-won','Ji-ho','Ji-hoon','Jun-seo','Jun-woo','Hyun-woo','Ji-hwan','Seung-min','Sung-min','Dong-hyun','Jae-won','Min-seok','Tae-yang','Woo-jin','Yeon-woo','Jun-hyuk','Sang-woo','Kyung-min'],
         last:['Kim','Lee','Park','Choi','Jung','Kang','Cho','Yoon','Jang','Lim','Han','Oh','Seo','Shin','Kwon','Hwang','Ahn','Song','Jeon','Hong','Ko','Moon','Yang','Son','Bae','Baek','Heo','Yoo','Nam','Noh'] },
   KSA: { first:['Salem','Firas','Mohammed','Saud','Abdulrahman','Ali','Abdullah','Hassan','Nasser','Sultan','Saleh','Yasser','Fahad','Hattan','Turki','Nawaf','Ayman','Khalid','Riyadh','Musab','Ziyad','Faisal','Majed','Omar'],
         last:['Al-Qahtani','Al-Harbi','Al-Otaibi','Al-Zahrani','Al-Ghamdi','Al-Mutairi','Al-Anazi','Al-Shammari','Al-Dosari','Al-Shehri','Al-Malki','Al-Juhani','Al-Subaie','Al-Rashidi','Al-Asmari','Al-Yami','Al-Amri','Al-Hamdan','Al-Ghannam','Al-Faraj','Al-Saleh','Al-Saud','Al-Khaldi','Al-Shahrani','Al-Bishi'] },
@@ -1266,6 +1267,17 @@ const NAME_EXTRA = {
 // porte un nom du Maghreb, un Belge d'origine congolaise un nom congolais, etc. (cohérence nom <-> visage)
 const ORIGIN_NAMES = {'FR': {'naf': ['MA', 'DZ', 'TN'], 'waf': ['SN', 'CI', 'ML', 'GN', 'CM', 'CD'], 'mix': ['CV', 'CD', 'CM'], 'eas': ['FRV']}, 'EN': {'waf': ['NG', 'GH'], 'mix': ['ENC'], 'eas': ['FRV']}, 'BE': {'waf': ['CD', 'CM'], 'naf': ['MA']}, 'NL': {'mix': ['NLS'], 'waf': ['GH', 'NG'], 'naf': ['MA']}, 'DE': {'mea': ['TR'], 'waf': ['GH', 'NG', 'CM'], 'mix': ['GH']}, 'PT': {'waf': ['CV'], 'mix': ['CV', 'BR']}, 'ES': {'naf': ['MA'], 'waf': ['GN', 'SN'], 'lat': ['AR', 'CO']}, 'IT': {'waf': ['NG', 'SN', 'CI'], 'naf': ['MA']}, 'SUI': {'bal': ['HR', 'RS'], 'waf': ['CD', 'CM'], 'seu': ['IT', 'PT']}, 'AT': {'bal': ['HR', 'RS'], 'mea': ['TR']}, 'SE': {'mea': ['TR'], 'waf': ['GH', 'NG'], 'bal': ['RS', 'HR']}, 'NO': {'waf': ['GH', 'NG'], 'mea': ['TR']}, 'DK': {'waf': ['GH', 'NG'], 'mea': ['TR']}, 'US': {'lat': ['MX', 'CO'], 'eas': ['KR', 'JP']}, 'CA': {'waf': ['GH', 'NG', 'CD'], 'lat': ['MX', 'CO'], 'eas': ['KR']}, 'AU': {'eas': ['KR', 'JP'], 'seu': ['IT', 'GR'], 'bal': ['HR', 'RS']}, 'BR': {}, 'CO': {}, 'EC': {}, 'UY': {}};
 const NAT_CODES = Object.keys(NAME_POOLS);
+// genre des pays (V8.9.1) pour écrire « en France », « au Japon », « aux États-Unis », « loin du Japon »…
+const NAT_GENDER = { PT: 'm', BR: 'm', UY: 'm', SN: 'm', NG: 'm', MA: 'm', GH: 'm', CM: 'm', DK: 'm', ML: 'm', CV: 'm', MX: 'm', CL: 'm', EC: 'm', JP: 'm', CA: 'm', NL: 'p', US: 'p' };
+const startsWithVowel = w => /^[aeiouyàâäéèêëîïôöùûüÿœ]/i.test(w);
+function inCountry(nat) {
+  const n = NAT_NAME[nat] || nat, g = NAT_GENDER[nat] || 'f';
+  return g === 'p' ? `aux ${n}` : g === 'm' && !startsWithVowel(n) ? `au ${n}` : `en ${n}`;
+}
+function ofCountry(nat) { // « loin de la France », « loin du Japon », « loin des États-Unis », « loin de l'Angleterre »
+  const n = NAT_NAME[nat] || nat, g = NAT_GENDER[nat] || 'f';
+  return g === 'p' ? `des ${n}` : startsWithVowel(n) ? `de l'${n}` : g === 'm' ? `du ${n}` : `de la ${n}`;
+}
 const NAT_FLAG = { FR:'🇫🇷',EN:'\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}',ES:'🇪🇸',IT:'🇮🇹',DE:'🇩🇪',PT:'🇵🇹',NL:'🇳🇱',BE:'🇧🇪',BR:'🇧🇷',AR:'🇦🇷',UY:'🇺🇾',SN:'🇸🇳',NG:'🇳🇬',CI:'🇨🇮',MA:'🇲🇦',GH:'🇬🇭',CM:'🇨🇲',EG:'🇪🇬',DZ:'🇩🇿',TN:'🇹🇳',US:'🇺🇸',SC:'\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}',IE:'🇮🇪',SUI:'🇨🇭',AT:'🇦🇹',DK:'🇩🇰',SE:'🇸🇪',NO:'🇳🇴',POL:'🇵🇱',HR:'🇭🇷',RS:'🇷🇸',TR:'🇹🇷',GR:'🇬🇷',UA:'🇺🇦',CZ:'🇨🇿',ML:'🇲🇱',GN:'🇬🇳',CD:'🇨🇩',CV:'🇨🇻',MX:'🇲🇽',CO:'🇨🇴',CL:'🇨🇱',EC:'🇪🇨',JP:'🇯🇵',KR:'🇰🇷',KSA:'🇸🇦',AU:'🇦🇺',CA:'🇨🇦' };
 const NAT_NAME = { FR:'France',EN:'Angleterre',ES:'Espagne',IT:'Italie',DE:'Allemagne',PT:'Portugal',NL:'Pays-Bas',BE:'Belgique',BR:'Brésil',AR:'Argentine',UY:'Uruguay',SN:'Sénégal',NG:'Nigéria',CI:'Côte d\'Ivoire',MA:'Maroc',GH:'Ghana',CM:'Cameroun',EG:'Égypte',DZ:'Algérie',TN:'Tunisie',US:'États-Unis',SC:'Écosse',IE:'Irlande',SUI:'Suisse',AT:'Autriche',DK:'Danemark',SE:'Suède',NO:'Norvège',POL:'Pologne',HR:'Croatie',RS:'Serbie',TR:'Turquie',GR:'Grèce',UA:'Ukraine',CZ:'Tchéquie',ML:'Mali',GN:'Guinée',CD:'RD Congo',CV:'Cap-Vert',MX:'Mexique',CO:'Colombie',CL:'Chili',EC:'Équateur',JP:'Japon',KR:'Corée du Sud',KSA:'Arabie saoudite',AU:'Australie',CA:'Canada' };
 // Origines (profils de population) par nationalité : fixent à la fois le nom (ORIGIN_NAMES) et le visage du joueur
@@ -1286,9 +1298,18 @@ const NAT_ORIGINS = {
   MX: { lat: 0.8, seu: 0.2 }, CO: { lat: 0.6, mix: 0.25, seu: 0.15 }, CL: { lat: 0.6, seu: 0.4 }, EC: { lat: 0.6, mix: 0.25, waf: 0.15 },
   JP: { eas: 1 }, KR: { eas: 1 }, AU: { neu: 0.7, seu: 0.1, eas: 0.1, bal: 0.05, waf: 0.05 }, CA: { neu: 0.62, waf: 0.1, eas: 0.1, lat: 0.08, mix: 0.1 },
 };
+// Footballeurs connus (actuels et légendes) : le jeu ne recrée jamais ces noms, pour rester 100 % fictif (V8.9.1)
+const FAMOUS_PLAYERS = new Set('Kylian Mbappé|Antoine Griezmann|Ousmane Dembélé|Olivier Giroud|Hugo Lloris|Mike Maignan|Paul Pogba|N\'Golo Kanté|Raphaël Varane|Lucas Hernández|Théo Hernández|Jules Koundé|Dayot Upamecano|Ibrahima Konaté|William Saliba|Aurélien Tchouaméni|Eduardo Camavinga|Adrien Rabiot|Kingsley Coman|Marcus Thuram|Randal Kolo Muani|Benjamin Pavard|Karim Benzema|Zinedine Zidane|Thierry Henry|Michel Platini|Didier Deschamps|Franck Ribéry|Patrick Vieira|Laurent Blanc|Lilian Thuram|Fabien Barthez|Robert Pirès|David Trezeguet|Claude Makélélé|Bixente Lizarazu|Marcel Desailly|Youri Djorkaeff|Nicolas Anelka|Samir Nasri|Blaise Matuidi|Moussa Sissoko|Patrice Evra|Laurent Koscielny|Alexandre Lacazette|Nabil Fekir|Florian Thauvin|Dimitri Payet|Thomas Lemar|Lucas Digne|Benjamin Mendy|Steve Mandanda|Hugo Ekitiké|Rayan Cherki|Michael Olise|Bradley Barcola|Warren Zaïre-Emery|Désiré Doué|Lucas Chevalier|Manu Koné|Youssouf Fofana|Matteo Guendouzi|Jonathan Clauss|Ferland Mendy|Clément Lenglet|Kurt Zouma|Presnel Kimpembe|Wissam Ben Yedder|Kévin Gameiro|Benjamin André|Léo Dubois|Jérémy Morel|Lucas Perrin|Thomas Meunier|Mathieu Valbuena|Loïc Rémy|Corentin Tolisso|Valentin Rongier|Benjamin Bourigeaud|Martin Terrier|Axel Disasi|Jean-Philippe Mateta|Malo Gusto|Maxime Lopez|Florian Sotoca|Jordan Veretout|Hugo Ekitike|Louis Saha|Sylvain Wiltord|Emmanuel Petit|Christian Karembeu|Frank Leboeuf|Bernard Lama|Eric Cantona|Jean-Pierre Papin|Lucas Tousart|Romain Saïss|Adrien Truffert|Nathan Zézé|Lenny Yoro|Leny Yoro|Maghnes Akliouche|Ethan Mbappé|Enzo Millot|Florian Tardieu|Harry Kane|Jude Bellingham|Bukayo Saka|Phil Foden|Declan Rice|Marcus Rashford|Raheem Sterling|Jack Grealish|Jordan Pickford|Kyle Walker|John Stones|Harry Maguire|Trent Alexander-Arnold|Mason Mount|Jordan Henderson|Kieran Trippier|Luke Shaw|Cole Palmer|Ollie Watkins|Ivan Toney|Aaron Ramsdale|Conor Gallagher|Kobbie Mainoo|Anthony Gordon|Jarrod Bowen|Eberechi Eze|Marc Guéhi|Ezri Konsa|Levi Colwill|Ben White|Reece James|James Maddison|Wayne Rooney|Steven Gerrard|Frank Lampard|David Beckham|John Terry|Rio Ferdinand|Paul Scholes|Michael Owen|Alan Shearer|Gary Lineker|Jamie Vardy|Danny Welbeck|Joe Hart|Ashley Cole|Gary Neville|Sol Campbell|Peter Crouch|Jermain Defoe|Theo Walcott|Joe Cole|Emile Heskey|Gareth Southgate|Bobby Charlton|Bobby Moore|Kevin Keegan|Danny Ings|Callum Wilson|Dominic Calvert-Lewin|Tammy Abraham|Jack Wilshere|Ryan Giggs|Gareth Bale|Aaron Ramsey|Ben Davies|Joe Allen|Harry Wilson|Danny Ward|Connor Roberts|Tyler Roberts|Charlie Taylor|Jack Robinson|Liam Cooper|Jack Harrison|Jack Clarke|Ben Foster|Tom Davies|Adam Johnson|Ashley Young|Nick Pope|Dean Henderson|Ben Chilwell|Kalvin Phillips|Jesse Lingard|Dele Alli|Adam Lallana|Ross Barkley|Danny Rose|Morgan Gibbs-White|Morgan Rogers|Adam Wharton|Elliot Anderson|Curtis Jones|Ethan Nwaneri|Myles Lewis-Skelly|James Milner|Michael Carrick|Jamie Carragher|Ledley King|Glen Johnson|Owen Hargreaves|Tom Heaton|James Tarkowski|Jack Butland|Callum Hudson-Odoi|Ryan Mason|Joe Gomez|Harry Winks|Jake Livermore|Danny Drinkwater|Andy Carroll|Daniel Sturridge|Josh Brownhill|Lewis Dunk|Kyle Walker-Peters|Aaron Wan-Bissaka|Tyrone Mings|Harvey Elliott|Joe Willock|Jacob Ramsey|Sam Johnstone|Joe Rodon|Ethan Ampadu|Brennan Johnson|Kieffer Moore|David Brooks|Neco Williams|Lamine Yamal|Pedro González|Rodrigo Hernández|Álvaro Morata|Dani Olmo|Nico Williams|Mikel Merino|Mikel Oyarzabal|Fabián Ruiz|Unai Simón|Aymeric Laporte|Dani Carvajal|Marc Cucurella|Pau Cubarsí|Ferran Torres|Sergio Ramos|Sergio Busquets|Andrés Iniesta|Xavi Hernández|Iker Casillas|Fernando Torres|David Villa|David Silva|Cesc Fàbregas|Gerard Piqué|Jordi Alba|Carles Puyol|Raúl González|Fernando Hierro|Xabi Alonso|Santi Cazorla|Juan Mata|Isco Alarcón|Marco Asensio|Dani Ceballos|Saúl Ñíguez|Diego Costa|Jesús Navas|Rodrigo Moreno|Pablo Sarabia|Robin Le Normand|Alejandro Grimaldo|Martín Zubimendi|Álex Baena|Fermín López|Dani Vivian|Yeremy Pino|Iñaki Williams|David de Gea|Kepa Arrizabalaga|David Raya|Pau Torres|Eric García|Sergio Canales|Dean Huijsen|David García|Raúl García|Pedro Rodríguez|Javier Martínez|Diego López|Víctor Ruiz|Marcos Alonso|Ander Herrera|Alberto Moreno|Sergio Gómez|Joaquín Sánchez|Luis García|Luis Suárez|Luis Enrique|Rubén Castro|Jorge Molina|Gerard Moreno|Carlos Soler|Iago Aspas|Borja Iglesias|Mikel Arteta|Pepe Reina|Víctor Valdés|Raúl Albiol|Carlos Marchena|David Albelda|Joan Capdevila|Álvaro Arbeloa|Nacho Fernández|Lucas Vázquez|Marc Bartra|Sergi Roberto|Oriol Romeu|Ander Barrenetxea|Brais Méndez|Ansu Fati|Aitor Paredes|Unai Núñez|Jesús Vallejo|Jorge Resurrección|Koke Resurrección|Hugo Duro|Samu Omorodion|Pablo Fornals|Óscar Mingueza|Marc Casadó|Iñigo Martínez|Íñigo Martínez|Daniel Carvajal|Sergio Asenjo|Santi Mina|Álvaro Negredo|Roberto Soldado|Fernando Llorente|Juanfran Torres|Alberto Rodríguez|Gianluigi Buffon|Gianluigi Donnarumma|Andrea Pirlo|Francesco Totti|Alessandro Del Piero|Paolo Maldini|Fabio Cannavaro|Roberto Baggio|Alessandro Nesta|Giorgio Chiellini|Leonardo Bonucci|Daniele De Rossi|Gennaro Gattuso|Filippo Inzaghi|Christian Vieri|Marco Verratti|Ciro Immobile|Lorenzo Insigne|Federico Chiesa|Nicolò Barella|Alessandro Bastoni|Federico Dimarco|Sandro Tonali|Manuel Locatelli|Gianluca Scamacca|Mateo Retegui|Davide Frattesi|Giacomo Raspadori|Giovanni Di Lorenzo|Riccardo Calafiori|Guglielmo Vicario|Federico Bernardeschi|Andrea Belotti|Domenico Berardi|Moise Kean|Lorenzo Pellegrini|Luca Pellegrini|Bryan Cristante|Nicolò Zaniolo|Matteo Politano|Francesco Acerbi|Alessio Romagnoli|Mattia De Sciglio|Antonio Candreva|Mario Balotelli|Antonio Cassano|Luca Toni|Alberto Gilardino|Fabio Grosso|Gianluca Zambrotta|Marco Materazzi|Simone Inzaghi|Antonio Conte|Carlo Ancelotti|Roberto Mancini|Gianluca Vialli|Dino Zoff|Franco Baresi|Paolo Rossi|Salvatore Schillaci|Giuseppe Bergomi|Davide Calabria|Alessandro Florenzi|Matteo Darmian|Andrea Cambiaso|Samuele Ricci|Destiny Udogie|Michele Di Gregorio|Nicolò Fagioli|Lorenzo Lucca|Federico Gatti|Giorgio Scalvini|Gianluca Mancini|Andrea Conti|Federico Marchetti|Marco Silvestri|Stefano Sensi|Riccardo Orsolini|Andrea Ranocchia|Leonardo Spinazzola|Emerson Palmieri|Jorginho Frello|Marco Parolo|Antonio Di Natale|Alessandro Matri|Simone Zaza|Stephan El Shaarawy|Daniele Rugani|Mattia Caldara|Salvatore Sirigu|Mattia Perin|Alex Meret|Pierluigi Gollini|Gianluca Lapadula|Francesco Caputo|Andrea Petagna|Marco Marino|Marco Bianchi|Luca Ricci|Matteo Ricci|Federico Fazio|Daniele Baselli|Simone Verdi|Lorenzo De Silvestri|Christian Maggio|Davide Santon|Riccardo Montolivo|Giacomo Bonaventura|Domenico Criscito|Stefano Okaka|Thomas Müller|Manuel Neuer|Joshua Kimmich|Leon Goretzka|Toni Kroos|İlkay Gündoğan|Ilkay Gündogan|Kai Havertz|Florian Wirtz|Jamal Musiala|Leroy Sané|Serge Gnabry|Antonio Rüdiger|Jonathan Tah|Niklas Süle|Marc-André ter Stegen|Mats Hummels|Jérôme Boateng|Bastian Schweinsteiger|Philipp Lahm|Miroslav Klose|Lukas Podolski|Mesut Özil|Sami Khedira|Mario Götze|Marco Reus|Julian Brandt|Timo Werner|Niclas Füllkrug|Robert Andrich|Maximilian Mittelstädt|David Raum|Pascal Groß|Nico Schlotterbeck|Deniz Undav|Chris Führich|Benjamin Henrichs|Thilo Kehrer|Matthias Ginter|Julian Draxler|Lothar Matthäus|Franz Beckenbauer|Gerd Müller|Jürgen Klinsmann|Rudi Völler|Michael Ballack|Oliver Kahn|Oliver Bierhoff|Per Mertesacker|Mario Gomez|André Schürrle|Christoph Kramer|Benedikt Höwedes|Shkodran Mustafi|Emre Can|Julian Weigl|Lukas Klostermann|Karim Adeyemi|Jonas Hofmann|Kevin Volland|Felix Nmecha|Aleksandar Pavlović|Angelo Stiller|Maximilian Beier|Tim Kleindienst|Nick Woltemade|Jonas Hector|Christian Günter|Marcel Schmelzer|Sebastian Rudy|Lars Bender|Sven Bender|Max Kruse|Kevin Trapp|Bernd Leno|Oliver Baumann|Alexander Nübel|Julian Nagelsmann|Hansi Flick|Joachim Löw|Jürgen Klopp|Thomas Tuchel|Max Meyer|Jonathan Schmid|Marvin Friedrich|Robin Koch|Robin Gosens|Florian Neuhaus|Nadiem Amiri|Ridle Baku|Lukas Nmecha|Jonas Wind|Marvin Ducksch|Tim Klein|Dennis Aogo|Kevin Großkreutz|Marcel Jansen|Heiko Westermann|Patrick Helmes|Kevin Kuranyi|Christoph Metzelder|Sebastian Kehl|Torsten Frings|Tim Borowski|Bernd Schneider|Philipp Max|Leroy Sane|Karim Bellarabi|Kevin Kampl|Daniel Didavi|Mahmoud Dahoud|Florian Kainz|Lennart Karl|Cristiano Ronaldo|Bruno Fernandes|Bernardo Silva|Rúben Dias|João Félix|Rafael Leão|Diogo Jota|João Cancelo|Nuno Mendes|João Neves|Gonçalo Ramos|Pedro Neto|Rúben Neves|Danilo Pereira|Rui Patrício|Diogo Costa|José Sá|Nélson Semedo|Diogo Dalot|António Silva|Gonçalo Inácio|Francisco Conceição|Otávio Monteiro|João Palhinha|William Carvalho|Ricardo Quaresma|Luís Figo|Rui Costa|João Moutinho|Renato Sanches|André Silva|Raphaël Guerreiro|Francisco Trincão|Matheus Nunes|Ricardo Horta|Pedro Gonçalves|Fábio Vieira|Tiago Djaló|José Fonte|Fábio Coentrão|Hélder Postiga|Nuno Gomes|Ricardo Carvalho|Paulo Ferreira|Tiago Mendes|Hugo Almeida|Bruno Alves|Rui Silva|Samu Costa|Geovany Quenda|Rodrigo Mora|Ricardo Pereira|Nélson Oliveira|Pedro Mendes|André Almeida|André Gomes|Hélder Costa|Gonçalo Guedes|João Mário|Daniel Carriço|Rúben Vezo|Pedro Proença|Jorge Jesus|Fernando Santos|Roberto Martínez|Paulo Bento|Vítor Baía|Simão Sabrosa|Maniche Ribeiro|Costinha Castro|Jorge Andrade|Fernando Couto|Paulo Sousa|Sérgio Conceição|Pedro Pauleta|Luís Boa Morte|Tiago Pinto|Bruno Varela|Diogo Gonçalves|Rafael Silva|Bruno Gaspar|Fábio Silva|Tiago Tomás|Pedro Pereira|João Moreira|Neymar Júnior|Vinícius Júnior|Rodrygo Goes|Alisson Becker|Ederson Moraes|Gabriel Magalhães|Gabriel Martinelli|Gabriel Jesus|Lucas Paquetá|Bruno Guimarães|Éder Militão|Alex Sandro|Thiago Silva|Roberto Firmino|Philippe Coutinho|Douglas Costa|David Luiz|Dani Alves|Daniel Alves|Marcelo Vieira|Ronaldo Nazário|Roberto Carlos|Lucas Moura|Felipe Melo|Endrick Moreira|Estêvão Willian|Igor Jesus|Wesley França|Everton Ribeiro|Gabriel Barbosa|Pedro Guilherme|Arthur Melo|Gleison Bremer|Lucas Beraldo|Andreas Pereira|Matheus Cunha|Vitor Roque|Douglas Luiz|Luiz Henrique|Diego Souza|Renan Lodi|Felipe Anderson|Thiago Alcântara|Rafinha Alcântara|Fernando Reges|Lucas Leiva|Paulinho Bezerra|Willian Borges|Oscar Santos|Fred Rodrigues|Fabinho Tavares|Danilo Luiz|Marquinhos Corrêa|Raphael Dias|Gerson Santos|Bruno Henrique|Everton Soares|João Pedro|Gabriel Paulista|Rodrigo Caio|Thiago Mendes|Lucas Silva|Fernando Diniz|Tite Bachi|Paulo Henrique|Matheus Pereira|Gabriel Veron|Antony Santos|Savinho Moreira|Rafael Leite|Diego Ribas|Kaká Leite|Ricardo Kaká|Juninho Pernambucano|Zé Roberto|Júlio César|Lúcio Ferreira|Juan Silveira|Gilberto Silva|Emerson Ferreira|Cafu Moraes|Ronaldinho Gaúcho|Rivaldo Ferreira|Romário Faria|Bebeto Oliveira|Denílson Oliveira|Edmílson Moraes|Adriano Leite|Robinho Souza|Luís Fabiano|Hulk Souza|Fernandinho Roza|Marcelo Grohe|Weverton Pereira|Pedro Rocha|Gabriel Sara|Yan Couto|Danilo Barbosa|Vanderson Oliveira|Murilo Cerqueira|Lucas Perri|Lionel Messi|Ángel Di María|Julián Álvarez|Lautaro Martínez|Enzo Fernández|Alexis Mac Allister|Rodrigo De Paul|Emiliano Martínez|Nicolás Otamendi|Cristian Romero|Lisandro Martínez|Nahuel Molina|Leandro Paredes|Giovani Lo Celso|Paulo Dybala|Sergio Agüero|Gonzalo Higuaín|Javier Mascherano|Carlos Tévez|Juan Román Riquelme|Diego Maradona|Gabriel Batistuta|Hernán Crespo|Javier Zanetti|Juan Sebastián Verón|Esteban Cambiasso|Pablo Aimar|Marcos Rojo|Ezequiel Lavezzi|Ever Banega|Lucas Biglia|Germán Pezzella|Nicolás Tagliafico|Marcos Acuña|Exequiel Palacios|Thiago Almada|Alejandro Garnacho|Valentín Carboni|Nico Paz|Franco Mastantuono|Claudio Echeverri|Facundo Medina|Gerónimo Rulli|Franco Armani|Lucas Ocampos|Ángel Correa|Joaquín Correa|Nicolás González|Giuliano Simeone|Diego Simeone|Mauro Icardi|Erik Lamela|Javier Pastore|Marcelo Gallardo|Matías Soulé|Santiago Castro|Valentín Barco|Leonardo Balerdi|Juan Foyth|Guido Rodríguez|Nicolás Domínguez|Gonzalo Martínez|Matías Suárez|Rodrigo Palacio|Maxi Rodríguez|Maximiliano Rodríguez|Gabriel Heinze|Walter Samuel|Roberto Ayala|Martín Palermo|Germán Burgos|Sergio Romero|Ramiro Funes Mori|Pablo Zabaleta|Fernando Gago|Ezequiel Garay|Lucas Martínez Quarta|Agustín Marchesín|Pablo Pérez|Lucas Alario|Santiago Ascacíbar|Emiliano Buendía|Alan Varela|Facundo Buonanotte|Agustín Giay|Valentín Castellanos|Edinson Cavani|Diego Forlán|Diego Godín|Federico Valverde|Darwin Núñez|Ronald Araújo|José María Giménez|Rodrigo Bentancur|Manuel Ugarte|Giorgian De Arrascaeta|Fernando Muslera|Sergio Rochet|Matías Viña|Facundo Pellistri|Mathías Olivera|Lucas Torreira|Matías Vecino|Nahitan Nández|Maximiliano Araújo|Sebastián Cáceres|Brian Rodríguez|Agustín Canobbio|Facundo Torres|Diego Lugano|Álvaro Recoba|Enzo Francescoli|Martín Cáceres|Maximiliano Pereira|Maxi Pereira|Cristian Rodríguez|Gastón Ramírez|Nicolás Lodeiro|Diego Pérez|Santiago Bueno|Gastón Pereiro|Agustín Rogel|Mathías Suárez|Guillermo Varela|Brian Lozano|Virgil van Dijk|Frenkie de Jong|Memphis Depay|Cody Gakpo|Xavi Simons|Denzel Dumfries|Nathan Aké|Jurriën Timber|Matthijs de Ligt|Stefan de Vrij|Ryan Gravenberch|Tijjani Reijnders|Teun Koopmeiners|Wout Weghorst|Donyell Malen|Steven Bergwijn|Bart Verbruggen|Daley Blind|Georginio Wijnaldum|Arjen Robben|Robin van Persie|Wesley Sneijder|Dirk Kuyt|Rafael van der Vaart|Klaas-Jan Huntelaar|Ruud van Nistelrooy|Edwin van der Sar|Clarence Seedorf|Patrick Kluivert|Edgar Davids|Dennis Bergkamp|Marco van Basten|Ruud Gullit|Frank Rijkaard|Johan Cruyff|Ronald Koeman|Frank de Boer|Joey Veerman|Micky van de Ven|Jeremie Frimpong|Lutsharel Geertruida|Brian Brobbey|Joshua Zirkzee|Quinten Timber|Justin Kluivert|Noa Lang|Mark Flekken|Jasper Cillessen|Kenny Tete|Luuk de Jong|Siem de Jong|Kevin Strootman|Marten de Roon|Davy Klaassen|Sven Botman|Tyrell Malacia|Jan Paul van Hecke|Mats Wieffer|Ian Maatsen|Arne Slot|Erik ten Hag|Louis van Gaal|Bram Nuytinck|Ryan Babel|Gregory van der Wiel|John Heitinga|Joris Mathijsen|Nigel de Jong|Mark van Bommel|Giovanni van Bronckhorst|Phillip Cocu|Kevin De Bruyne|Romelu Lukaku|Eden Hazard|Thibaut Courtois|Youri Tielemans|Leandro Trossard|Jérémy Doku|Loïs Openda|Lois Openda|Charles De Ketelaere|Amadou Onana|Axel Witsel|Jan Vertonghen|Toby Alderweireld|Dries Mertens|Yannick Carrasco|Timothy Castagne|Arthur Theate|Zeno Debast|Wout Faes|Johan Bakayoko|Dodi Lukebakio|Hans Vanaken|Orel Mangala|Arthur Vermeeren|Maxim De Cuyper|Thorgan Hazard|Marouane Fellaini|Mousa Dembélé|Vincent Kompany|Simon Mignolet|Koen Casteels|Michy Batshuayi|Divock Origi|Christian Benteke|Nacer Chadli|Adnan Januzaj|Thomas Vermaelen|Radja Nainggolan|Steven Defour|Enzo Scifo|Jean-Marie Pfaff|Marc Wilmots|Matz Sels|Senne Lammens|Malick Fofana|Mandela Keita|Dennis Praet|Leander Dendoncker|Alexis Saelemaekers|Thomas Foket|Brandon Mechele|Sadio Mané|Kalidou Koulibaly|Édouard Mendy|Idrissa Gueye|Ismaïla Sarr|Nicolas Jackson|Pape Matar Sarr|Pape Sarr|Iliman Ndiaye|Cheikhou Kouyaté|Abdou Diallo|Pape Gueye|Youssouf Sabaly|Krépin Diatta|Boulaye Dia|Habib Diallo|El Hadji Diouf|Papa Bouba Diop|Henri Camara|Lamine Gassama|Mbaye Niang|Moussa Niakhaté|Bamba Dieng|Lamine Camara|Pathé Ciss|Nampalys Mendy|Moussa Konaté|Famara Diédhiou|Keita Baldé|Moussa Sow|Moussa Wagué|Cheikh Ndoye|Alioune Badji|Pape Cissé|Mbaye Diagne|Souleymane Camara|Salif Sané|Alfred Gomis|Seny Dieng|Abdou Diouf|Aliou Cissé|Ferdinand Coly|Khalilou Fadiga|Salif Diao|Tony Silva|Habib Beye|Ousmane Diop|Babacar Gueye|Demba Ba|Mamadou Niang|Assane Diao|Ilay Camara|Ismail Jakobs|Formose Mendy|Abdallah Sima|Cherif Ndiaye|Mamadou Loum|Habib Diarra|Lamine Sy|Victor Osimhen|Ademola Lookman|Alex Iwobi|Wilfred Ndidi|Samuel Chukwueze|Kelechi Iheanacho|Moses Simon|Calvin Bassey|Taiwo Awoniyi|Frank Onyeka|Joe Aribo|Victor Boniface|Ola Aina|William Troost-Ekong|Kenneth Omeruo|Ahmed Musa|Jay-Jay Okocha|Nwankwo Kanu|John Obi Mikel|Victor Moses|Odion Ighalo|Emmanuel Emenike|Vincent Enyeama|Stanley Nwabali|Raphael Onyedika|Fisayo Dele-Bashiru|Terem Moffi|Paul Onuachu|Sadiq Umar|Umar Sadiq|Tolu Arokodare|Bright Osayi-Samuel|Chidozie Awaziem|Semi Ajayi|Joel Obi|Sunday Oliseh|Daniel Amokachi|Rashidi Yekini|Finidi George|Taribo West|Celestine Babayaro|Obafemi Martins|Peter Odemwingie|Chidera Ejuke|Samuel Kalu|Henry Onyekuru|Leon Balogun|Tyronne Ebuehi|Kelechi Nwakali|Ebere Onuachu|Paul Okafor|Emmanuel Okafor|Victor Obi|Femi Opabunmi|Segun Odegbami|Tunde Adeniji|Didier Drogba|Yaya Touré|Kolo Touré|Gervinho Kouassi|Salomon Kalou|Wilfried Bony|Sébastien Haller|Franck Kessié|Serge Aurier|Wilfried Zaha|Nicolas Pépé|Simon Adingra|Odilon Kossounou|Evan Ndicka|Ibrahim Sangaré|Seko Fofana|Jean-Philippe Gbamin|Max-Alain Gradel|Amad Diallo|Oumar Diakité|Jérémie Boga|Christian Kouamé|Hamed Traoré|Yahia Fofana|Emmanuel Agbadou|Karim Konaté|Ghislain Konan|Willy Boly|Lassina Traoré|Arthur Boka|Didier Zokora|Emmanuel Eboué|Cheick Tioté|Siaka Tiéné|Boubacar Barry|Aruna Dindane|Bakari Koné|Arouna Koné|Jean-Michaël Seri|Eric Bailly|Maxwel Cornet|Jonathan Kodjia|Giovanni Sio|Wilfried Singo|Ibrahim Koné|Ousmane Diomandé|Sylla Yacouba|Christian Kouakou|Lassina Koné|Cheick Doumbia|Achraf Hakimi|Hakim Ziyech|Youssef En-Nesyri|Sofiane Boufal|Yassine Bounou|Noussair Mazraoui|Azzedine Ounahi|Sofyan Amrabat|Nayef Aguerd|Bilal El Khannouss|Brahim Díaz|Abde Ezzalzouli|Ilias Akhomach|Amine Harit|Selim Amallah|Munir El Haddadi|Ayoub El Kaabi|Zakaria Aboukhlal|Ismael Saibari|Eliesse Ben Seghir|Medhi Benatia|Mehdi Benatia|Younès Belhanda|Mbark Boussoufa|Nordin Amrabat|Adel Taarabt|Walid Regragui|Hamza Igamane|Oussama Targhalline|Chadi Riad|Yahia Attiyat Allah|Achraf Dari|Abdelhamid Sabiri|Munir Mohamedi|Mohamed Chibi|Amine Adli|Soufiane Rahimi|Tarik Tissoudali|Ryan Mmaee|Imran Louza|Karim El Ahmadi|Marouane Chamakh|Youssef Hadji|Mustapha Hadji|Noureddine Naybet|Mohamed Salah|Omar Marmoush|Mohamed Elneny|Mahmoud Trezeguet|Mahmoud Hassan|Ahmed Hegazy|Ahmed Hegazi|Mohamed Abdelmonem|Mostafa Mohamed|Ahmed Hassan|Ahmed Fathy|Ahmed Fathi|Amr Zaki|Hossam Hassan|Ibrahim Hassan|Mohamed Aboutrika|Mohamed Zidan|Mahmoud Kahraba|Essam El Hadary|Wael Gomaa|Mohamed El Shenawy|Ahmed Sayed|Emam Ashour|Mostafa Fathi|Ramadan Sobhi|Omar Gaber|Hamdi Fathi|Ahmed Elmohamady|Mohamed Hany|Zizo Abdelrazek|Ahmed Mostafa|Ibrahim Adel|Marwan Attia|Mohamed Abdelaziz|Ahmed Hamdi|Ahmed Kamal|Hany Ramzy|Mido Hossam|Riyad Mahrez|Ismaël Bennacer|Islam Slimani|Saïd Benrahma|Aïssa Mandi|Ramy Bensebaini|Youcef Atal|Houssem Aouar|Rayan Aït-Nouri|Amine Gouiri|Baghdad Bounedjah|Sofiane Feghouli|Yacine Brahimi|Zinedine Ferhat|Rafik Halliche|Nabil Bentaleb|Karim Ziani|Djamel Belmadi|Haris Belkebla|Adam Ounas|Mohamed Amoura|Rafik Djebbour|Madjid Bougherra|Antar Yahia|Nadir Belhadj|Karim Matmour|Hillal Soudani|Ilan Kebbal|Farès Chaïbi|Anis Hadj Moussa|Nabil Ghilas|Djamel Benlamri|Abdelkader Ghezzal|Mehdi Abeid|Aïssa Laïdouni|Wahbi Khazri|Youssef Msakni|Ellyes Skhiri|Hannibal Mejbri|Montassar Talbi|Ali Maâloul|Naïm Sliti|Dylan Bronn|Mohamed Dräger|Yassine Meriah|Aymen Abdennour|Ferjani Sassi|Saad Bguir|Anis Ben Slimane|Seifeddine Jaziri|Bilel Ifa|Hamza Rafia|Ali Abdi|Elias Achouri|Mohamed Ali Ben Romdhane|Issam Jebali|Thomas Partey|Mohammed Kudus|André Ayew|Jordan Ayew|Antoine Semenyo|Kamaldeen Sulemana|Tariq Lamptey|Daniel Amartey|Joseph Paintsil|Abdul Fatawu|Michael Essien|Asamoah Gyan|Sulley Muntari|Kevin-Prince Boateng|Abedi Pelé|Stephen Appiah|Christian Atsu|Kwadwo Asamoah|John Mensah|Jonathan Mensah|Alexander Djiku|Mohammed Salisu|Lawrence Ati-Zigi|Ernest Nuamah|Osman Bukari|Elisha Owusu|Majeed Ashimeru|Salis Abdul Samed|Baba Rahman|Gideon Mensah|Kwesi Appiah|Ernest Asante|Felix Annan|Emmanuel Boateng|Richard Kingson|Samuel Kuffour|Anthony Annan|Derek Boateng|Dede Ayew|Abdul Rahman Baba|Joseph Mensah|Ibrahim Osman|Prince Adu|Kwame Poku|Samuel Eto\'o|André Onana|Vincent Aboubakar|Bryan Mbeumo|Karl Toko Ekambi|André-Frank Zambo Anguissa|Eric Maxim Choupo-Moting|Roger Milla|Rigobert Song|Alex Song|Alexandre Song|Stéphane Mbia|Nicolas Nkoulou|Nicolas N\'Koulou|Joël Matip|Jean Makoun|Benjamin Moukandjo|Clinton Njie|Christian Bassogog|Collins Fai|Olivier Ntcham|Carlos Baleba|Christopher Wooh|Jackson Tchatchoua|Georges-Kévin Nkoudou|Carlos Kameni|Idriss Kameni|Pierre Webó|Achille Webó|Patrick Mboma|Geremi Njitap|Marc-Vivien Foé|Jacques Songo\'o|Thomas N\'Kono|Aurélien Chedjou|Jean Onana|Martin Hongla|Nouhou Tolo|Frank Magri|Christian Mbia|Samuel Moutoussamy|Enzo Ebosse|Darlin Yongwa|Yves Bissouma|Amadou Haïdara|Hamari Traoré|Kamory Doumbia|Lassana Coulibaly|Falaye Sacko|Mamadou Fofana|Seydou Keïta|Seydou Keita|Frédéric Kanouté|Mahamadou Diarra|Momo Sissoko|Mohamed Sissoko|Adama Traoré|Sékou Koïta|Mohamed Camara|El Bilal Touré|Modibo Maïga|Salif Keïta|Cheick Diabaté|Moussa Djenepo|Boubakary Soumaré|Abdoulaye Doucouré|Moussa Marega|Diadie Samassékou|Nene Dorgeles|Kalifa Coulibaly|Ibrahima Koné|Massadio Haïdara|Fousseni Diabaté|Youssouf Koné|Amadou Diallo|Djigui Diarra|Mamadou Samassa|Souleymane Diarra|Bakary Sako|Sambou Yatabaré|Samba Diakité|Naby Keïta|Naby Keita|Serhou Guirassy|Mohamed Bayo|Ilaix Moriba|Amadou Diawara|Issiaga Sylla|Mory Konaté|Aguibou Camara|François Kamano|Abdoulaye Touré|Ibrahima Traoré|Morgan Guilavogui|Josuha Guilavogui|Pascal Feindouno|Kévin Constant|Facinet Conté|Seydouba Cissé|Saïdou Sow|Ibrahima Sory Conté|Ousmane Sidibé|Abdoulaye Sylla|Mamadou Sylla|Alhassane Bangoura|Sekou Condé|Thierno Barry|Mouctar Diakhaby|Julian Jeanvier|Bobo Baldé|Chancel Mbemba|Cédric Bakambu|Yoane Wissa|Arthur Masuaku|Théo Bongonda|Gaël Kakuta|Simon Banza|Silas Katompa Mvumpa|Silas Mvumpa|Meschack Elia|Fiston Mayele|Joris Kayembe|Dylan Batubinsika|Axel Tuanzebe|Brian Cipenga|Grady Diangana|Nathanaël Mbuku|Jordan Ikoko|Charles Pickel|Gédéon Kalulu|Dieumerci Mbokani|Youssouf Mulumbu|Cédric Makiadi|Trésor Mputu|Yannick Bolasie|Neeskens Kebano|Jonathan Bolingi|Marcel Tisserand|Christian Luyindama|Ngal\'ayel Mukau|Edo Kayembe|Lionel Mpasi|Merveille Bokadi|Garry Rodrigues|Ryan Mendes|Jovane Cabral|Kenny Rocha Santos|Kenny Santos|Logan Costa|Jamiro Monteiro|Dylan Tavares|Laros Duarte|Willy Semedo|Hélio Varela|Kevin Pina|Deroy Duarte|Steven Moreira|Patrick Andrade|Telmo Arcanjo|Vozinha Pereira|Júlio Tavares|Djaniny Tavares|Odair Fortes|Héldon Ramos|Gilson Tavares|Nuno Borges|Rui Pires|Stopira Pereira|Nuno Rocha|Bebé Correia|Roberto Lopes|Sidny Lopes Cabral|Sidny Cabral|Wagner Pina|João Paulo Fernandes|Hirving Lozano|Raúl Jiménez|Edson Álvarez|Santiago Giménez|Guillermo Ochoa|Luis Chávez|Jorge Sánchez|César Montes|Johan Vásquez|Orbelín Pineda|Henry Martín|Uriel Antuna|Alexis Vega|Héctor Herrera|Erick Gutiérrez|Julián Quiñones|Carlos Vela|Javier Hernández|Rafael Márquez|Andrés Guardado|Héctor Moreno|Carlos Salcedo|Jesús Corona|Diego Lainez|Marcelo Flores|Luis Romo|Gerardo Arteaga|Roberto Alvarado|Jonathan dos Santos|Giovani dos Santos|Cuauhtémoc Blanco|Hugo Sánchez|Jorge Campos|Luis Malagón|Kevin Álvarez|Israel Reyes|Raúl Rangel|Germán Berterame|Marcel Ruiz|Alexis Gutiérrez|Julián Araujo|César Huerta|Obed Vargas|Carlos Rodríguez|Diego Reyes|Miguel Herrera|Miguel Layún|Oribe Peralta|Javier Aquino|Carlos Peña|Jesús Gallardo|Luis Montes|Néstor Araujo|Hugo Ayala|Jonathan Orozco|Alfredo Talavera|Rodolfo Pizarro|Jorge Torres Nilo|Pável Pardo|Ramón Morales|Jared Borgetti|Francisco Fonseca|José Juan Vázquez|Raúl Gudiño|Santiago Muñoz|Luis Rodríguez|Fernando Navarro|James Rodríguez|Luis Díaz|Juan Cuadrado|Davinson Sánchez|Yerry Mina|Jhon Arias|Jhon Durán|Rafael Santos Borré|Richard Ríos|Daniel Muñoz|Camilo Vargas|Jefferson Lerma|Wilmar Barrios|Mateus Uribe|Jorge Carrascal|Kevin Castaño|Johan Mojica|Yaser Asprilla|Carlos Cuesta|Duván Zapata|Radamel Falcao|Cristian Borja|Luis Sinisterra|Santiago Arias|Steven Alzate|Faustino Asprilla|Carlos Valderrama|René Higuita|Freddy Rincón|Mario Yepes|Iván Córdoba|David Ospina|Carlos Bacca|Jackson Martínez|Teófilo Gutiérrez|Juan Fernando Quintero|Juan Quintero|Andrés Escobar|Deiver Machado|Luis Muriel|Roger Martínez|Daniel Torres|Abel Aguilar|Pablo Armero|Cristian Zapata|Óscar Murillo|Jhon Lucumí|Jhon Córdoba|Juan Camilo Hernández|Cucho Hernández|Andrés Rodríguez|Miguel Borja|Rafael Borré|Jorge Hernán Valencia|Edwin Cardona|Sebastián Villa|Yimmi Chará|Jhon Solís|Kevin Mier|Álvaro Montero|Jhon Mosquera|Andrés Román|Juan Pablo Ángel|Faryd Mondragón|Leonel Álvarez|Adolfo Valencia|Víctor Aristizábal|Iván Valenciano|Daniel Ruiz|Carlos Gómez|Camilo Zúñiga|Juan Zúñiga|Alexis Sánchez|Arturo Vidal|Charles Aránguiz|Ben Brereton|Erick Pulgar|Gary Medel|Claudio Bravo|Eduardo Vargas|Mauricio Isla|Paulo Díaz|Guillermo Maripán|Darío Osorio|Víctor Dávila|Marcelino Núñez|Diego Valdés|Rodrigo Echeverría|Brayan Cortés|Felipe Loyola|Gabriel Suazo|Iván Zamorano|Marcelo Salas|Elías Figueroa|Matías Fernández|Jorge Valdivia|Gonzalo Jara|Jean Beausejour|Felipe Mora|Diego Rubio|Felipe Gutiérrez|Esteban Paredes|Sebastián Vegas|Eugenio Mena|Gonzalo Fierro|Humberto Suazo|Waldo Ponce|Mark González|Rodrigo Millar|Marcelo Díaz|Francisco Silva|Pedro Pablo Hernández|Junior Fernandes|Ángelo Henríquez|Nicolás Castillo|Lucas Assadi|Alexander Aravena|Thomas Galdames|Gabriel Arias|Moisés Caicedo|Enner Valencia|Piero Hincapié|Pervis Estupiñán|Willian Pacho|Ángelo Preciado|Félix Torres|Kendry Páez|Jeremy Sarmiento|Gonzalo Plata|Carlos Gruezo|Alan Franco|Jhegson Méndez|Kevin Rodríguez|Joel Ordóñez|Jordy Caicedo|John Yeboah|Ángel Mena|Byron Castillo|Michael Estrada|Antonio Valencia|Agustín Delgado|Iván Kaviedes|Alex Aguinaga|Felipe Caicedo|Jefferson Montero|Cristian Noboa|Christian Noboa|Christian Benítez|Walter Ayoví|Leonardo Campana|Alan Minda|Nilson Angulo|John Mercado|Bryan Angulo|Jordan Sierra|Darwin Guagua|Hernán Galíndez|Alexander Domínguez|Romario Ibarra|Renato Ibarra|Jaime Ayoví|Édison Méndez|Ulises de la Cruz|Segundo Castillo|Luis Valencia|Erick Castillo|José Cifuentes|Robert Arboleda|Xavier Arreaga|Diego Palacios|Gabriel Achilier|Fidel Martínez|Miller Bolaños|Junior Sornoza|Jackson Porozo|Óscar Zambrano|Anthony Valencia|Patrik Mercado|Christian Pulisic|Weston McKennie|Tyler Adams|Gio Reyna|Giovanni Reyna|Sergiño Dest|Tim Weah|Timothy Weah|Brenden Aaronson|Josh Sargent|Folarin Balogun|Ricardo Pepi|Matt Turner|Zack Steffen|Antonee Robinson|Chris Richards|Tim Ream|Walker Zimmerman|Cameron Carter-Vickers|Yunus Musah|Malik Tillman|Johnny Cardoso|Haji Wright|Miles Robinson|Joe Scally|Mark McKenzie|Diego Luna|Jack McGlynn|Clint Dempsey|Landon Donovan|Michael Bradley|Tim Howard|Brad Friedel|Jozy Altidore|DeAndre Yedlin|Brian McBride|Claudio Reyna|Kasey Keller|Carlos Bocanegra|Jermaine Jones|Alexi Lalas|Eric Wynalda|Cobi Jones|Brad Guzan|Bobby Wood|Jordan Morris|Paul Arriola|Kellyn Acosta|Christian Ramirez|Patrick Agyemang|Brian White|Jordan Pefok|Aidan Morris|Tanner Tessmann|Caleb Wiley|Cade Cowell|Jesus Ferreira|Ethan Horvath|Sean Johnson|Gaga Slonina|Julian Green|Danny Williams|Matt Miazga|Chris Wondolowski|DaMarcus Beasley|Kyle Beckerman|Josh Wolff|Brian Ching|Michael Parkhurst|Graham Zusi|Gyasi Zardes|Aron Jóhannsson|Darlington Nagbe|Omar Gonzalez|John Brooks|Fabian Johnson|Eddie Johnson|Jordan Siebatcheu|Daryl Dike|Brandon Vazquez|Luca de la Torre|Cristian Roldan|Djordje Mihailovic|Paxten Aaronson|Kevin Paredes|Owen Wolff|Andrew Robertson|Scott McTominay|John McGinn|Kieran Tierney|Billy Gilmour|Che Adams|Lyndon Dykes|Ryan Christie|Craig Gordon|Angus Gunn|Grant Hanley|Jack Hendry|Lewis Ferguson|Stuart Armstrong|Kenny McLean|Callum McGregor|Ryan Porteous|Aaron Hickey|Ross Stewart|Lawrence Shankland|Tommy Conway|Ryan Gauld|Nathan Patterson|Anthony Ralston|Greg Taylor|Zander Clark|Liam Kelly|Kenny Dalglish|Denis Law|Graeme Souness|Gordon Strachan|Ally McCoist|Darren Fletcher|Barry Ferguson|Gary Caldwell|Steven Fletcher|Shaun Maloney|James Morrison|Robert Snodgrass|Charlie Adam|Kris Commons|Scott Brown|Steven Naismith|Grant Holt|Leigh Griffiths|James Forrest|Ross McCrorie|Ryan Jack|Lewis Morgan|Stuart Findlay|Scott McKenna|Callum Paterson|Ryan Fraser|John Kennedy|Liam Henderson|Kenny Miller|Allan McGregor|David Marshall|Paul Lambert|Colin Hendry|Ian Black|Craig Brown|Alex Ferguson|Matt Ritchie|Jordan Rhodes|Oliver Burke|Scott Arfield|Andy Robertson|Seamus Coleman|Evan Ferguson|Caoimhín Kelleher|Gavin Bazunu|Nathan Collins|Shane Duffy|Jayson Molumby|Matt Doherty|Josh Cullen|Troy Parrott|Jason Knight|Adam Idah|Mikey Johnston|Sinclair Armstrong|Dara O\'Shea|Chiedozie Ogbene|Robbie Keane|Roy Keane|Damien Duff|Shay Given|John O\'Shea|Richard Dunne|Kevin Doyle|Aiden McGeady|Glenn Whelan|James McCarthy|Robbie Brady|Wes Hoolahan|Jeff Hendrick|Ciaran Clark|Conor Hourihane|Callum Robinson|Darragh Lenihan|Eoin Doyle|Stephen Ward|Shane Long|Jon Walters|Kevin Kilbane|Steve Finnan|Niall Quinn|Paul McGrath|Packie Bonner|Denis Irwin|Andy Reid|Stephen Hunt|Keith Andrews|James McClean|Sean Maguire|Ronan Curtis|Liam Scales|Festy Ebosele|Will Smallbone|Christian Eriksen|Pierre-Emile Højbjerg|Kasper Schmeichel|Peter Schmeichel|Rasmus Højlund|Joachim Andersen|Andreas Christensen|Simon Kjær|Thomas Delaney|Mikkel Damsgaard|Mathias Jensen|Victor Kristiansen|Jannik Vestergaard|Morten Hjulmand|Mads Hermansen|Jesper Lindstrøm|Yussuf Poulsen|Anders Dreyer|Gustav Isaksen|Albert Grønbæk|Michael Laudrup|Brian Laudrup|Jon Dahl Tomasson|Daniel Agger|Nicklas Bendtner|Martin Jørgensen|Dennis Rommedahl|Thomas Gravesen|Rasmus Kristensen|Oliver Christensen|Mathias Jørgensen|Thomas Kristensen|Christian Nørgaard|Kasper Dolberg|Andreas Cornelius|Jens Stryger Larsen|Jens Larsen|Andreas Skov Olsen|Andreas Olsen|Frederik Rønnow|Lukas Lerager|Daniel Wass|Patrick Dorgu|Mads Bech Sørensen|Mads Sørensen|Jonas Lössl|Kasper Hjulmand|Morten Olsen|Lars Olsen|Mikkel Hansen|Mathias Kvistgaarden|William Osula|Conrad Harder|Mika Biereth|Victor Nelsson|Jacob Bruun Larsen|Jacob Larsen|Jesper Grønkjær|Ebbe Sand|Peter Møller|Kim Christensen|Zlatan Ibrahimović|Alexander Isak|Viktor Gyökeres|Dejan Kulusevski|Emil Forsberg|Victor Lindelöf|Robin Olsen|Jesper Karlström|Mattias Svanberg|Ken Sema|Anthony Elanga|Ludwig Augustinsson|Gustaf Lagerbielke|Isak Hien|Hugo Larsson|Lucas Bergvall|Yasin Ayari|Samuel Gustafson|Jens Cajuste|Emil Krafth|Pontus Jansson|Sebastian Larsson|Kim Källström|Henrik Larsson|Fredrik Ljungberg|Olof Mellberg|Andreas Isaksson|Johan Elmander|Marcus Berg|Ola Toivonen|Albin Ekdal|Mikael Lustig|Andreas Granqvist|Viktor Claesson|Gabriel Gudmundsson|Carl Starfelt|Eric Smith|Joel Andersson|Filip Helander|Kristoffer Olsson|Emil Holm|Viktor Johansson|Erik Berg|Jesper Karlsson|Johan Larsson|Anton Salétros|Oscar Hiljemark|Tomas Brolin|Kennet Andersson|Martin Dahlin|Patrik Andersson|Niclas Alexandersson|Christian Wilhelmsson|Daniel Andersson|Pontus Wernbloom|John Guidetti|Sebastian Nanasi|Erling Haaland|Martin Ødegaard|Alexander Sørloth|Sander Berge|Kristian Thorstvedt|Fredrik Aursnes|Leo Østigård|Antonio Nusa|Jørgen Strand Larsen|Jørgen Larsen|Ørjan Nyland|Mohamed Elyounoussi|Ola Solbakken|Julian Ryerson|Andreas Schjelderup|Marcus Holmgren Pedersen|Marcus Pedersen|Patrick Berg|Stian Gregersen|Morten Thorsby|Joshua King|Aron Dønnum|Felix Horn Myhre|John Arne Riise|Ole Gunnar Solskjær|Tore André Flo|Steffen Iversen|Henning Berg|Ronny Johnsen|Fredrik Jensen|Morten Gamst Pedersen|Morten Pedersen|Henrik Pedersen|Magnus Wolff Eikrem|Martin Linnes|Kristoffer Haugen|Even Hovland|Tore Reginiussen|Kristoffer Ajer|Birger Meling|Mats Møller Dæhli|Valon Berisha|Omar Elabdellaoui|Erik Thorstvedt|Rune Bratseth|Jan Åge Fjørtoft|Eirik Horneland|Sivert Mannsverk|Oscar Bobb|Andreas Hanche-Olsen|Leo Skiri Østigård|Marius Lundemo|Robert Lewandowski|Piotr Zieliński|Wojciech Szczęsny|Jakub Kiwior|Jan Bednarek|Przemysław Frankowski|Kamil Glik|Arkadiusz Milik|Krzysztof Piątek|Karol Świderski|Nicola Zalewski|Jakub Moder|Sebastian Szymański|Damian Szymański|Kamil Grosicki|Grzegorz Krychowiak|Łukasz Fabiański|Jakub Błaszczykowski|Łukasz Piszczek|Matty Cash|Bartosz Bereszyński|Paweł Dawidowicz|Jakub Piotrowski|Bartosz Slisz|Adam Buksa|Kacper Urbański|Michał Skóraś|Kamil Piątkowski|Jerzy Dudek|Zbigniew Boniek|Grzegorz Lato|Tomasz Kuszczak|Artur Boruc|Marcin Bułka|Kacper Kozłowski|Sebastian Walukiewicz|Mateusz Wieteska|Bartłomiej Drągowski|Marcin Kamiński|Jakub Kamiński|Paweł Wszołek|Bartosz Kapustka|Michał Pazdan|Tomasz Kędziora|Kamil Jóźwiak|Przemysław Płacheta|Krzysztof Mączyński|Szymon Żurkowski|Mateusz Klich|Karol Linetty|Michał Karbownik|Dawid Kownacki|Patryk Peda|Maciej Rybus|Tomasz Hajto|Euzebiusz Smolarek|Maciej Żurawski|Ebi Smolarek|Luka Modrić|Ivan Perišić|Mateo Kovačić|Joško Gvardiol|Marcelo Brozović|Andrej Kramarić|Dominik Livaković|Mario Pašalić|Lovro Majer|Josip Šutalo|Josip Stanišić|Borna Sosa|Josip Juranović|Ante Budimir|Bruno Petković|Nikola Vlašić|Martin Erlić|Martin Baturina|Luka Ivanušec|Duje Ćaleta-Car|Domagoj Vida|Dejan Lovren|Ivan Rakitić|Mario Mandžukić|Ante Rebić|Šime Vrsaljko|Ivica Olić|Davor Šuker|Zvonimir Boban|Robert Prosinečki|Slaven Bilić|Igor Štimac|Darijo Srna|Vedran Ćorluka|Luka Sučić|Petar Sučić|Kristijan Jakić|Toni Fruk|Igor Matanović|Marco Pašalić|Borna Barišić|Niko Kovač|Robert Kovač|Marko Pjaca|Filip Bradarić|Josip Brekalo|Ivan Strinić|Marko Rog|Dino Perić|Josip Šimunić|Ivica Vrdoljak|Antonio Čolak|Mislav Oršić|Ivan Lovrić|Nikola Kalinić|Ivan Ilić|Danijel Subašić|Stipe Pletikosa|Niko Kranjčar|Eduardo da Silva|Mario Stanić|Alen Bokšić|Dario Šimić|Dušan Vlahović|Aleksandar Mitrović|Sergej Milinković-Savić|Dušan Tadić|Filip Kostić|Luka Jović|Nemanja Gudelj|Strahinja Pavlović|Nikola Milenković|Saša Lukić|Andrija Živković|Vanja Milinković-Savić|Lazar Samardžić|Nemanja Matić|Branislav Ivanović|Aleksandar Kolarov|Nemanja Vidić|Dejan Stanković|Siniša Mihajlović|Dragan Stojković|Predrag Mijatović|Savo Milošević|Mateja Kežman|Zoran Tošić|Miloš Krasić|Adem Ljajić|Nemanja Radonjić|Uroš Račić|Marko Grujić|Darko Lazović|Veljko Birmančević|Stefan Mitrović|Miloš Veljković|Nikola Maksimović|Predrag Rajković|Srđan Babić|Mijat Gaćinović|Lazar Marković|Nemanja Nikolić|Predrag Đorđević|Filip Đuričić|Aleksandar Katai|Uroš Spajić|Miloš Jojić|Dušan Lukić|Nikola Žigić|Marko Pantelić|Danko Lazović|Ivan Obradović|Neven Subotić|Milan Jovanović|Dejan Joveljić|Kosta Nedeljković|Jovan Milošević|Mihailo Ivanović|Petar Ratkov|Oleksandr Zinchenko|Mykhailo Mudryk|Artem Dovbyk|Viktor Tsyhankov|Ruslan Malinovskyi|Roman Yaremchuk|Andriy Yarmolenko|Vitaliy Mykolenko|Illia Zabarnyi|Anatoliy Trubin|Heorhiy Sudakov|Mykola Shaparenko|Mykola Matviyenko|Yukhym Konoplya|Taras Stepanenko|Andriy Lunin|Heorhiy Bushchan|Andriy Shevchenko|Serhiy Rebrov|Anatoliy Tymoshchuk|Yevhen Konoplyanka|Oleksandr Shovkovskyi|Yaroslav Rakitskyi|Oleksandr Tymchyk|Volodymyr Brazhko|Bohdan Mykhaylichenko|Vladyslav Vanat|Maksym Talovierov|Viktor Kovalenko|Denys Boyko|Yevhen Levchenko|Oleksandr Karavaev|Artem Kravets|Vitaliy Buyalskyi|Ruslan Rotan|Taras Kacharaba|Serhiy Sydorchuk|Andriy Voronin|Oleh Blokhin|Igor Belanov|Oleksandr Kucher|Dmytro Chygrynskyi|Artem Milevskyi|Andriy Pyatov|Eduard Sobol|Oleksandr Svatok|Oleksandr Pikhalyonok|Tomáš Souček|Patrik Schick|Vladimír Coufal|Antonín Barák|Adam Hložek|Lukáš Provod|Ladislav Krejčí|Tomáš Holeš|Martin Vitík|Jan Kuchta|David Jurásek|Matěj Kovář|Robin Hranáč|David Zima|Petr Čech|Pavel Nedvěd|Tomáš Rosický|Milan Baroš|Jan Koller|Karel Poborský|Marek Jankulovski|Tomáš Ujfaluši|Vladimír Šmicer|Patrik Berger|Michal Kadlec|Theodor Gebre Selassie|Václav Černý|Jindřich Staněk|Tomáš Chorý|Mojmír Chytil|David Douděra|Pavel Šulc|Tomáš Kalas|Jakub Jankto|Alex Král|Martin Pospíšil|Filip Novák|Jan Kopic|Michal Sadílek|Tomáš Pekhart|Jakub Pešek|Daniel Pudil|David Lafata|Jan Bořil|Jakub Hromada|Tomáš Vaclík|Jiří Pavlenka|Ondřej Kúdela|Tomáš Wiesner|Lukáš Masopust|Pavel Kadeřábek|Ondřej Čelůstka|Vladimír Darida|Bořek Dočkal|Tomáš Necid|Václav Jemelka|Hakan Çalhanoğlu|Arda Güler|Kerem Aktürkoğlu|Kenan Yıldız|Orkun Kökçü|Merih Demiral|Ferdi Kadıoğlu|Salih Özcan|Çağlar Söyüncü|Mert Günok|İrfan Can Kahveci|Cengiz Ünder|Abdülkerim Bardakçı|Uğurcan Çakır|Semih Kılıçsoy|Yusuf Yazıcı|Okay Yokuşlu|Zeki Çelik|Kaan Ayhan|Barış Alper Yılmaz|Barış Yılmaz|Burak Yılmaz|Emre Belözoğlu|Arda Turan|Hakan Şükür|Rüştü Reçber|Nihat Kahveci|Tuncay Şanlı|Hamit Altıntop|Halil Altıntop|Volkan Demirel|Selçuk İnan|Oğuzhan Özyakup|Emre Mor|Ozan Tufan|Enes Ünal|Yunus Akgün|Mert Müldür|Ozan Kabak|Altay Bayındır|Can Uzun|Mert Çetin|Kaan Kurt|Hakan Arslan|Emre Akbaba|Emre Çolak|Volkan Şen|Serdar Aziz|Serdar Gürler|Halil Dervişoğlu|Kerem Demirbay|Yusuf Sarı|Berkan Kutlu|Efe Akman|Mert Hakan Yandaş|Emre Taşdemir|Emre Kılınç|Burak Kapacak|Umut Bozok|Cenk Tosun|Hasan Şaş|Bülent Korkmaz|Tugay Kerimoğlu|Alpay Özalan|Gökhan Inler|Volkan Babacan|Dorukhan Toköz|Kostas Tsimikas|Konstantinos Tsimikas|Konstantinos Mavropanos|Kostas Mavropanos|Anastasios Bakasetas|Giorgos Masouras|Vangelis Pavlidis|Fotis Ioannidis|Dimitris Pelkas|Christos Tzolis|Giorgos Giakoumakis|Manolis Siopis|Odysseas Vlachodimos|Konstantinos Koulierakis|Petros Mantalos|Sokratis Papastathopoulos|Kostas Manolas|Giorgos Karagounis|Theofanis Gekas|Angelos Charisteas|Georgios Samaras|Giorgos Samaras|Kostas Mitroglou|Vasilis Torosidis|Lazaros Christodoulopoulos|Andreas Samaris|Panagiotis Retsos|Christos Mandas|Giannis Konstantelias|Anastasios Douvikas|Dimitris Kourbelis|Stelios Giannakopoulos|Traianos Dellas|Angelos Basinas|Zisis Vryzas|Theodoros Zagorakis|Dimitris Papadopoulos|Avraam Papadopoulos|Giannis Michailidis|Christos Zafeiris|Kostas Fortounis|Giorgos Tzavellas|Sotiris Ninis|Andreas Bouchalakis|Panagiotis Kone|Kostas Stafylidis|Michalis Sifakis|Stelios Kitsiou|Charalampos Lykogiannis|Nikos Karelis|Dimitris Siovas|Vasilis Lampropoulos|Panagiotis Tachtsidis|Kostas Katsouranis|Nikos Dabizas|Lazaros Rota|Giorgos Kyriakopoulos|Dimitris Giannoulis|Pantelis Hatzidiakos|Granit Xhaka|Xherdan Shaqiri|Manuel Akanji|Breel Embolo|Yann Sommer|Remo Freuler|Nico Elvedi|Ricardo Rodríguez|Silvan Widmer|Fabian Schär|Denis Zakaria|Ruben Vargas|Noah Okafor|Dan Ndoye|Zeki Amdouni|Ardon Jashari|Kwadwo Duah|Cedric Itten|Michel Aebischer|Fabian Rieder|Djibril Sow|Filip Ugrinic|Leonidas Stergiou|Gregor Kobel|Yvon Mvogo|Steven Zuber|Haris Seferović|Valon Behrami|Stephan Lichtsteiner|Johan Djourou|Blerim Džemaili|Gelson Fernandes|Admir Mehmedi|Alexander Frei|Philippe Senderos|Stéphane Chapuisat|Ciriaco Sforza|Kubilay Türkyilmaz|Pascal Zuberbühler|Tranquillo Barnetta|Josip Drmić|Edimilson Fernandes|Eray Cömert|Jonas Omlin|Bryan Okoh|Miro Muheim|Aurèle Amenda|Joël Monteiro|Simon Sohm|Isaac Schmidt|Christian Fassnacht|Fabian Frei|Renato Steffen|Kevin Mbabu|Loris Benito|Fabian Lustenberger|Michael Lang|Marwin Hitz|Luca Zuffi|Pascal Schürpf|Steve von Bergen|Marco Streller|Hakan Yakin|Murat Yakin|David Alaba|Marcel Sabitzer|Christoph Baumgartner|Konrad Laimer|Marko Arnautović|Michael Gregoritsch|Stefan Posch|Kevin Danso|Maximilian Wöber|Phillipp Mwene|Philipp Mwene|Nicolas Seiwald|Florian Grillitsch|Romano Schmid|Philipp Lienhart|Alexander Prass|Patrick Pentz|Patrick Wimmer|Gernot Trauner|Stefan Lainer|Leopold Querfeld|Xaver Schlager|Saša Kalajdžić|Martin Hinteregger|Aleksandar Dragović|Zlatko Junuzović|Marc Janko|Christian Fuchs|Andreas Herzog|Toni Polster|Hans Krankl|Herbert Prohaska|Matthias Seidl|Junior Adamu|Muhammed Cham|Andreas Weimann|Valentino Lazaro|Thomas Murg|Julian Baumgartlinger|Sebastian Prödl|Heinz Lindner|Alexander Schlager|Raphael Holzhauser|Lukas Hinterseer|Dominik Prokop|Markus Suttner|Andreas Ulmer|Stefan Ilsanker|Kevin Wimmer|Florian Klein|Stefan Schwab|Michael Liendl|Thomas Goiginger|Marcel Ritzmaier|Stefan Hierländer|Valentin Grubeck|Ralf Rangnick|Marco Grüll|Flavius Daniliuc|Max Wöber|Takefusa Kubo|Kaoru Mitoma|Wataru Endo|Takehiro Tomiyasu|Daichi Kamada|Ritsu Doan|Junya Ito|Ko Itakura|Hidemasa Morita|Takumi Minamino|Ayase Ueda|Kyogo Furuhashi|Daizen Maeda|Shuto Machino|Hiroki Ito|Yuki Soma|Keito Nakamura|Koki Ogawa|Zion Suzuki|Kento Hashimoto|Takuma Asano|Hiroki Sakai|Yuto Nagatomo|Shinji Kagawa|Keisuke Honda|Shinji Okazaki|Maya Yoshida|Makoto Hasebe|Eiji Kawashima|Hidetoshi Nakata|Shunsuke Nakamura|Yasuhito Endo|Gaku Shibasaki|Genki Haraguchi|Yuya Osako|Kazuyoshi Miura|Ao Tanaka|Reo Hatate|Yukinari Sugawara|Takuma Nishimura|Kota Takai|Kaishu Sano|Yuito Suzuki|Shogo Taniguchi|Daiki Hashioka|Ryotaro Meshino|Keisuke Osako|Kosuke Nakamura|Taiyo Koga|Kanji Okunuki|Yuki Kobayashi|Takashi Inui|Hiroshi Kiyotake|Yoshito Okubo|Tomoaki Makino|Atsuto Uchida|Gotoku Sakai|Shusaku Nishikawa|Shuichi Gonda|Naomichi Ueda|Sho Ito|Mao Hosoya|Kosei Tani|Daiki Suga|Joel Fujita|Koki Machida|Sota Kawasaki|Takumi Kato|Yuta Nakayama|Yuma Suzuki|Ryo Miyaichi|Heung-min Son|Min-jae Kim|Kang-in Lee|Hee-chan Hwang|In-beom Hwang|Jae-sung Lee|Gue-sung Cho|Woo-yeong Jeong|Seung-ho Paik|Young-gwon Kim|Jin-su Kim|Hyeon-gyu Oh|Jun-ho Bae|Tae-hwan Kim|Young-woo Seol|Myung-jae Lee|Jin-seob Park|Sang-ho Na|Ji-sung Park|Young-pyo Lee|Chung-yong Lee|Sung-yueng Ki|Ja-cheol Koo|Bum-kun Cha|Seung-woo Lee|Dong-gook Lee|Jung-hwan Ahn|Chang-hoon Kwon|Hyun-woo Jo|Seung-gyu Kim|Moon-hwan Kim|Hyun-jun Yang|Ui-jo Hwang|Woo-young Jung|Jin-ho Jo|Yong-woo Park|Chul Hong|Jae-hyeok Kim|Young-gwon|Seung-hyun Jung|Tae-seok Lee|Han-beom Lee|Jae-won Hwang|Dong-gyeong Lee|Jun-ho Son|Ji-soo Kim|Hyun-seok Hong|Jin-gyu Kim|Shin-wook Kim|Sung-hoon Cho|Salem Al-Dawsari|Salem Al-Dosari|Firas Al-Buraikan|Mohammed Kanno|Saud Abdulhamid|Abdulrahman Al-Aboud|Ali Al-Bulaihi|Hassan Al-Tambakti|Yasser Al-Shahrani|Saleh Al-Shehri|Sultan Al-Ghannam|Nawaf Al-Aqidi|Mohammed Al-Owais|Abdullah Al-Hamdan|Yasser Al-Qahtani|Sami Al-Jaber|Majed Abdullah|Nasser Al-Shamrani|Hattan Bahebri|Ayman Yahya|Abdulelah Al-Amri|Ali Al-Hassan|Abdullah Al-Malki|Fahad Al-Muwallad|Turki Al-Ammar|Nawaf Al-Abed|Abdullah Otayf|Riyadh Sharahili|Mohamed Al-Rubaie|Saud Kariri|Osama Hawsawi|Mohammad Al-Deayea|Musab Al-Juwayr|Faisal Al-Ghamdi|Abdulrahman Ghareeb|Hamad Al-Yami|Ziyad Al-Johani|Khalid Al-Ghannam|Mathew Ryan|Harry Souttar|Jackson Irvine|Riley McGree|Craig Goodwin|Mitchell Duke|Aiden O\'Neill|Connor Metcalfe|Martin Boyle|Jordan Bos|Keanu Baccus|Nestory Irankunda|Cameron Devlin|Alessandro Circati|Kusini Yengi|Jason Cummings|Lewis Miller|Kye Rowles|Thomas Deng|Bailey Wright|Nathaniel Atkinson|Marco Tilio|Brandon Borrello|Tim Cahill|Mile Jedinak|Mathew Leckie|Aaron Mooy|Aziz Behich|Tom Rogic|Mark Viduka|Harry Kewell|Mark Schwarzer|Lucas Neill|Brett Emerton|Josh Kennedy|Mark Bresciano|Jamie Maclaren|Ajdin Hrustic|Awer Mabil|Craig Moore|Mitchell Langerak|Massimo Luongo|Trent Sainsbury|Milos Degenek|Robbie Kruse|Apostolos Giannou|Jason Davidson|Brad Smith|Fran Karačić|Garang Kuol|Cameron Burgess|Alphonso Davies|Jonathan David|Cyle Larin|Tajon Buchanan|Stephen Eustáquio|Ismaël Koné|Alistair Johnston|Richie Laryea|Kamal Miller|Derek Cornelius|Moïse Bombito|Jacob Shaffelburg|Liam Millar|Junior Hoilett|David Junior Hoilett|Ali Ahmed|Dayne St. Clair|Maxime Crépeau|Mathieu Choinière|Samuel Piette|Tani Oluwaseyi|Luc de Fougerolles|Jayden Nelson|Atiba Hutchinson|Dwayne De Rosario|Julian de Guzman|Craig Forrest|Jonathan Osorio|Mark-Anthony Kaye|Lucas Cavallini|Theo Corbeanu|Liam Fraser|Milan Borjan|Steven Vitória|Doneil Henry|Theo Bair|Kyle Larin|Jesse Marsch|Tomasz Radzinski|Paul Stalteri'.split('|'));
 
 // régions de scouting (cahier des charges) -> mappées aux pools de nationalité
 const SCOUT_REGIONS = NAT_CODES.map(c => ({ id: c, label: NAT_NAME[c], nats: [c] }));
+// continents (V8.9.1) : regroupent les 48 pays dans l'écran de scouting
+const NAT_CONTINENT = {};
+for (const c of ['FR', 'EN', 'ES', 'IT', 'DE', 'PT', 'NL', 'BE', 'SC', 'IE', 'SUI', 'AT', 'DK', 'SE', 'NO', 'POL', 'CZ', 'HR', 'RS', 'UA', 'TR', 'GR']) NAT_CONTINENT[c] = 'Europe';
+for (const c of ['SN', 'NG', 'CI', 'MA', 'GH', 'CM', 'EG', 'DZ', 'TN', 'ML', 'GN', 'CD', 'CV']) NAT_CONTINENT[c] = 'Afrique';
+for (const c of ['BR', 'AR', 'UY', 'CO', 'CL', 'EC', 'MX', 'US', 'CA']) NAT_CONTINENT[c] = 'Amériques';
+for (const c of ['JP', 'KR', 'KSA', 'AU']) NAT_CONTINENT[c] = 'Asie et Océanie';
+const CONTINENTS = ['Europe', 'Afrique', 'Amériques', 'Asie et Océanie'];
 // Paliers de budget de mission (V8, "choisir zone + budget") : investir plus ne se contente pas d'afficher un
 // meilleur chiffre, ça réduit vraiment l'incertitude du rapport (accuracyBonus) en plus du nombre de profils
 // repérés — exactement ce que demande "les bons recruteurs réduisent l'incertitude".
@@ -1434,8 +1455,9 @@ function pickNationalityForClub(club) {
   const league = LEAGUES.find(l => l.id === club.league);
   const homeNat = league ? league.nat : 'FR';
   if (Math.random() < 0.65 && NAME_POOLS[homeNat]) return homeNat;
-  // étranger : plus souvent d'un pays proche de ce championnat (langue, histoire, migrations du football)
-  return weightedChoice(NAT_CODES.filter(n => n !== homeNat), n => Math.pow(countryAffinity(n, homeNat), 1.5));
+  // étranger : plus souvent d'un pays proche de ce championnat (langue, histoire, migrations du football) ; V8.9.1 :
+  // affinité au cube, sinon les 47 autres nationalités diluaient tout (des Tchèques au Japon, des Italiens en Arabie)
+  return weightedChoice(NAT_CODES.filter(n => n !== homeNat), n => Math.pow(countryAffinity(n, homeNat), 3));
 }
 function pickOrigin(nat) {
   const w = NAT_ORIGINS[nat]; if (!w) return null;
@@ -1463,9 +1485,26 @@ function namesInUse(state) {
 function uniqueName(state, nat, origin, previous) {
   const used = state ? namesInUse(state) : null;
   let nm;
-  for (let i = 0; i < 40; i++) { nm = genName(nat, origin); if (!used || !used.has(nm.first + ' ' + nm.last)) break; }
+  for (let i = 0; i < 60; i++) {
+    nm = genName(nat, origin); const full = nm.first + ' ' + nm.last;
+    if (!FAMOUS_PLAYERS.has(full) && (!used || !used.has(full))) break;
+  }
   if (used) { if (previous) used.delete(previous); used.add(nm.first + ' ' + nm.last); }
   return nm;
+}
+// joueurs d'une partie existante qui portent par hasard le nom d'un vrai footballeur : renommés une fois (V8.9.1),
+// sauf les clients de l'agence (le joueur les connaît sous ce nom) et les retraités (palmarès, légendes)
+const FAMOUS_CLEANUP_VERSION = 1;
+function renameFamousPlayers(state) {
+  state.meta = state.meta || {};
+  if ((state.meta.famousCleanup || 0) >= FAMOUS_CLEANUP_VERSION) return 0;
+  let n = 0;
+  for (const p of Object.values(state.players || {})) {
+    if (p.retired || p.agentId === 'player' || !FAMOUS_PLAYERS.has(p.name)) continue;
+    const nm = uniqueName(state, p.nat, p.origin, p.name); p.name = nm.first + ' ' + nm.last; n++;
+  }
+  state.meta.famousCleanup = FAMOUS_CLEANUP_VERSION;
+  return n;
 }
 // change la nationalité d'un joueur déjà généré (recrues d'une région de scouting) : origine, nom et rêve suivent
 function assignIdentity(state, p, nat, origin) {
@@ -1536,6 +1575,29 @@ const COUNTRY_AFFINITY = {
   EG: { EN: 30, FR: 30, KSA: 44, TR: 30, BE: 26 }, DZ: { FR: 70, BE: 30, KSA: 28, TR: 24 }, TN: { FR: 66, BE: 28, KSA: 30, TR: 26 },
   GH: { EN: 56, DE: 34, BE: 30, NL: 32, US: 30 }, CM: { FR: 62, BE: 34, TR: 30, PT: 24 },
 };
+// V8.9.1 : attrait des championnats ajoutés en V8.9 pour les autres nationalités (Japon, Arabie saoudite, MLS,
+// Brésil, Argentine, Turquie, Écosse, Grèce, Pays-Bas, Belgique, Suisse, Autriche, Danemark) — une valeur déjà
+// présente dans COUNTRY_AFFINITY n'est jamais écrasée
+const LEAGUE_ATTRACTION = {
+  JP: { BR: 40, KR: 45, AU: 30, US: 22, CO: 22, CM: 22, NG: 22, GH: 22, SE: 24, NO: 22, DK: 22 },
+  KSA: { BR: 42, PT: 34, AR: 32, EG: 52, MA: 46, DZ: 42, TN: 46, SN: 36, NG: 32, CI: 34, ML: 32, GN: 30, CM: 32, GH: 30, CD: 30, FR: 28, ES: 30, EN: 26,
+    CO: 30, CL: 26, UY: 28, KR: 26, JP: 22, NL: 26, BE: 26, IT: 26, DE: 22, POL: 22, HR: 26, RS: 26, SE: 22, TR: 34, GR: 24, CV: 26, MX: 22, EC: 24, AU: 22, US: 22 },
+  US: { SC: 26, KR: 22, CV: 22, SE: 26, NO: 24, DK: 24, NL: 24, BE: 22, SN: 22, CI: 22, CM: 22, HR: 24, RS: 24, POL: 24, GR: 22, TR: 22 },
+  BR: { CL: 28, MX: 22, US: 22, JP: 22, CV: 26, NG: 22 },
+  AR: { US: 22 },
+  TR: { DE: 30, NL: 26, BE: 26, FR: 24, PT: 26, BR: 30, GH: 28, AT: 26, SUI: 24, CZ: 24, SE: 24, NO: 22, DK: 22, CO: 26, AR: 24, UY: 22, KSA: 22, EN: 24, ES: 24, IT: 22, GN: 24 },
+  SC: { US: 24, DK: 30, NO: 30, SE: 28, NL: 26, BE: 22, POL: 24, NG: 26, GH: 26, CD: 22, FR: 22, GR: 20, CZ: 22, HR: 22, RS: 22, CM: 22, CI: 22, SN: 22 },
+  GR: { HR: 30, ES: 26, PT: 28, AR: 28, BR: 26, SN: 26, CI: 26, CM: 26, NG: 24, POL: 24, FR: 22, IT: 24, TR: 20, CV: 24, ML: 24, GN: 24, UA: 24, CZ: 22, NL: 22, BE: 22, UY: 24, CO: 22 },
+  NL: { SUI: 30, AT: 28, POL: 26, HR: 26, RS: 24, CZ: 26, IE: 28, US: 24, CO: 24, BR: 28, AR: 26, UY: 24, CD: 28, CI: 26, CM: 26, ML: 24, SN: 26 },
+  BE: { DK: 30, NO: 28, SE: 28, SUI: 30, AT: 28, CZ: 26, POL: 26, HR: 28, RS: 26, IE: 26, US: 24, CA: 24, BR: 28, AR: 24, CO: 24, KR: 26, GR: 24, UA: 26, AU: 24, CV: 30 },
+  SUI: { RS: 28, ML: 24, GN: 24, SN: 26, CI: 26, CM: 26, CD: 28, PT: 28, ES: 24, BE: 26, NL: 24, DK: 22, SE: 22, NO: 22, POL: 22, CZ: 26, TR: 26, BR: 24, AR: 22 },
+  AT: { POL: 28, TR: 28, DK: 26, SE: 24, NO: 24, NL: 24, BE: 22, IT: 24, GH: 26, NG: 24, ML: 24, SN: 24, CI: 24, BR: 26, JP: 24, KR: 26, US: 22, UA: 26 },
+  DK: { NL: 28, POL: 24, NG: 26, GH: 26, BR: 24, SN: 22, CI: 22, US: 22, AU: 22, JP: 24, KR: 22, EN: 26, SC: 30, IE: 26, HR: 22, RS: 22, CZ: 22, AT: 24, SUI: 22 },
+};
+for (const [lgNat, row] of Object.entries(LEAGUE_ATTRACTION)) for (const [nat, v] of Object.entries(row)) {
+  COUNTRY_AFFINITY[nat] = COUNTRY_AFFINITY[nat] || {};
+  if (COUNTRY_AFFINITY[nat][lgNat] === undefined) COUNTRY_AFFINITY[nat][lgNat] = v;
+}
 function countryAffinity(nat, leagueNat) {
   if (nat === leagueNat) return 92;
   const row = COUNTRY_AFFINITY[nat];
@@ -1648,6 +1710,11 @@ function seasonStartYearFromScratch(state) { return state.date ? seasonStartYear
 function emptyTableRow() { return { pts: 0, mj: 0, v: 0, n: 0, d: 0, bp: 0, bc: 0 }; }
 function tierBudget(tier) { return [0, 2000000, 6000000, 15000000, 40000000, 120000000][tier]; }
 function tierWageBudget(tier) { return [0, 150000, 400000, 900000, 2000000, 5000000][tier]; }
+// richesse propre à un championnat (V8.9.1) : les clubs saoudiens (fonds publics) et ceux de MLS dépensent bien plus
+// que leur niveau sportif ne le laisse penser. Fixée sur le club à sa création (il la garde s'il change de division).
+const LEAGUE_WEALTH = { SPL: 3.5, MLS: 1.5 };
+function clubWealth(c) { return (c && c.wealth) || 1; }
+function clubBudgetScale(c) { return tierBudget(c.tier) * clubWealth(c); }
 // ---------- Réputation & économie des clubs (V7) ----------
 // La réputation est une couche vivante distincte du tier (qui reste un simple gabarit de génération initiale) :
 // elle dérive des performances sportives, de la valeur d'effectif et des parcours européens, et pilote en retour
@@ -1691,11 +1758,13 @@ function addLeagueToWorld(state, lgId) {
   state.leagues[lgId] = { id: lg.id, name: lg.name, country: lg.country, clubIds: [], fixtures: [] };
   for (const [id, name, short, city, c1, c2, tier] of CLUB_RAW[lgId] || []) {
     if (state.clubs[id]) continue;
+    const wealth = LEAGUE_WEALTH[lgId] || 1;
     const club = {
       id, name, short, city, league: lgId, c1, c2, tier,
-      budget: tierBudget(tier), wageBudget: tierWageBudget(tier),
+      budget: tierBudget(tier) * wealth, wageBudget: tierWageBudget(tier) * wealth,
       squad: [], table: emptyTableRow(), titlesWon: 0,
     };
+    if (wealth !== 1) club.wealth = wealth;
     initClubEconomy(club);
     state.clubs[id] = club;
     state.leagues[lgId].clubIds.push(id);
@@ -1726,6 +1795,34 @@ function addMissingLeagues(state, news) {
   if (missing.length && news) news.push({ text: `Le monde du football s'agrandit : ${missing.length} nouveaux championnats (${missing.map(l => l.name).join(', ')}).`, tag: 'trophee' });
   return missing.length;
 }
+// V8.9.1 : dans une partie commencée avant la V8.9, les nouveaux championnats arrivent dès le chargement, même en
+// cours de saison (leurs classements étaient invisibles jusqu'à l'intersaison) : calendrier complet si la saison
+// n'a pas commencé, resserré sur les mois restants sinon ; les coupes de leurs pays démarrent au prochain tour jouable.
+function integrateMissingLeagues(state) {
+  const missing = LEAGUES.filter(l => !state.leagues[l.id]);
+  if (!missing.length) return null;
+  const months = remainingMatchMonths(state);
+  const fresh = months.length === MATCH_MONTHS.length && !Object.values(state.clubs).some(c => c.table && c.table.mj > 0);
+  const modes = {};
+  for (const lg of missing) {
+    addLeagueToWorld(state, lg.id);
+    const st = state.leagues[lg.id];
+    if (fresh) { st.fixtures = generateSeasonFixtures(st.clubIds); modes.double = (modes.double || 0) + 1; continue; }
+    const { fixtures, mode } = generateCatchUpFixtures(st.clubIds, months);
+    st.fixtures = fixtures; st.catchUp = mode; modes[mode] = (modes[mode] || 0) + 1;
+  }
+  state.cups = state.cups || {};
+  const ids = new Set(missing.map(l => l.id));
+  for (const def of CUP_DEFS) if (!state.cups[def.id] && def.leagues.some(l => ids.has(l))) createCup(state, def, fresh ? null : months);
+  const how = fresh ? '' : modes.next === missing.length ? ' Leur première saison commence en août.'
+    : modes.single ? ' Calendrier resserré pour cette fin de saison (aller simple pour certains).' : ' Calendrier resserré pour cette fin de saison.';
+  return { count: missing.length, text: `Le monde du football s'agrandit : ${missing.length} nouveaux championnats rejoignent la partie (${missing.map(l => l.name).join(', ')}).${how}` };
+}
+// un championnat a-t-il joué cette saison ? (un championnat arrivé trop tard pour jouer n'a ni titre, ni montée,
+// ni place européenne, et sa réputation n'est pas jugée sur un classement vide)
+function leagueHasPlayed(state, lg) {
+  return !!lg && lg.clubIds.some(id => state.clubs[id] && state.clubs[id].table && state.clubs[id].table.mj > 0);
+}
 
 // ---------- Calendrier de championnat (round-robin double, méthode du cercle) ----------
 function generateRoundRobin(clubIds) {
@@ -1750,8 +1847,7 @@ function generateRoundRobin(clubIds) {
   const secondLeg = rounds.map(round => round.map(([h, a]) => [a, h]));
   return rounds.concat(secondLeg);
 }
-function assignMatchdaysToMonths(matchdayCount) {
-  const months = MATCH_MONTHS;
+function assignMatchdaysToMonths(matchdayCount, months = MATCH_MONTHS) {
   const perMonthBase = Math.floor(matchdayCount / months.length);
   let remainder = matchdayCount - perMonthBase * months.length;
   const plan = [];
@@ -1771,6 +1867,24 @@ function generateSeasonFixtures(clubIds) {
     round.forEach(([home, away]) => fixtures.push({ month, home, away, played: false }));
   });
   return fixtures;
+}
+// mois de match encore à jouer cette saison (le mois en cours compris : ses matchs se jouent au prochain passage)
+function remainingMatchMonths(state) {
+  return SEASON_MONTH_ORDER.slice(state.date.absMonth % 12).filter(m => MATCH_MONTHS.includes(m));
+}
+const MAX_MATCHDAYS_PER_MONTH = 6; // ~4 en temps normal ; au-delà, la fatigue (+8 par match) ne suit plus
+// calendrier d'un championnat qui rejoint une saison déjà commencée (V8.9.1) : aller-retour resserré sur les mois
+// restants si possible, sinon aller simple, sinon rien (il démarre la saison suivante)
+function generateCatchUpFixtures(clubIds, months) {
+  const rounds = generateRoundRobin(clubIds);
+  const cap = months.length * MAX_MATCHDAYS_PER_MONTH;
+  const half = rounds.length / 2;
+  const use = rounds.length <= cap ? rounds : half <= cap ? rounds.slice(0, half) : null;
+  if (!use) return { fixtures: [], mode: 'next' };
+  const plan = assignMatchdaysToMonths(use.length, months);
+  const fixtures = [];
+  use.forEach((round, i) => round.forEach(([home, away]) => fixtures.push({ month: plan[i], home, away, played: false })));
+  return { fixtures, mode: use === rounds ? 'double' : 'single' };
 }
 
 // ---------- Simulation de match ----------
@@ -2126,7 +2240,7 @@ function gainReputation(state, amount) {
 // aux revenus mensuels ordinaires (monthlyClubFinances), qui ne couvrait que cette seule source de revenus.
 function dampedClubIncome(club, amount) {
   if (amount <= 0) return amount;
-  const cap = tierBudget(club.tier) * 10 * (0.6 + (club.reputation || 50) / 100);
+  const cap = clubBudgetScale(club) * 10 * (0.6 + (club.reputation || 50) / 100);
   if (club.budget >= cap) return Math.round(amount * 0.12);
   const factor = clamp(1 - club.budget / cap, 0.12, 1);
   return Math.round(amount * factor);
@@ -2357,7 +2471,7 @@ function runAIClubSquadManagement(state, news, isMercato) {
       const surplusFrom = line === 'GK' ? 4 : 5;
       if (players.length > surplusFrom) { candidate = [...players].sort((a, b) => a.ovr - b.ovr)[0]; break; }
     }
-    if (!candidate && c.budget < tierBudget(c.tier) * 0.15) {
+    if (!candidate && c.budget < clubBudgetScale(c) * 0.15) {
       // détresse financière : on se sépare du salaire le plus lourd parmi les joueurs cédables
       const gkCount = squad.filter(p => p.posLine === 'GK').length;
       candidate = [...squad].filter(p => p.posLine !== 'GK' || gkCount > 2).sort((a, b) => b.wage - a.wage)[0];
@@ -2526,19 +2640,19 @@ function monthlyClubFinances(state) {
     // le plafond suit légèrement la réputation : un club prestigieux peut viser un peu plus haut qu'un tier brut ne le suggère,
     // mais TOUT le revenu (billetterie et sponsors compris) reste soumis au même facteur de convergence qu'avant :
     // ça garde exactement la même propriété de stabilité à long terme, juste avec une composition plus riche et plus lisible.
-    const cap = tierBudget(c.tier) * 6 * (0.6 + c.reputation / 100);
+    const cap = clubBudgetScale(c) * 6 * (0.6 + c.reputation / 100);
     const factor = clamp(1 - c.budget / cap, 0, 1);
     const attendanceRate = clamp(0.35 + c.reputation / 160, 0.25, 0.97);
     const ticketIncome = c.stadiumCapacity * attendanceRate * ticketPriceForTier(c.tier) * 1.15;
-    const sponsorIncome = tierBudget(c.tier) * 0.006 * (0.4 + c.reputation / 70);
-    const baseIncome = tierBudget(c.tier) * 0.014 * (0.7 + Math.random() * 0.6);
+    const sponsorIncome = clubBudgetScale(c) * 0.006 * (0.4 + c.reputation / 70);
+    const baseIncome = clubBudgetScale(c) * 0.014 * (0.7 + Math.random() * 0.6);
     const grossIncome = (baseIncome + ticketIncome + sponsorIncome) * factor * (0.7 + Math.random() * 0.6);
     const maintenanceCost = c.stadiumCapacity * 0.35 * (1 + (c.stadiumLevel - 1) * 0.1);
     const wageBill = c.squad.reduce((s, id) => { const p = state.players[id]; return s + (p ? p.wage : 0); }, 0);
     // conservé (non sauvegardé dans l'historique compact) juste pour l'affichage du détail des revenus à l'écran
     c.lastIncomeBreakdown = { ticketIncome, sponsorIncome, baseIncome, maintenanceCost };
     c.budget += grossIncome - wageBill * 0.15 - maintenanceCost;
-    if (c.budget < 0) c.budget = Math.max(c.budget, -tierBudget(c.tier) * 0.5);
+    if (c.budget < 0) c.budget = Math.max(c.budget, -clubBudgetScale(c) * 0.5);
   }
 }
 
@@ -3767,7 +3881,7 @@ function computeSeasonAwards(state, news) {
 function applyPromotionRelegation(state, news) {
   for (const pair of COUNTRY_PAIRS) {
     const topLg = state.leagues[pair.top], botLg = state.leagues[pair.bottom];
-    if (!topLg || !botLg) continue;
+    if (!topLg || !botLg || !leagueHasPlayed(state, topLg) || !leagueHasPlayed(state, botLg)) continue;
     const topRanked = [...topLg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const botRanked = [...botLg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const relegated = topRanked.slice(-pair.n);
@@ -3973,7 +4087,7 @@ const BIG5_LEAGUES = ['PL', 'LIGA', 'SA', 'BL', 'L1'];
 // championnats européens de première division (les championnats hors d'Europe n'y ont pas accès)
 function euroEligibleLeagues(state) {
   const bottoms = new Set(COUNTRY_PAIRS.map(p => p.bottom));
-  return LEAGUES.filter(l => l.zone === 'europe' && !bottoms.has(l.id) && state.leagues[l.id]).map(l => l.id);
+  return LEAGUES.filter(l => l.zone === 'europe' && !bottoms.has(l.id) && leagueHasPlayed(state, state.leagues[l.id])).map(l => l.id);
 }
 function qualifyForEurope(state) {
   // les places européennes suivent la réputation dynamique des 5 grands championnats une fois qu'elle a été
@@ -3986,6 +4100,13 @@ function qualifyForEurope(state) {
     if (!lg) continue;
     const ranked = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     qualified.push(...ranked.slice(0, n));
+  }
+  // V8.9.1 : places non attribuées (championnat absent ou sans match cette saison) : elles reviennent aux 5 grands
+  // championnats, au classement — la compétition se joue toujours à 32 (elle était annulée à 26 qualifiés)
+  if (qualified.length < 32) {
+    const pools = BIG5_LEAGUES.filter(id => state.leagues[id]).sort((a, b) => (state.leagues[b].reputation || 0) - (state.leagues[a].reputation || 0))
+      .map(id => [...state.leagues[id].clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table)).filter(c => !qualified.includes(c)));
+    for (let i = 0; qualified.length < 32 && pools.some(p => p.length); i++) { const p = pools[i % pools.length]; if (p.length) qualified.push(p.shift()); }
   }
   return qualified;
 }
@@ -4205,16 +4326,22 @@ const CUP_DEFS = [
 const CUP_ROUND_MONTHS = { r32: 9, r16: 11, qf: 1, sf: 3, final: 5 };
 const CUP_NEXT_ROUND = { r32: 'r16', r16: 'qf', qf: 'sf', sf: 'final' };
 const CUP_ROUND_LABEL = { r32: '16es de finale', r16: '8es de finale', qf: 'Quarts de finale', sf: 'Demi-finales', final: 'Finale' };
+const CUP_FIRST_ROUNDS = [['r32', 32], ['r16', 16], ['qf', 8], ['sf', 4]];
+// crée la coupe d'un pays : 32, 16 ou 8 clubs selon la taille de ses championnats (8 clubs, dès les quarts, pour les
+// petits) ; avec `months` (V8.9.1, pays ajouté en cours de saison), elle commence au premier tour encore jouable
+function createCup(state, def, months) {
+  const clubs = def.leagues.flatMap(l => (state.leagues[l] || { clubIds: [] }).clubIds).map(id => state.clubs[id]).filter(Boolean)
+    .sort((a, b) => (b.reputation || 0) - (a.reputation || 0));
+  const natural = clubs.length >= 32 ? 32 : clubs.length >= 16 ? 16 : 8;
+  if (clubs.length < natural) return null;
+  const first = CUP_FIRST_ROUNDS.find(([r, size]) => size <= natural && (!months || months.includes(CUP_ROUND_MONTHS[r])));
+  if (!first) return null;
+  const entrants = clubs.slice(0, first[1]).map(c => c.id).sort(() => Math.random() - 0.5);
+  return (state.cups[def.id] = { id: def.id, name: def.name, season: seasonLabel(state), round: first[0], ties: pairUp(entrants), history: [], winner: null });
+}
 function initCups(state) {
   state.cups = {};
-  for (const def of CUP_DEFS) {
-    const clubs = def.leagues.flatMap(l => (state.leagues[l] || { clubIds: [] }).clubIds).map(id => state.clubs[id]).filter(Boolean)
-      .sort((a, b) => (b.reputation || 0) - (a.reputation || 0));
-    const size = clubs.length >= 32 ? 32 : clubs.length >= 16 ? 16 : 8; // 8 clubs (dès les quarts) pour les petits championnats
-    if (clubs.length < size) continue;
-    const entrants = clubs.slice(0, size).map(c => c.id).sort(() => Math.random() - 0.5);
-    state.cups[def.id] = { id: def.id, name: def.name, season: seasonLabel(state), round: { 32: 'r32', 16: 'r16', 8: 'qf' }[size], ties: pairUp(entrants), history: [], winner: null };
-  }
+  for (const def of CUP_DEFS) createCup(state, def, null);
 }
 function advanceCupsMonth(state, news, month) {
   for (const cup of Object.values(state.cups || {})) {
@@ -4272,10 +4399,12 @@ function updateClubAndLeagueReputation(state, news) {
     if (c.reputation === undefined) initClubEconomy(c);
     const prevRep = c.reputation;
     const clubIds = state.leagues[c.league] ? state.leagues[c.league].clubIds : [c.id];
+    const played = leagueHasPlayed(state, state.leagues[c.league]);
     const ranked = [...clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const rank = ranked.indexOf(c.id);
     const n = clubIds.length;
-    const posScore = n > 1 ? (1 - rank / (n - 1)) : 1; // 1 = champion de sa division, 0 = lanterne rouge
+    // 1 = champion de sa division, 0 = lanterne rouge ; neutre pour un championnat qui n'a pas encore joué
+    const posScore = !played ? 0.5 : n > 1 ? (1 - rank / (n - 1)) : 1;
     const squadValue = c.squad.reduce((s, pid) => s + (state.players[pid] ? state.players[pid].value : 0), 0);
     const relValue = clamp(squadValue / (globalAvgValue || 1), 0.1, 3);
     const valueScore = clamp((relValue - 0.1) / 2.9, 0, 1);
@@ -4293,7 +4422,7 @@ function updateClubAndLeagueReputation(state, news) {
     c.reputation = clamp(Math.round((prevRep * 0.88 + target * 0.12) * 10) / 10, 4, 99);
     if (prevRep - c.reputation >= 6 && prevRep >= 55) bigDrops.push(c);
     c.history = c.history || [];
-    c.history.push({ s: seasonLabel(state), v: Math.round(squadValue), b: Math.round(c.budget), r: c.reputation, pos: rank + 1 });
+    if (played) c.history.push({ s: seasonLabel(state), v: Math.round(squadValue), b: Math.round(c.budget), r: c.reputation, pos: rank + 1 });
     if (c.history.length > 30) c.history.shift(); // fenêtre glissante : garde le monde infini sans gonfler la sauvegarde
   }
   for (const lg of Object.values(state.leagues)) recomputeLeagueReputation(state, lg);
@@ -4335,6 +4464,7 @@ function processEndOfSeason(state, news) {
     news.push({ text: `Impôt sur les bénéfices de la saison : ${fmtMoneyShort(summary.seasonTax)} prélevés sur ${fmtMoneyShort(summary.seasonCommissions)} de commissions.`, tag: 'finance' });
   }
   for (const lg of Object.values(state.leagues)) {
+    if (!leagueHasPlayed(state, lg)) continue; // arrivé trop tard pour jouer cette saison : pas de champion
     const ranked = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
     const championId = ranked[0];
     const champ = state.clubs[championId];
@@ -4355,6 +4485,9 @@ function processEndOfSeason(state, news) {
       }
     }
   }
+  // V8.9.1 : un championnat encore absent (sauvegarde très ancienne) arrive ici, AVANT les places européennes et le
+  // tirage des coupes : son pays a sa coupe dès la saison suivante et la Ligue des Champions reste à 32 clubs
+  addMissingLeagues(state, news);
   updateClubAndLeagueReputation(state, news);
   decayRivalries(state);
   computeSeasonAwards(state, news);
@@ -4424,8 +4557,7 @@ function processEndOfSeason(state, news) {
   checkSeasonGoals(state, news);
   state.agent.lastSeasonCommissions = summary.seasonCommissions || 0;
   state.agent.careerStats.seasonBestFee = 0;
-  addMissingLeagues(state, news); // V8.9 : parties en cours
-  for (const lg of Object.values(state.leagues)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
+  for (const lg of Object.values(state.leagues)) { lg.fixtures = generateSeasonFixtures(lg.clubIds); delete lg.catchUp; }
   state.meta.totalSeasonsPlayed = (state.meta.totalSeasonsPlayed || 0) + 1;
   state.agent.seasonStartStats = { commissions: state.agent.careerStats.totalCommissions || 0, transfersDone: state.agent.careerStats.transfersDone || 0, titles: state.agent.careerStats.titlesWonAsAgent || 0 };
   for (const ra of state.rivalAgents) { ra.seasonCommissions = 0; ra.seasonTitles = 0; }
@@ -4653,7 +4785,7 @@ const EVENTS = [
       const lg = LEAGUES.find(l => l.id === (state.clubs[p.club] || {}).league);
       return lg && countryAffinity(p.nat, lg.nat) < 25;
     },
-    text: (p, state) => `${p.name} confie ressentir le mal du pays, loin de ${NAT_NAME[p.nat] || p.nat} depuis trop longtemps.`,
+    text: (p, state) => `${p.name} confie ressentir le mal du pays, loin ${ofCountry(p.nat)} depuis trop longtemps.`,
     choices: [
       { label: 'Lui promettre de chercher une porte de sortie plus proche de chez lui', effect: (state, p, news) => {
         p.morale = clamp(p.morale + 10, 0, 100);
@@ -5178,7 +5310,7 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
     })),
     clubs: {}, leagues: {}, players: {}, legends: [], freeAgents: [],
     records: {}, news: [], transferListed: [], scoutMissions: [], incomingOffers: [], nextId: 1,
-    pendingEvent: null, meta: { totalSeasonsPlayed: 0 }, achievements: { unlocked: [] }, seasonGoals: [],
+    pendingEvent: null, meta: { totalSeasonsPlayed: 0, famousCleanup: FAMOUS_CLEANUP_VERSION }, achievements: { unlocked: [] }, seasonGoals: [],
     europe: { stage: 'none' },
   };
   initWorld(state);
@@ -5425,7 +5557,7 @@ function deleteLocalStorageSave() {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES, NAT_ORIGINS, NAME_POOLS, LEAGUES, LEAGUES_V89, addMissingLeagues,
+    rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES, NAT_ORIGINS, NAME_POOLS, LEAGUES, LEAGUES_V89, addMissingLeagues, integrateMissingLeagues, qualifyForEurope, createCup, leagueHasPlayed, FAMOUS_PLAYERS, renameFamousPlayers, inCountry, ofCountry, NAT_NAME,
     calMonth, seasonIdx, seasonStartYear, calYear, seasonLabel, advanceDate,
     generatePlayer, initWorld, generateRoundRobin, generateSeasonFixtures,
     simulateMatch, squadStrength, advanceMonth, processEndOfSeason, createNewGame,
@@ -5852,14 +5984,10 @@ function migrateOldSave(state) {
       if (srcs.some(c => (NAME_POOLS[c] || NAME_EXTRA[c] || { last: [] }).last.includes(last))) { p.origin = origin; break; }
     }
   }
-  // V8.9 : nouveaux championnats — tout de suite si la saison n'a pas commencé, sinon à l'intersaison
-  const started = Object.values(state.clubs).some(c => c.table && c.table.mj > 0);
-  if (!started && LEAGUES.some(l => !state.leagues[l.id])) {
-    const before = new Set(Object.keys(state.leagues));
-    const added = addMissingLeagues(state, null);
-    if (added && state.news) state.news.unshift({ text: `Le monde du football s'agrandit : ${added} nouveaux championnats rejoignent la partie.`, tag: 'trophee', season: seasonLabel(state), month: calMonth(state) });
-    for (const lg of Object.values(state.leagues)) if (!before.has(lg.id)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
-  }
+  renameFamousPlayers(state); // V8.9.1 : aucun vrai footballeur dans le monde (hors clients de l'agence)
+  // V8.9.1 : nouveaux championnats — tout de suite, même en cours de saison (calendrier resserré)
+  const integrated = integrateMissingLeagues(state);
+  if (integrated && state.news) state.news.unshift({ text: integrated.text, tag: 'trophee', season: seasonLabel(state), month: calMonth(state) });
 }
 
 /* ---------- Écran de création de partie ---------- */
@@ -5874,7 +6002,7 @@ function renderOnboarding() {
       <button class="btn btn-sm btn-danger btn-block" style="margin-top:8px" onclick="downloadRawCorruptSave()">Télécharger la sauvegarde illisible</button></div>` : ''}
     <div class="field"><label>Nom de l'agent</label><input type="text" id="obName" placeholder="Ex. Alex Moreau"></div>
     <div class="field"><label>Nom de l'agence</label><input type="text" id="obAgency" placeholder="Ex. Apex Sports Management"></div>
-    <div class="field"><label>Nationalité</label><select id="obNat">${ONBOARD_NATIONS.map(n => `<option>${n}</option>`).join('')}</select></div>
+    <div class="field"><label>Nationalité</label><select id="obNat">${[...ONBOARD_NATIONS].sort((a, b) => a.localeCompare(b, 'fr')).map(n => `<option ${n === 'France' ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="field"><label>Spécialité</label>
       <div class="spec-grid" id="specGrid">
         ${SPECIALTIES.map((s, i) => `<div class="spec-card ${i === 0 ? 'sel' : ''}" data-spec="${s.id}" onclick="selectSpec('${s.id}')"><b>${s.label}</b><span>${s.desc}</span></div>`).join('')}
@@ -6496,7 +6624,7 @@ function renderScouting() {
       <p class="small" style="margin-top:8px">${tier.playersMin}–${tier.playersMax} profils repérés${tier.accuracyBonus > 0 ? ', rapport plus précis dès réception' : (tier.accuracyBonus < 0 ? ', rapport plus flou (fourchette large)' : '')}.</p>
     </div>
     <div class="card"><div class="card-title">Envoyer un recruteur</div>
-      <div class="region-grid">${SCOUT_REGIONS.map(r => `<div class="region-card" onclick="handleStartScout('${r.id}')"><span class="flag">${flagFor(r.nats[0])}</span>${r.label}</div>`).join('')}</div>
+      ${CONTINENTS.map(ct => `<div class="region-continent">${ct}</div><div class="region-grid">${SCOUT_REGIONS.filter(r => (NAT_CONTINENT[r.id] || 'Europe') === ct).sort((a, b) => a.label.localeCompare(b.label, 'fr')).map(r => `<div class="region-card" onclick="handleStartScout('${r.id}')"><span class="flag">${flagFor(r.nats[0])}</span>${r.label}</div>`).join('')}</div>`).join('')}
       <p class="small" style="margin-top:10px">Coût : ${fmtMoneyShort(tier.cost)} pour cette mission. La précision du rapport dépend de votre réputation, de votre spécialité et de vos recruteurs.</p>
     </div>
     ${pending.length ? `<div class="card"><div class="card-title">Missions en cours</div>${pending.map(m => `<div class="row-between small" style="padding:6px 0"><span>${flagFor((SCOUT_REGIONS.find(r => r.id === m.regionId) || {}).nats[0])} ${(SCOUT_REGIONS.find(r => r.id === m.regionId) || {}).label || m.regionId} <span class="small">(${(SCOUT_BUDGET_TIERS.find(t => t.id === m.tierId) || SCOUT_BUDGET_TIERS[1]).label})</span></span><span>${m.monthsLeft} mois restant(s)</span></div>`).join('')}</div>` : ''}
@@ -6797,7 +6925,7 @@ function transferSearchModalHTML() {
   return `
     <div class="modal-head"><h3>Trouver un transfert</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     <div class="row-between"><div class="name">${esc(p.name)}</div>${clubBadgeHTML(club)}</div>
-    <p class="small" style="margin-top:8px">💭 ${esc(p.name)} verrait bien un avenir en ${esc(NAT_NAME[dreamNat] || dreamNat)} ${flagFor(dreamNat)}</p>
+    <p class="small" style="margin-top:8px">💭 ${esc(p.name)} verrait bien un avenir ${esc(inCountry(dreamNat))} ${flagFor(dreamNat)}</p>
     <div class="sep"></div>
     <div id="transferSearchResults">${resultsHTML}</div>
     <div class="sep"></div>
@@ -7301,7 +7429,7 @@ const EURO_STAGE_LABEL = { none: 'Aucune compétition en cours', groups: 'Phase 
 function renderEurope() {
   const eu = G.europe || { stage: 'none' };
   if (eu.stage === 'none') {
-    return emptyStateHTML('trophy', "La Ligue des Champions n'a pas encore démarré.", 'Elle se met en place à la fin de la première saison, selon le classement des 5 grands championnats.');
+    return emptyStateHTML('trophy', "La Ligue des Champions n'a pas encore démarré.", 'Elle se met en place à la fin de la première saison, selon le classement des championnats européens.');
   }
   let body = '';
   if (eu.stage === 'groups') {
@@ -7343,7 +7471,10 @@ function renderCups() {
   const cup = G.cups[ui.cupTab];
   const winner = cup.winner && G.clubs[cup.winner];
   const upcoming = !cup.winner && cup.ties && cup.ties.length ? `<div class="card"><div class="card-title">${esc(CUP_ROUND_LABEL[cup.round] || cup.round)} — ${MONTH_NAMES[CUP_ROUND_MONTHS[cup.round]]}</div>${cup.ties.map(([h, a]) => { const dot = id => G.agent.portfolio.some(pid => G.players[pid] && G.players[pid].club === id) ? ` <span style="color:var(--accent)">●</span>` : ''; return `<div class="row-between small" style="padding:7px 0;border-bottom:1px solid var(--line-soft)"><span>${clubBadgeHTML(G.clubs[h], 'sm')} ${esc(G.clubs[h] ? G.clubs[h].short : '?')}${dot(h)}</span><span class="small">vs</span><span>${dot(a)}${esc(G.clubs[a] ? G.clubs[a].short : '?')} ${clubBadgeHTML(G.clubs[a], 'sm')}</span></div>`; }).join('')}</div>` : '';
-  return `<div class="tabs">${cups.map(c => `<button class="tab-btn ${c.id === cup.id ? 'active' : ''}" onclick="ui.cupTab='${c.id}';renderPage()">${esc(c.name)}</button>`).join('')}</div>
+  // V8.9.1 : 19 coupes, trop pour des onglets — liste déroulante (drapeau du pays : l'identifiant d'une coupe est son pays)
+  const cupOpts = [...cups].sort((a, b) => (NAT_NAME[a.id] || a.id).localeCompare(NAT_NAME[b.id] || b.id, 'fr'))
+    .map(c => `<option value="${c.id}" ${c.id === cup.id ? 'selected' : ''}>${flagFor(c.id)} ${esc(NAT_NAME[c.id] || '')} — ${esc(c.name)}</option>`).join('');
+  return `<div class="league-picker"><select aria-label="Coupe nationale" onchange="ui.cupTab=this.value;renderPage()">${cupOpts}</select></div>
     ${winner ? `<div class="card" style="text-align:center;padding:22px"><div style="display:flex;justify-content:center;color:var(--gold)">${icon('trophy', 36)}</div>${clubBadgeHTML(winner, 'lg')}<h3 style="margin-top:10px">${esc(winner.name)}</h3><p class="small">Vainqueur de la ${esc(cup.name)}</p></div>` : ''}
     ${upcoming}
     ${cup.history.slice().reverse().map(h => knockoutResultsHTML(CUP_ROUND_LABEL[h.round] || h.round, h.results)).join('')}`;
@@ -7369,6 +7500,7 @@ function renderStandings() {
       ${meterHTML(league.reputation, 100, 'var(--blue)')}
       ${euroSlotsN ? `<p class="small" style="margin-top:6px">${icon('trophy',13)} ${euroSlotsN} place${euroSlotsN > 1 ? 's' : ''} en Ligue des Champions cette saison (suit la réputation du championnat)</p>` : ''}
     </div>
+    ${league.catchUp ? `<p class="small">${league.catchUp === 'next' ? "🕒 Ce championnat a rejoint la partie trop tard pour jouer cette saison : il démarre en août." : `🕒 Arrivé en cours de saison : calendrier resserré (${league.catchUp === 'single' ? 'aller simple' : 'aller-retour'}) jusqu'en mai.`}</p>` : ''}
     ${(promoLine || relLine) ? `<p class="small">${promoLine ? `🟢 Top ${promoLine} = montée · ` : ''}${relLine ? `🔴 Derniers ${relLine} = relégation` : ''}</p>` : ''}
     <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th></th><th>Club</th><th>Pts</th><th>MJ</th><th>V</th><th>N</th><th>D</th><th>BP</th><th>BC</th><th>Diff</th><th>Forme</th></tr></thead><tbody>
     ${rows.map((c, i) => { const diff = c.table.bp - c.table.bc; return `<tr onclick="openClubDetail('${c.id}','world')" style="cursor:pointer"><td class="rk">${i + 1}</td><td class="name-cell">${clubBadgeHTML(c, 'sm')}${esc(c.short)}</td><td>${c.table.pts}</td><td>${c.table.mj}</td><td>${c.table.v}</td><td>${c.table.n}</td><td>${c.table.d}</td><td>${c.table.bp}</td><td>${c.table.bc}</td><td>${diff >= 0 ? '+' : ''}${diff}</td><td>${form5HTML(c)}</td></tr>`; }).join('')}

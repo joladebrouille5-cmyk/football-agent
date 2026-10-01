@@ -138,3 +138,24 @@ test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouv
     assert.equal(await page.$$eval('.save-warning, .banner-warning', els => els.length), 0);
   }, { portraits: 'simple' });
 });
+
+test('Partie en cours sans les championnats V8.9 : au rechargement, les 25 classements sont visibles', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    // partie « ancienne » en novembre : sans les championnats ajoutés en V8.9
+    await page.evaluate(async () => {
+      for (let i = 0; i < 3; i++) { advanceMonth(G); G.pendingEvent = null; }
+      for (const lg of LEAGUES_V89) { for (const cid of G.leagues[lg.id].clubIds) { for (const pid of G.clubs[cid].squad) delete G.players[pid]; delete G.clubs[cid]; } delete G.leagues[lg.id]; }
+      for (const id of Object.keys(G.cups)) if (!['FR', 'EN', 'ES', 'IT', 'DE', 'PT'].includes(id)) delete G.cups[id];
+      G.freeAgents = (G.freeAgents || []).filter(id => G.players[id]);
+      await saveGame();
+    });
+    await page.reload(); await page.waitForTimeout(1500);
+    await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'BSA'; navigate('world'); });
+    assert.equal(await page.$$eval('.league-picker option', o => o.length), 25, '25 championnats dans la liste');
+    assert.equal(await page.$$eval('.tbl tbody tr', r => r.length), 20, 'classement du Brésil affiché');
+    assert.match(await page.textContent('#content'), /Arrivé en cours de saison/);
+    assert.match(await page.evaluate(() => G.news[0].text), /nouveaux championnats rejoignent la partie/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
