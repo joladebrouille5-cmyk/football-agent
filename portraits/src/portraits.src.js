@@ -42,6 +42,13 @@ async function loadAssetsNow(base) {
   D.nb = nb.map(s => Uint16Array.from(s));
   const smooth = (m, it) => { let a = m; for (let k = 0; k < it; k++) { const b = new Float32Array(a.length); for (let i = 0; i < a.length; i++) { const n = D.nb[i]; let s = a[i]; for (const j of n) s += a[j]; b[i] = s / (n.length + 1); } a = b; } return a; };
   for (const k of Object.keys(D.mask)) D.mask[k] = smooth(D.mask[k], 6);
+  // V8.9 : grain de peau et sourcils MakeHuman (facultatifs : sans eux, la peau et les sourcils restent procéduraux)
+  if (info.extra) {
+    D.uv = new Float32Array(info.extra.uv); D.brows = info.extra.brows; D.browNames = info.extra.browNames;
+    const load = name => new Promise(res => new THREE.TextureLoader().load(base + name, t => res(t), undefined, () => res(null)));
+    [D.detailTex, D.browsTex] = await Promise.all([load('skin-detail.webp'), load('brows.webp')]);
+    if (D.browsTex) D.browsTex.colorSpace = THREE.SRGBColorSpace;
+  }
   DATA = D; return D;
 }
 
@@ -130,15 +137,15 @@ function skinMaterial(g, U) {
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
-      attribute vec4 maskA; attribute vec4 maskB; attribute float cav; uniform vec3 uMid; uniform float uIOD;
+      attribute vec4 maskA; attribute vec4 maskB; attribute float cav; attribute vec2 uvS; varying vec2 vUvS; uniform vec3 uMid; uniform float uIOD;
       varying vec3 vQ; varying vec3 vN0; varying vec4 vMA; varying vec4 vMB; varying float vCav; varying vec3 vAx; varying vec3 vAy; varying vec3 vAz;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-      vQ=(position-uMid)/uIOD; vN0=normal; vMA=maskA; vMB=maskB; vCav=cav; vAx=normalMatrix*vec3(1,0,0); vAy=normalMatrix*vec3(0,1,0); vAz=normalMatrix*vec3(0,0,1);`);
+      vUvS=uvS; vQ=(position-uMid)/uIOD; vN0=normal; vMA=maskA; vMB=maskB; vCav=cav; vAx=normalMatrix*vec3(1,0,0); vAy=normalMatrix*vec3(0,1,0); vAz=normalMatrix*vec3(0,0,1);`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
       ${NOISE}${HAIRMASKS}
       uniform vec3 uSkin, uSkinRed, uSkinDark, uLip, uHair, uJersey, uEyeL, uEyeR; uniform float uFade, uWaves, uDbgBump, uEyeR3, uMel, uAge, uFreckles, uBrowThick, uBrowArch, uBrowGap, uScalpPaint, uStubble, uSeed, uCollarY, uGrey, uEyeRad;
       varying vec3 vQ; varying vec3 vN0; varying vec4 vMA; varying vec4 vMB; varying float vCav; varying vec3 vAx; varying vec3 vAy; varying vec3 vAz;
-      float gJersey; float gHair; vec3 gBumpN;
+      float gJersey; float gHair; vec3 gBumpN; uniform sampler2D uDetail; uniform vec4 uTile; uniform float uTexAmt, uBrowPaint; varying vec2 vUvS;
       float browMask(vec3 q){
         float s=sign(q.x); float ax=abs(q.x)+uBrowGap; float u=(ax-0.13)/0.62;
         if(u<-0.15||u>1.15) return 0.;
@@ -159,6 +166,9 @@ function skinMaterial(g, U) {
       skin *= 0.94 + 0.1*blot + 0.06*(mot-0.5); skin = mix(skin, uSkinRed, 0.12*smoothstep(0.55,0.8,fbm(q*6.+uSeed*0.3))*(1.-uMel*0.6));
       skin = mix(skin, uSkinRed, clamp(vMA.y*0.35 + vMA.w*0.25 + vMA.z*0.4 + 0.15*smoothstep(0.55,0.,abs(q.y+0.75))*smoothstep(1.1,0.5,abs(q.x)), 0., 1.) * mix(0.55,0.25,uMel));
       skin = mix(skin, uSkinDark, clamp(vMB.y*0.35, 0., 0.5));
+      // grain de peau photographique (MakeHuman, domaine public) : rapport peau / peau floutée, hors crâne et cou
+      float dt = texture2D(uDetail, uTile.xy + vUvS * uTile.zw).r * 2.;
+      skin *= mix(1., clamp(dt, 0.62, 1.38), uTexAmt * (1.-scalpMask(q, vN0)) * smoothstep(collar+0.1, collar+0.45, q.y));
       float lipM = smoothstep(0.5,0.85,vMA.x); skin = mix(skin, uLip, lipM*0.9); skin *= 1. - 0.12*smoothstep(0.45,0.6,vMA.x)*smoothstep(0.75,0.6,vMA.x);
       // taches de rousseur, grains de beauté discrets
       vec3 fid; float fc = cell(q*vec3(26.,26.,26.), fid);
@@ -178,7 +188,7 @@ function skinMaterial(g, U) {
       float scalpDots = scalp * (mix(0.55 + 0.45*smoothstep(0.5,0.15,kc), 0.8, smoothstep(0.006,0.012,fwq)) + wv*step(0.5,scalp));
       skin = mix(skin, skin*mix(vec3(0.62,0.62,0.66), vec3(0.8), uMel), shadowTone*0.6);
       skin = mix(skin, hairC, clamp(stub*0.9 + scalpDots*0.92, 0., 1.));
-      skin = mix(skin, hairC*0.9, clamp(brow*1.05,0.,1.));
+      skin = mix(skin, hairC*0.9, clamp(brow*1.05*uBrowPaint,0.,1.));
       // cils : liseré sombre sur la paupière supérieure
       for(int e=0;e<2;e++){ vec3 ec = e==0?uEyeL:uEyeR; float d3=length(q-ec)/uEyeR3; float up=smoothstep(-0.05,0.08,q.y-ec.y);
         float lash = smoothstep(1.16,1.02,d3)*up*smoothstep(abs(q.x-ec.x), 0., 0.3); skin = mix(skin, vec3(0.03,0.025,0.02), clamp(lash,0.,1.)*0.8); }
@@ -303,6 +313,30 @@ function eyeMaterial(U) {
   return mat;
 }
 
+// ---------- grain de peau, sourcils (V8.9) ----------
+const BLANK_TEX = (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1); t.needsUpdate = true; return t; })();
+// case de l'atlas de grain de peau : 3 origines (colonnes) x 2 âges (lignes), image retournée par le chargeur
+function skinTile(g) {
+  const col = g.anc[0] > 0.5 ? 0 : g.anc[1] > 0.5 ? 1 : 2, row = g.age >= 29 ? 1 : 0;
+  return new THREE.Vector4(col / 3, 1 - (row + 1) / 2, 1 / 3, 1 / 2);
+}
+function browMesh(D, P, g, color) {
+  const k = Math.floor(rng('brow:' + g.id)() * D.browNames.length), pd = D.brows[D.browNames[k]];
+  const n = pd.v.length, pos = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  const ox = (k % 4) / 4, oy = 1 - (Math.floor(k / 4) + 1) / 3;
+  for (let i = 0; i < n; i++) {
+    const [a, b, c, wa, wb, wc, x, y, z] = pd.v[i], o = [x, y, z];
+    for (let j = 0; j < 3; j++) pos[i * 3 + j] = P[a * 3 + j] * wa + P[b * 3 + j] * wb + P[c * 3 + j] * wc + o[j];
+    uv[i * 2] = ox + pd.uv[i * 2] / 4; uv[i * 2 + 1] = oy + pd.uv[i * 2 + 1] / 3;
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(pd.tri); geo.computeVertexNormals();
+  const m = new THREE.MeshStandardMaterial({ map: D.browsTex, color, roughness: 0.75, alphaTest: 0.3, side: THREE.DoubleSide });
+  // teinte des cheveux du joueur, en gardant le relief de la texture
+  m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb = diffuse * (0.35 + 0.9 * dot(texture2D(map, vMapUv).rgb, vec3(.3,.59,.11)));'); };
+  m.customProgramCacheKey = () => 'brow-v1';
+  const mesh = new THREE.Mesh(geo, m); mesh.castShadow = false; mesh.receiveShadow = true; return mesh;
+}
+
 // ---------- rendu ----------
 let R = null;
 function renderer(size) {
@@ -349,7 +383,7 @@ export function buildHead(D, g) {
     let c2 = new Float32Array(cav); for (let it = 0; it < 2; it++) { const b = new Float32Array(D.n); for (let i = 0; i < D.n; i++) { const n = D.nb[i]; let s2 = c2[i]; for (const j of n) s2 += c2[j]; b[i] = s2 / (n.length + 1); } c2 = b; } cav.set(c2); }
   const M = D.mask, mA = new Float32Array(D.n * 4), mB = new Float32Array(D.n * 4);
   for (let i = 0; i < D.n; i++) { mA.set([M.lip[i], M.nose[i], M.ear[i], M.cheek[i]], i * 4); mB.set([M.brow[i], M.eyebag[i], M.forehead[i], M.laugh[i]], i * 4); }
-  geo.setAttribute('maskA', new THREE.BufferAttribute(mA, 4)); geo.setAttribute('maskB', new THREE.BufferAttribute(mB, 4)); geo.setAttribute('cav', new THREE.BufferAttribute(cav, 1));
+  geo.setAttribute('uvS', new THREE.BufferAttribute(D.uv || new Float32Array(D.n * 2), 2)); geo.setAttribute('maskA', new THREE.BufferAttribute(mA, 4)); geo.setAttribute('maskB', new THREE.BufferAttribute(mB, 4)); geo.setAttribute('cav', new THREE.BufferAttribute(cav, 1));
   // couleurs
   const mel = g.mel;
   const skinLight = new THREE.Color().setRGB(0.93, 0.76, 0.66), skinMid = new THREE.Color().setRGB(0.63, 0.42, 0.29), skinDeep = new THREE.Color().setRGB(0.29, 0.18, 0.12), skinDeepest = new THREE.Color().setRGB(0.16, 0.1, 0.07);
@@ -384,7 +418,7 @@ export function buildHead(D, g) {
     uSeed: { value: g.shellSeed }, uCollarY: { value: neckQ.y - 0.55 }, uGrey: { value: g.grey }, uEyeL: { value: eyeLq }, uEyeR: { value: eyeRq }, uEyeRad: { value: eyeRad }, uEyeR3: { value: eyeR3 },
     uHairline: { value: 1.02 + g.hairline }, uRecede: { value: recede }, uSideburn: { value: 0.35 }, uNeckLine: { value: ear.y - 0.45 }, uEarTop: { value: ear.y + 0.3 }, uEarZ: { value: ear.z },
     uNoseY: { value: noseY }, uMouthY: { value: (lipTop + lipBot) / 2 }, uChinY: { value: chinY }, uLipTop: { value: lipTop }, uLipBot: { value: lipBot }, uMouthW: { value: mouthW + 0.05 },
-    uBeardType: { value: beardType }, uPx: { value: g.px || 87 }, uFade: { value: g.hairStyle === 'fade' ? 1 : 0 }, uWaves: { value: g.hairStyle === 'waves' ? 1 : 0 }, uDbgBump: { value: 0 },
+    uBeardType: { value: beardType }, uDetail: { value: D.detailTex || BLANK_TEX }, uTile: { value: skinTile(g) }, uTexAmt: { value: D.detailTex ? 0.9 : 0 }, uBrowPaint: { value: D.browsTex ? 0 : 1 }, uPx: { value: g.px || 87 }, uFade: { value: g.hairStyle === 'fade' ? 1 : 0 }, uWaves: { value: g.hairStyle === 'waves' ? 1 : 0 }, uDbgBump: { value: 0 },
   };
   const group = new THREE.Group();
   const skinMesh = new THREE.Mesh(geo, skinMaterial(g, U)); skinMesh.castShadow = true; skinMesh.receiveShadow = true; group.add(skinMesh);
@@ -416,6 +450,7 @@ export function buildHead(D, g) {
   const BS = { short: [0.045, 0], full: [0.1, 0], goatee: [0.06, 0], moustache: [0.045, 0], chinstrap: [0.045, 0] }[g.beard];
   // petits portraits : la barbe reste peinte sur la peau (des mèches de moins d'un pixel ne donnent que du bruit)
   if (BS && (g.px || 87) >= 55) addShells('beard', i => { const q = qAt(i); return q.y < 0 && q.z > -0.6 && Math.abs(q.x) < 1.25; }, BS[0], 12, { core: BS[1], clump: 18, strand: 140, curl: g.hairTex === 'coily' ? 0.9 : 0.35, dens: 0.8 });
+  if (D.browsTex && D.brows) group.add(browMesh(D, P, g, hair.clone().multiplyScalar(1.5)));
   group.userData = { mid, iod, topY, chinY, neckQ };
   return group;
 }

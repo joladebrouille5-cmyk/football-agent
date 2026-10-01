@@ -111,9 +111,10 @@ test('Leviers d\'influence : campagne d\'image une fois par saison, partenariat 
   assert.equal(E.signClubPartnership(s, club.id).ok, false, 'un partenariat par club et par saison');
 });
 
-test('Coupes nationales : six coupes, jouées jusqu\'à un vainqueur dans la saison', () => {
+test('Coupes nationales : une coupe par pays, jouées jusqu\'à un vainqueur dans la saison', () => {
   const s = newGame();
-  assert.equal(Object.keys(s.cups).length, 6);
+  assert.equal(Object.keys(s.cups).length, E.CUP_DEFS.length);
+  assert.ok(E.CUP_DEFS.length >= 19, 'une coupe pour chacun des 19 pays');
   playMonths(s, 10); // août -> mai inclus
   for (const cup of Object.values(s.cups)) {
     assert.ok(cup.winner, cup.name + ' a un vainqueur');
@@ -313,3 +314,33 @@ test('8.6 : le vivier de départ reste disponible jusqu\'en décembre, et l\'age
   }
   assert.equal(E.OFFICE_LEVELS[1].cost, 200000);
 });
+
+test('V8.9 : partie commencée avant les nouveaux championnats — ils arrivent à l\'intersaison, sans casser la saison', () => {
+  const s = newGame();
+  // retire du monde les championnats ajoutés en V8.9, comme dans une sauvegarde plus ancienne
+  const newIds = E.LEAGUES_V89.map(l => l.id);
+  for (const id of newIds) {
+    for (const cid of s.leagues[id].clubIds) { for (const pid of s.clubs[cid].squad) delete s.players[pid]; delete s.clubs[cid]; }
+    delete s.leagues[id];
+  }
+  for (const id of Object.keys(s.cups)) if (!E.CUP_DEFS.find(d => d.id === id).leagues.some(l => s.leagues[l])) delete s.cups[id];
+  playMonths(s, 12);
+  for (const id of newIds) {
+    assert.ok(s.leagues[id], id + ' ajouté à l\'intersaison');
+    assert.ok(s.leagues[id].fixtures.length > 0, id + ' a son calendrier');
+  }
+  playMonths(s, 6);
+  for (const id of newIds) assert.ok(s.leagues[id].clubIds.every(c => s.clubs[c].table.mj > 0), id + ' joue sa saison');
+});
+
+test('V8.9 : noms uniques et cohérents avec l\'origine', () => {
+  const s = newGame();
+  const ps = Object.values(s.players);
+  assert.equal(new Set(ps.map(p => p.name)).size, ps.length, 'aucun homonyme dans un monde neuf');
+  assert.ok(ps.every(p => p.origin === null || E.NAT_ORIGINS[p.nat][p.origin] > 0), 'origine possible pour la nationalité');
+  // un Sénégalais porte un nom sénégalais ; un Français d'origine maghrébine, le plus souvent un nom du Maghreb
+  const naf = ps.filter(p => p.nat === 'FR' && p.origin === 'naf');
+  const maghreb = new Set(['MA', 'DZ', 'TN'].flatMap(c => E.NAME_POOLS[c].last));
+  assert.ok(naf.filter(p => maghreb.has(p.name.split(' ').slice(1).join(' '))).length / naf.length > 0.6);
+});
+

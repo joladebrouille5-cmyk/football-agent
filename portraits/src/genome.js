@@ -30,17 +30,23 @@ export const PROFILES = {
   eas: { anc: [0, 0.95, 0.05], mel: [0.16, 0.32], lightHair: 0, lightEyes: 0 },       // Asie de l'Est
   mix: { anc: [0.5, 0, 0.5], mel: [0.45, 0.68], lightHair: 0, lightEyes: 0.03 },      // métis afro-européens
   lat: { anc: [0.08, 0.18, 0.74], mel: [0.26, 0.44], lightHair: 0.03, lightEyes: 0.04, olive: 0.7 }, // métis latino-américains
+  bal: { anc: [0, 0, 1], mel: [0.06, 0.24], lightHair: 0.25, lightEyes: 0.35 },                     // Balkans, Europe de l'Est
+  mea: { anc: [0.08, 0.04, 0.88], mel: [0.26, 0.44], lightHair: 0.03, lightEyes: 0.08, olive: 0.8 }, // Turquie, Moyen-Orient
 };
 export const NAT_PROFILES = {
-  FR: { neu: 0.32, seu: 0.28, waf: 0.17, naf: 0.14, mix: 0.06, eas: 0.03 },
-  EN: { neu: 0.72, waf: 0.12, mix: 0.1, seu: 0.02, eas: 0.04 },
-  ES: { seu: 0.9, naf: 0.04, waf: 0.03, lat: 0.03 }, IT: { seu: 0.94, waf: 0.03, naf: 0.03 },
-  DE: { neu: 0.85, seu: 0.06, naf: 0.04, waf: 0.03, mix: 0.02 }, PT: { seu: 0.82, waf: 0.08, mix: 0.1 },
-  NL: { neu: 0.78, mix: 0.1, waf: 0.06, naf: 0.06 }, BE: { neu: 0.72, seu: 0.06, waf: 0.12, naf: 0.1 },
+  FR: { neu: 0.32, seu: 0.28, waf: 0.17, naf: 0.14, mix: 0.06, eas: 0.03 }, EN: { neu: 0.72, waf: 0.12, mix: 0.1, seu: 0.02, eas: 0.04 },
+  ES: { seu: 0.9, naf: 0.04, waf: 0.03, lat: 0.03 }, IT: { seu: 0.94, waf: 0.03, naf: 0.03 }, DE: { neu: 0.8, seu: 0.05, mea: 0.08, waf: 0.04, mix: 0.03 },
+  PT: { seu: 0.82, waf: 0.08, mix: 0.1 }, NL: { neu: 0.76, mix: 0.12, waf: 0.06, naf: 0.06 }, BE: { neu: 0.7, seu: 0.06, waf: 0.14, naf: 0.1 },
   BR: { seu: 0.4, mix: 0.38, waf: 0.17, lat: 0.05 }, AR: { seu: 0.85, lat: 0.15 }, UY: { seu: 0.82, lat: 0.12, mix: 0.06 },
-  US: { neu: 0.45, waf: 0.27, mix: 0.1, lat: 0.13, eas: 0.05 }, CO: { lat: 0.6, mix: 0.25, seu: 0.15 }, MX: { lat: 0.8, seu: 0.2 },
-  SN: { waf: 1 }, NG: { waf: 1 }, CI: { waf: 1 }, CM: { waf: 1 }, GH: { waf: 1 },
-  MA: { naf: 1 }, DZ: { naf: 1 }, TN: { naf: 1 }, EG: { naf: 1 }, JP: { eas: 1 }, KR: { eas: 1 },
+  US: { neu: 0.45, waf: 0.27, mix: 0.1, lat: 0.13, eas: 0.05 },
+  SN: { waf: 1 }, NG: { waf: 1 }, CI: { waf: 1 }, CM: { waf: 1 }, GH: { waf: 1 }, ML: { waf: 1 }, GN: { waf: 1 }, CD: { waf: 1 }, CV: { mix: 0.7, waf: 0.3 },
+  MA: { naf: 1 }, DZ: { naf: 1 }, TN: { naf: 1 }, EG: { naf: 1 },
+  SC: { neu: 0.95, waf: 0.03, mix: 0.02 }, IE: { neu: 0.95, waf: 0.03, mix: 0.02 }, SUI: { neu: 0.6, seu: 0.12, bal: 0.12, waf: 0.1, mix: 0.06 },
+  AT: { neu: 0.78, bal: 0.12, mea: 0.07, waf: 0.03 }, DK: { neu: 0.82, waf: 0.07, mea: 0.06, mix: 0.05 }, NO: { neu: 0.82, waf: 0.08, mea: 0.05, mix: 0.05 },
+  SE: { neu: 0.74, mea: 0.08, waf: 0.08, bal: 0.06, mix: 0.04 }, POL: { bal: 0.7, neu: 0.3 }, CZ: { bal: 0.6, neu: 0.4 }, UA: { bal: 1 }, HR: { bal: 1 }, RS: { bal: 1 },
+  TR: { mea: 1 }, GR: { seu: 0.9, bal: 0.1 }, KSA: { mea: 0.85, waf: 0.1, mix: 0.05 },
+  MX: { lat: 0.8, seu: 0.2 }, CO: { lat: 0.6, mix: 0.25, seu: 0.15 }, CL: { lat: 0.6, seu: 0.4 }, EC: { lat: 0.6, mix: 0.25, waf: 0.15 },
+  JP: { eas: 1 }, KR: { eas: 1 }, AU: { neu: 0.7, seu: 0.1, eas: 0.1, bal: 0.05, waf: 0.05 }, CA: { neu: 0.62, waf: 0.1, eas: 0.1, lat: 0.08, mix: 0.1 },
 };
 const NAT_DEFAULT = { seu: 0.45, neu: 0.25, waf: 0.15, naf: 0.1, eas: 0.05 };
 export const ARCHETYPES = (() => { const r = rng('archetypes-v1'), out = []; for (let i = 0; i < 48; i++) out.push({
@@ -53,15 +59,17 @@ export const ARCHETYPE_COUNT = ARCHETYPES.length;
 export function genome(p) {
   const r = rng('face2:' + p.id);
   const arch = ARCHETYPES[Math.floor(r() * ARCHETYPES.length)];
-  const prof = pickW(r, Object.entries(NAT_PROFILES[p.nat] || NAT_DEFAULT)), P = PROFILES[prof];
+  // origine : celle du joueur quand le jeu la fournit (nom et visage cohérents), sinon tirée selon sa nationalité
+  // (le tirage a lieu dans tous les cas pour garder la même suite aléatoire et donc le même visage)
+  const drawn = pickW(r, Object.entries(NAT_PROFILES[p.nat] || NAT_DEFAULT)), prof = PROFILES[p.origin] ? p.origin : drawn, P = PROFILES[prof];
   // ascendance morphologique : celle du profil, légèrement variée
   const anc = P.anc.map(v => Math.max(0, v + (v > 0 && v < 1 ? gauss(r) * 0.05 : 0))); const sA = anc.reduce((a, b) => a + b, 0); for (let i = 0; i < 3; i++) anc[i] /= sA;
   // carnation : toujours dans la plage du profil
   const mel = lerp(P.mel[0], P.mel[1], clamp(0.5 + gauss(r) * 0.3, 0, 1));
   const undertone = (P.olive || 0) * 0.6 + gauss(r) * 0.35; // <0 rosé, >0 olive/doré
-  const hairTex = clamp(anc[0] * 0.95 + gauss(r) * 0.18, 0, 1) > 0.55 ? (r() < 0.75 ? 'coily' : 'curly') : pickW(r, [['straight', 0.5 + anc[1] * 3], ['wavy', 0.35], ['curly', 0.15 + (prof === 'naf' || prof === 'lat' ? 0.3 : 0)]]);
-  const hairColor = r() >= P.lightHair ? pickW(r, [['#120c09', 4], ['#1d140e', 3], ['#2b1d14', 2], ['#3a271a', prof === 'neu' || prof === 'seu' ? 3 : 0.5]])
-    : prof === 'neu' || prof === 'seu' ? pickW(r, [['#5a3d25', 3], ['#7a5634', 2.5], ['#a77f4c', 1.6], ['#c9a46c', 1], ['#8a4a24', 0.6]]) : pickW(r, [['#4a3220', 2], ['#5a3d25', 1]]);
+  const hairTex = clamp(anc[0] * 0.95 + gauss(r) * 0.18, 0, 1) > 0.55 ? (r() < 0.75 ? 'coily' : 'curly') : pickW(r, [['straight', 0.5 + anc[1] * 3], ['wavy', 0.35], ['curly', 0.15 + (prof === 'naf' || prof === 'lat' || prof === 'mea' ? 0.3 : 0)]]);
+  const hairColor = r() >= P.lightHair ? pickW(r, [['#120c09', 4], ['#1d140e', 3], ['#2b1d14', 2], ['#3a271a', prof === 'neu' || prof === 'seu' || prof === 'bal' ? 3 : 0.5]])
+    : prof === 'neu' || prof === 'seu' || prof === 'bal' ? pickW(r, [['#5a3d25', 3], ['#7a5634', 2.5], ['#a77f4c', 1.6], ['#c9a46c', 1], ['#8a4a24', 0.6]]) : pickW(r, [['#4a3220', 2], ['#5a3d25', 1]]);
   const eyeColor = r() >= P.lightEyes ? pickW(r, [['#2a1a10', 5], ['#3b2416', 3], ['#5a3a1c', mel < 0.5 ? 2 : 0]]) : pickW(r, [['#4f6b4a', 1.2], ['#5d7d9a', 1.4], ['#7b8c95', 0.6]]);
   const st = id => r();
   // coiffure : variée, cohérente avec la texture de cheveux et l'âge

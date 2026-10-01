@@ -12,7 +12,10 @@ const mels = (genome, nat) => Array.from({ length: N }, (_, i) => genome({ id: '
 
 test('Chaque nationalité du jeu a sa répartition d\'origines', async () => {
   const { NAT_PROFILES, PROFILES } = await load();
-  for (const nat of loadEngine().NAT_CODES) {
+  const E = loadEngine();
+  // la table du jeu (noms) et celle des portraits (visages) sont identiques : nom et visage restent cohérents
+  assert.deepEqual(JSON.parse(JSON.stringify(E.NAT_ORIGINS)), JSON.parse(JSON.stringify(NAT_PROFILES)));
+  for (const nat of E.NAT_CODES) {
     assert.ok(NAT_PROFILES[nat], `origines manquantes pour ${nat}`);
     for (const k of Object.keys(NAT_PROFILES[nat])) assert.ok(PROFILES[k], `profil inconnu ${k} (${nat})`);
   }
@@ -21,6 +24,10 @@ test('Chaque nationalité du jeu a sa répartition d\'origines', async () => {
 test('Couleur de peau cohérente avec la nationalité (aucun Sénégalais à peau claire…)', async () => {
   const { genome } = await load();
   for (const nat of ['SN', 'NG', 'CI', 'CM', 'GH']) assert.ok(mels(genome, nat).every(m => m >= 0.65), `${nat} : peau foncée attendue`);
+  for (const nat of ['ML', 'GN', 'CD']) assert.ok(mels(genome, nat).every(m => m >= 0.65), `${nat} : peau foncée attendue`);
+  for (const nat of ['TR', 'KSA']) assert.ok(mels(genome, nat).filter(m => m < 0.25).length === 0, `${nat} : pas de peau très claire`);
+  // l'origine fournie par le jeu prime : un Français d'origine ouest-africaine a la peau foncée
+  assert.ok(Array.from({ length: 300 }, (_, i) => genome({ id: 'o' + i, nat: 'FR', origin: 'waf', age: 24 }).mel).every(m => m >= 0.65));
   for (const nat of ['MA', 'DZ', 'TN', 'EG']) assert.ok(mels(genome, nat).every(m => m >= 0.3 && m <= 0.55), `${nat} : peau mate attendue`);
   for (const nat of ['JP', 'KR']) assert.ok(mels(genome, nat).every(m => m <= 0.35), `${nat} : peau claire à moyenne attendue`);
   // pays européens : surtout des peaux claires, mais la diversité existe

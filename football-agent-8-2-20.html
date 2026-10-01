@@ -593,6 +593,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after{
 .setting-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-bottom:1px solid var(--line-soft);}
 .setting-row:last-child{border-bottom:none;}
 .setting-row .opts{display:flex; gap:6px; flex-shrink:0;}
+.league-picker{margin:0 0 14px;} .league-picker select{width:100%; max-width:420px; padding:10px 12px; background:var(--bg-2); border:1px solid var(--line-strong); color:var(--ink); border-radius:var(--r-sm); font-size:14px; font-weight:600;}
 .portrait-status{margin-top:4px; color:var(--gold); font-weight:600;}
 .corrupt-warning{background:#2d1210; border:1px solid var(--red); color:var(--red-soft); border-radius:var(--r-md); padding:12px; margin-bottom:16px; font-size:13px;}
 @media (prefers-reduced-motion: reduce){ *, *::before, *::after{animation:none !important; transition:none !important;} }
@@ -629,6 +630,7 @@ const COUNTRY_PAIRS = [
   { top: 'LIGA',bottom: 'SEG', n: 3 },
   { top: 'SA',  bottom: 'SB',  n: 3 },
   { top: 'BL',  bottom: 'B2',  n: 2 },
+  { top: 'PT',  bottom: 'PT2', n: 2 }, // V8.9
 ];
 
 // [id, name, short, city, c1, c2, tier]
@@ -872,80 +874,421 @@ const CLUB_RAW = {
     ['academicoviseu','Académico de Viseu','AVI','Viseu','#d0021b','#002d5c',1],
   ],
 };
+// ---------- Championnats ajoutés en V8.9 (Europe, puis reste du monde) ----------
+// zone : « europe » ou « monde » (regroupement dans l'interface). Les championnats hors d'Europe suivent le
+// même calendrier d'août à mai que les autres : simplification assumée du jeu (un seul calendrier mondial).
+const LEAGUES_V89 = [
+  { id: 'ERE', name: 'Eredivisie', country: 'Pays-Bas', nat: 'NL', zone: 'europe' },
+  { id: 'JPL', name: 'Jupiler Pro League', country: 'Belgique', nat: 'BE', zone: 'europe' },
+  { id: 'PT2', name: 'Liga Portugal 2', country: 'Portugal', nat: 'PT', zone: 'europe' },
+  { id: 'SPFL', name: 'Scottish Premiership', country: 'Écosse', nat: 'SC', zone: 'europe' },
+  { id: 'SUL', name: 'Süper Lig', country: 'Turquie', nat: 'TR', zone: 'europe' },
+  { id: 'SSL', name: 'Super League suisse', country: 'Suisse', nat: 'SUI', zone: 'europe' },
+  { id: 'ABL', name: 'Bundesliga autrichienne', country: 'Autriche', nat: 'AT', zone: 'europe' },
+  { id: 'DSL', name: 'Superliga danoise', country: 'Danemark', nat: 'DK', zone: 'europe' },
+  { id: 'GSL', name: 'Super League grecque', country: 'Grèce', nat: 'GR', zone: 'europe' },
+  { id: 'BSA', name: 'Brasileirão', country: 'Brésil', nat: 'BR', zone: 'monde' },
+  { id: 'LPF', name: 'Liga Profesional', country: 'Argentine', nat: 'AR', zone: 'monde' },
+  { id: 'MLS', name: 'Major League Soccer', country: 'États-Unis', nat: 'US', zone: 'monde' },
+  { id: 'SPL', name: 'Saudi Pro League', country: 'Arabie saoudite', nat: 'KSA', zone: 'monde' },
+  { id: 'J1', name: 'J1 League', country: 'Japon', nat: 'JP', zone: 'monde' },
+];
+const CLUB_RAW_V89 = {
+  ERE: [
+    ['ajax','Ajax','AJA','Amsterdam','#d2122e','#ffffff',3],
+    ['psv','PSV Eindhoven','PSV','Eindhoven','#ed1c24','#ffffff',3],
+    ['feyenoord','Feyenoord','FEY','Rotterdam','#ee2e24','#000000',3],
+    ['az','AZ Alkmaar','AZ','Alkmaar','#c8102e','#ffffff',2],
+    ['twente','FC Twente','TWE','Enschede','#e2001a','#ffffff',2],
+    ['utrecht','FC Utrecht','UTR','Utrecht','#d71920','#ffffff',2],
+    ['heerenveen','SC Heerenveen','HEE','Heerenveen','#0055a4','#ffffff',1],
+    ['nec','NEC Nimègue','NEC','Nimègue','#d0021b','#00a650',1],
+    ['goaheadeagles','Go Ahead Eagles','GAE','Deventer','#e30613','#ffd200',1],
+    ['spartarotterdam','Sparta Rotterdam','SPA','Rotterdam','#e30613','#ffffff',1],
+    ['fortunasittard','Fortuna Sittard','FOR','Sittard','#ffd100','#00843d',1],
+    ['groningen','FC Groningen','GRO','Groningue','#00843d','#ffffff',1],
+    ['heracles','Heracles Almelo','HER','Almelo','#000000','#ffffff',1],
+    ['peczwolle','PEC Zwolle','PEC','Zwolle','#0055a4','#ffffff',1],
+    ['nacbreda','NAC Breda','NAC','Breda','#ffd100','#000000',1],
+    ['willem2','Willem II','WII','Tilburg','#e30613','#0055a4',1],
+    ['telstar','Telstar','TEL','Velsen','#ffffff','#0055a4',1],
+    ['excelsior','Excelsior Rotterdam','EXC','Rotterdam','#e30613','#000000',1],
+  ],
+  JPL: [
+    ['clubbrugge','Club Bruges','CLU','Bruges','#0066b3','#000000',3],
+    ['anderlecht','RSC Anderlecht','RSCA','Bruxelles','#5c2d91','#ffffff',2],
+    ['genk','KRC Genk','KRC','Genk','#0055a4','#ffffff',2],
+    ['gent','La Gantoise','KAAG','Gand','#0055a4','#ffffff',2],
+    ['antwerp','Royal Antwerp','RAFC','Anvers','#e30613','#ffffff',2],
+    ['unionsg','Union Saint-Gilloise','USG','Bruxelles','#ffd100','#0055a4',2],
+    ['standardliege','Standard de Liège','SL16','Liège','#e30613','#ffffff',2],
+    ['cerclebrugge','Cercle Bruges','CER','Bruges','#00843d','#000000',1],
+    ['mechelen','KV Malines','KVM','Malines','#e30613','#ffd100',1],
+    ['charleroi','Sporting Charleroi','RCSC','Charleroi','#000000','#ffffff',1],
+    ['westerlo','KVC Westerlo','WES','Westerlo','#ffd100','#0055a4',1],
+    ['ohleuven','OH Louvain','OHL','Louvain','#e30613','#ffffff',1],
+    ['sinttruiden','Saint-Trond','STVV','Saint-Trond','#ffd100','#e30613',1],
+    ['dender','FCV Dender','DEN','Denderleeuw','#e30613','#ffffff',1],
+    ['lalouviere','RAAL La Louvière','RAAL','La Louvière','#00843d','#ffffff',1],
+    ['zultewaregem','Zulte Waregem','ZWA','Waregem','#e30613','#00843d',1],
+  ],
+  PT2: [
+    ['tondela','CD Tondela','CDT','Tondela','#ffd100','#00843d',1],
+    ['vizela','FC Vizela','FCV','Vizela','#0055a4','#ffffff',1],
+    ['chaves','GD Chaves','GDC','Chaves','#e30613','#0055a4',1],
+    ['feirense','CD Feirense','CDF','Santa Maria da Feira','#0055a4','#ffffff',1],
+    ['penafiel','FC Penafiel','FCP','Penafiel','#e30613','#000000',1],
+    ['leixoes','Leixões SC','LSC','Matosinhos','#e30613','#ffffff',1],
+    ['oliveirense','UD Oliveirense','UDO','Oliveira de Azeméis','#e30613','#000000',1],
+    ['portimonense','Portimonense','PSC','Portimão','#000000','#ffffff',1],
+    ['torreense','SCU Torreense','SCUT','Torres Vedras','#0055a4','#ffffff',1],
+    ['uniaoleiria','União de Leiria','UDL','Leiria','#000000','#ffffff',1],
+    ['felgueiras','FC Felgueiras','FCF','Felgueiras','#e30613','#0055a4',1],
+    ['pacosferreira','Paços de Ferreira','FCPF','Paços de Ferreira','#ffd100','#00843d',1],
+    ['mafra','CD Mafra','CDM','Mafra','#e30613','#ffffff',1],
+    ['boavista','Boavista FC','BFC','Porto','#000000','#ffffff',1],
+    ['farense','SC Farense','SCF','Faro','#000000','#ffffff',1],
+    ['belenenses','CF Os Belenenses','BEL','Lisbonne','#0055a4','#ffffff',1],
+    ['academica','Académica de Coimbra','AAC','Coimbra','#000000','#ffffff',1],
+    ['varzim','Varzim SC','VSC','Póvoa de Varzim','#e30613','#ffffff',1],
+  ],
+  SPFL: [
+    ['celtic','Celtic','CEL','Glasgow','#018749','#ffffff',3],
+    ['rangers','Rangers','RFC','Glasgow','#1b458f','#ffffff',3],
+    ['hearts','Heart of Midlothian','HMFC','Édimbourg','#7a1e3a','#ffffff',1],
+    ['aberdeen','Aberdeen','AFC','Aberdeen','#e30613','#ffffff',1],
+    ['hibernian','Hibernian','HIB','Édimbourg','#00843d','#ffffff',1],
+    ['dundeeutd','Dundee United','DUFC','Dundee','#f18a00','#000000',1],
+    ['dundee','Dundee FC','DFC','Dundee','#003a70','#ffffff',1],
+    ['motherwell','Motherwell','MFC','Motherwell','#ffb612','#7a1e3a',1],
+    ['kilmarnock','Kilmarnock','KFC','Kilmarnock','#0055a4','#ffffff',1],
+    ['stmirren','St Mirren','SMFC','Paisley','#000000','#ffffff',1],
+    ['livingston','Livingston','LFC','Livingston','#ffd100','#000000',1],
+    ['falkirk','Falkirk','FFC','Falkirk','#003a70','#ffffff',1],
+  ],
+  SUL: [
+    ['galatasaray','Galatasaray','GS','Istanbul','#a90432','#fdb912',3],
+    ['fenerbahce','Fenerbahçe','FB','Istanbul','#002b5c','#ffed00',3],
+    ['besiktas','Beşiktaş','BJK','Istanbul','#000000','#ffffff',3],
+    ['trabzonspor','Trabzonspor','TS','Trabzon','#7a1e3a','#00a8e8',2],
+    ['basaksehir','İstanbul Başakşehir','IBFK','Istanbul','#f26522','#002b5c',2],
+    ['samsunspor','Samsunspor','SAM','Samsun','#e30613','#ffffff',1],
+    ['goztepe','Göztepe','GÖZ','Izmir','#ffd100','#e30613',1],
+    ['eyupspor','Eyüpspor','EYP','Istanbul','#5c2d91','#ffd100',1],
+    ['kasimpasa','Kasımpaşa','KAS','Istanbul','#002b5c','#ffffff',1],
+    ['antalyaspor','Antalyaspor','ANT','Antalya','#e30613','#ffffff',1],
+    ['konyaspor','Konyaspor','KON','Konya','#00843d','#ffffff',1],
+    ['alanyaspor','Alanyaspor','ALA','Alanya','#f18a00','#00843d',1],
+    ['rizespor','Çaykur Rizespor','RİZ','Rize','#00843d','#0055a4',1],
+    ['kayserispor','Kayserispor','KAY','Kayseri','#e30613','#ffd100',1],
+    ['gaziantep','Gaziantep FK','GFK','Gaziantep','#e30613','#000000',1],
+    ['karagumruk','Fatih Karagümrük','FKG','Istanbul','#e30613','#000000',1],
+    ['kocaelispor','Kocaelispor','KOC','Kocaeli','#00843d','#000000',1],
+    ['genclerbirligi','Gençlerbirliği','GB','Ankara','#e30613','#000000',1],
+  ],
+  SSL: [
+    ['youngboys','BSC Young Boys','YB','Berne','#ffd100','#000000',2],
+    ['basel','FC Bâle','FCB','Bâle','#e30613','#0055a4',2],
+    ['servette','Servette FC','SFC','Genève','#7a1e3a','#ffffff',1],
+    ['lugano','FC Lugano','LUG','Lugano','#000000','#ffffff',1],
+    ['zurich','FC Zurich','FCZ','Zurich','#ffffff','#0055a4',1],
+    ['stgallen','FC Saint-Gall','FCSG','Saint-Gall','#00843d','#ffffff',1],
+    ['lucerne','FC Lucerne','FCL','Lucerne','#0055a4','#ffffff',1],
+    ['lausanne','Lausanne-Sport','LS','Lausanne','#0055a4','#ffffff',1],
+    ['sion','FC Sion','SION','Sion','#e30613','#ffffff',1],
+    ['winterthur','FC Winterthour','FCW','Winterthour','#e30613','#ffffff',1],
+    ['grasshoppers','Grasshopper Club','GCZ','Zurich','#0055a4','#ffffff',1],
+    ['thun','FC Thoune','THU','Thoune','#e30613','#ffffff',1],
+  ],
+  ABL: [
+    ['salzburg','Red Bull Salzbourg','RBS','Salzbourg','#e30613','#ffffff',2],
+    ['sturmgraz','Sturm Graz','SKS','Graz','#000000','#ffffff',2],
+    ['rapidwien','Rapid Vienne','SCR','Vienne','#00843d','#ffffff',1],
+    ['austriawien','Austria Vienne','FAK','Vienne','#5c2d91','#ffffff',1],
+    ['lask','LASK','LASK','Linz','#000000','#ffffff',1],
+    ['wolfsberg','Wolfsberger AC','WAC','Wolfsberg','#000000','#ffffff',1],
+    ['hartberg','TSV Hartberg','TSV','Hartberg','#0055a4','#ffffff',1],
+    ['wsgtirol','WSG Tirol','WSG','Wattens','#00843d','#ffffff',1],
+    ['altach','SCR Altach','SCRA','Altach','#000000','#ffffff',1],
+    ['grazerak','Grazer AK','GAK','Graz','#e30613','#ffffff',1],
+    ['blauweisslinz','Blau-Weiß Linz','BWL','Linz','#0055a4','#ffffff',1],
+    ['ried','SV Ried','SVR','Ried','#000000','#00843d',1],
+  ],
+  DSL: [
+    ['copenhague','FC Copenhague','FCK','Copenhague','#ffffff','#0055a4',2],
+    ['midtjylland','FC Midtjylland','FCM','Herning','#000000','#e30613',2],
+    ['brondby','Brøndby IF','BIF','Brøndby','#ffd100','#0055a4',1],
+    ['agf','AGF Aarhus','AGF','Aarhus','#ffffff','#5c2d91',1],
+    ['nordsjaelland','FC Nordsjælland','FCN','Farum','#e30613','#ffd100',1],
+    ['randers','Randers FC','RFC','Randers','#0055a4','#ffffff',1],
+    ['silkeborg','Silkeborg IF','SIF','Silkeborg','#e30613','#ffffff',1],
+    ['viborg','Viborg FF','VFF','Viborg','#00843d','#ffffff',1],
+    ['fredericia','FC Fredericia','FCF','Fredericia','#e30613','#ffffff',1],
+    ['sonderjyske','SønderjyskE','SJE','Haderslev','#0055a4','#ffffff',1],
+    ['vejle','Vejle BK','VB','Vejle','#e30613','#ffffff',1],
+    ['odense','Odense BK','OB','Odense','#0055a4','#ffffff',1],
+  ],
+  GSL: [
+    ['olympiakos','Olympiakos','OLY','Le Pirée','#e30613','#ffffff',2],
+    ['panathinaikos','Panathinaïkos','PAO','Athènes','#00843d','#ffffff',2],
+    ['aekathenes','AEK Athènes','AEK','Athènes','#ffd100','#000000',2],
+    ['paok','PAOK Salonique','PAOK','Salonique','#000000','#ffffff',2],
+    ['aris','Aris Salonique','ARIS','Salonique','#ffd100','#000000',1],
+    ['ofi','OFI Crète','OFI','Héraklion','#000000','#ffffff',1],
+    ['asteras','Asteras Tripolis','AST','Tripoli','#ffd100','#000000',1],
+    ['volos','Volos NFC','VOL','Volos','#e30613','#ffffff',1],
+    ['atromitos','Atromitos','ATR','Athènes','#0055a4','#ffffff',1],
+    ['panetolikos','Panetolikos','PNE','Agrinio','#ffd100','#0055a4',1],
+    ['larissa','AEL Larissa','AEL','Larissa','#7a1e3a','#ffffff',1],
+    ['levadiakos','Levadiakos','LEV','Livadeia','#00843d','#ffffff',1],
+    ['kifisia','Kifisia','KIF','Kifisia','#0055a4','#ffffff',1],
+    ['panserraikos','Panserraikos','PSR','Serrès','#e30613','#ffffff',1],
+  ],
+  BSA: [
+    ['flamengo','Flamengo','FLA','Rio de Janeiro','#c4161c','#000000',3],
+    ['palmeiras','Palmeiras','PAL','São Paulo','#006437','#ffffff',3],
+    ['saopaulo','São Paulo FC','SPFC','São Paulo','#fe0000','#000000',2],
+    ['corinthians','Corinthians','COR','São Paulo','#000000','#ffffff',2],
+    ['santos','Santos FC','SAN','Santos','#ffffff','#000000',2],
+    ['fluminense','Fluminense','FLU','Rio de Janeiro','#7a1e3a','#00843d',2],
+    ['botafogo','Botafogo','BOT','Rio de Janeiro','#000000','#ffffff',2],
+    ['vasco','Vasco da Gama','VAS','Rio de Janeiro','#000000','#ffffff',2],
+    ['gremio','Grêmio','GRE','Porto Alegre','#0d80bf','#000000',2],
+    ['internacional','Internacional','INT','Porto Alegre','#e30613','#ffffff',2],
+    ['atleticomineiro','Atlético Mineiro','CAM','Belo Horizonte','#000000','#ffffff',2],
+    ['cruzeiro','Cruzeiro','CRU','Belo Horizonte','#0055a4','#ffffff',2],
+    ['bahia','EC Bahia','BAH','Salvador','#0055a4','#e30613',1],
+    ['fortalezaec','Fortaleza EC','FEC','Fortaleza','#0055a4','#e30613',1],
+    ['athleticopr','Athletico Paranaense','CAP','Curitiba','#e30613','#000000',1],
+    ['bragantino','Red Bull Bragantino','RBB','Bragança Paulista','#ffffff','#e30613',1],
+    ['vitoriaba','EC Vitória','ECV','Salvador','#e30613','#000000',1],
+    ['juventude','Juventude','JUV','Caxias do Sul','#00843d','#ffffff',1],
+    ['ceara','Ceará SC','CEA','Fortaleza','#000000','#ffffff',1],
+    ['sportrecife','Sport Recife','SPT','Recife','#e30613','#000000',1],
+  ],
+  LPF: [
+    ['boca','Boca Juniors','CABJ','Buenos Aires','#003a70','#ffd100',3],
+    ['river','River Plate','CARP','Buenos Aires','#ffffff','#e30613',3],
+    ['racingclub','Racing Club','RAC','Avellaneda','#6cace4','#ffffff',2],
+    ['independiente','Independiente','CAI','Avellaneda','#e30613','#ffffff',2],
+    ['sanlorenzo','San Lorenzo','CASLA','Buenos Aires','#003a70','#e30613',2],
+    ['estudiantes','Estudiantes','EDLP','La Plata','#e30613','#ffffff',2],
+    ['velez','Vélez Sarsfield','VEL','Buenos Aires','#ffffff','#0055a4',2],
+    ['talleres','Talleres','TAL','Córdoba','#003a70','#ffffff',1],
+    ['rosariocentral','Rosario Central','CARC','Rosario','#003a70','#ffd100',1],
+    ['newells','Newell\'s Old Boys','NOB','Rosario','#e30613','#000000',1],
+    ['lanus','Lanús','LAN','Lanús','#7a1e3a','#ffffff',1],
+    ['argentinos','Argentinos Juniors','AAAJ','Buenos Aires','#e30613','#ffffff',1],
+    ['huracan','Huracán','CAH','Buenos Aires','#ffffff','#e30613',1],
+    ['gimnasia','Gimnasia La Plata','GELP','La Plata','#ffffff','#003a70',1],
+    ['defensayjusticia','Defensa y Justicia','DYJ','Florencio Varela','#ffd100','#00843d',1],
+    ['belgrano','Belgrano','CAB','Córdoba','#6cace4','#ffffff',1],
+    ['tigre','Tigre','CAT','Victoria','#003a70','#e30613',1],
+    ['banfield','Banfield','BAN','Banfield','#00843d','#ffffff',1],
+    ['platense','Platense','CAP','Vicente López','#7a1e3a','#ffffff',1],
+    ['unionsantafe','Unión de Santa Fe','USF','Santa Fe','#e30613','#ffffff',1],
+  ],
+  MLS: [
+    ['intermiami','Inter Miami','MIA','Miami','#f7b5cd','#000000',2],
+    ['lagalaxy','LA Galaxy','LAG','Los Angeles','#00245d','#ffd200',2],
+    ['lafc','Los Angeles FC','LAFC','Los Angeles','#000000','#c39e6d',2],
+    ['seattle','Seattle Sounders','SEA','Seattle','#5d9741','#005595',1],
+    ['atlantautd','Atlanta United','ATL','Atlanta','#80000a','#000000',1],
+    ['columbus','Columbus Crew','CLB','Columbus','#ffd100','#000000',1],
+    ['cincinnati','FC Cincinnati','CIN','Cincinnati','#f05323','#263b80',1],
+    ['nycfc','New York City FC','NYC','New York','#6cace4','#041e42',1],
+    ['nyredbulls','New York Red Bulls','NYRB','Harrison','#e30613','#002b5c',1],
+    ['philadelphia','Philadelphia Union','PHI','Chester','#071b2c','#b19b69',1],
+    ['orlando','Orlando City','ORL','Orlando','#633492','#ffffff',1],
+    ['nashville','Nashville SC','NSH','Nashville','#ece83a','#1f1646',1],
+    ['austin','Austin FC','ATX','Austin','#00b140','#000000',1],
+    ['portland','Portland Timbers','POR','Portland','#004812','#ebe72b',1],
+    ['toronto','Toronto FC','TOR','Toronto','#b81137','#ffffff',1],
+    ['vancouver','Vancouver Whitecaps','VAN','Vancouver','#00245e','#9dc2ea',1],
+    ['cfmontreal','CF Montréal','MTL','Montréal','#000000','#0033a1',1],
+    ['newengland','New England Revolution','NE','Foxborough','#0a2240','#ce0e2d',1],
+    ['chicagofire','Chicago Fire','CHI','Chicago','#9a1b2f','#ffffff',1],
+    ['fcdallas','FC Dallas','DAL','Dallas','#e81f3e','#2a4076',1],
+  ],
+  SPL: [
+    ['alhilal','Al-Hilal','HIL','Riyad','#0055a4','#ffffff',3],
+    ['alnassr','Al-Nassr','NAS','Riyad','#ffd100','#0055a4',3],
+    ['alittihad','Al-Ittihad','ITT','Djeddah','#ffd100','#000000',3],
+    ['alahli','Al-Ahli','AHL','Djeddah','#00843d','#ffffff',3],
+    ['alqadsiah','Al-Qadsiah','QAD','Khobar','#e30613','#ffd100',2],
+    ['alshabab','Al-Shabab','SHB','Riyad','#ffffff','#000000',2],
+    ['alettifaq','Al-Ettifaq','ETT','Dammam','#00843d','#e30613',2],
+    ['altaawoun','Al-Taawoun','TAA','Buraydah','#ffd100','#000000',1],
+    ['alfateh','Al-Fateh','FAT','Al-Hasa','#0055a4','#ffffff',1],
+    ['alfayha','Al-Fayha','FAY','Al-Majma\'ah','#f18a00','#0055a4',1],
+    ['alkhaleej','Al-Khaleej','KHA','Saihat','#00843d','#ffd100',1],
+    ['alriyadh','Al-Riyadh','RIY','Riyad','#e30613','#000000',1],
+    ['damac','Damac','DAM','Khamis Mushait','#7a1e3a','#ffd100',1],
+    ['alakhdoud','Al-Akhdoud','AKH','Najran','#00843d','#ffffff',1],
+    ['alhazem','Al-Hazem','HAZ','Ar Rass','#f18a00','#000000',1],
+    ['alkholood','Al-Kholood','KHO','Ar Rass','#ffd100','#000000',1],
+    ['alnajma','Al-Najma','NAJ','Unaizah','#0055a4','#ffd100',1],
+    ['neom','NEOM SC','NEOM','NEOM','#00a6a6','#000000',1],
+  ],
+  J1: [
+    ['kashima','Kashima Antlers','KAS','Kashima','#b0000e','#000000',1],
+    ['urawa','Urawa Red Diamonds','URA','Saitama','#e60012','#000000',1],
+    ['yokohamafm','Yokohama F. Marinos','YFM','Yokohama','#003da5','#ffffff',1],
+    ['kawasaki','Kawasaki Frontale','KAW','Kawasaki','#009fe8','#000000',1],
+    ['vissel','Vissel Kobe','VIS','Kobe','#a50034','#000000',1],
+    ['sanfrecce','Sanfrecce Hiroshima','SAN','Hiroshima','#5c2d91','#ffffff',1],
+    ['gamba','Gamba Osaka','GAM','Osaka','#0055a4','#000000',1],
+    ['cerezo','Cerezo Osaka','CRZ','Osaka','#e5006e','#003a70',1],
+    ['fctokyo','FC Tokyo','TOK','Tokyo','#003a70','#e30613',1],
+    ['nagoya','Nagoya Grampus','NAG','Nagoya','#e30613','#f18a00',1],
+    ['kashiwa','Kashiwa Reysol','KSW','Kashiwa','#ffd100','#000000',1],
+    ['machida','Machida Zelvia','MAC','Machida','#003a70','#ffffff',1],
+    ['tokyoverdy','Tokyo Verdy','VER','Tokyo','#00843d','#ffffff',1],
+    ['shonan','Shonan Bellmare','SHO','Hiratsuka','#00843d','#0055a4',1],
+    ['avispa','Avispa Fukuoka','AVI','Fukuoka','#003a70','#ffffff',1],
+    ['kyoto','Kyoto Sanga','KYO','Kyoto','#7a1e3a','#ffffff',1],
+    ['albirex','Albirex Niigata','ALB','Niigata','#f18a00','#0055a4',1],
+    ['okayama','Fagiano Okayama','OKA','Okayama','#7a1e3a','#ffffff',1],
+    ['yokohamafc','Yokohama FC','YFC','Yokohama','#00a0e9','#ffffff',1],
+    ['shimizu','Shimizu S-Pulse','SSP','Shizuoka','#f18a00','#0055a4',1],
+  ],
+};
+for (const lg of LEAGUES) if (!lg.zone) lg.zone = 'europe';
+LEAGUES.push(...LEAGUES_V89);
+Object.assign(CLUB_RAW, CLUB_RAW_V89);
 
 // ---- Pools de prénoms/noms pour la génération procédurale (joueurs 100% fictifs) ----
 const NAME_POOLS = {
-  FR: { first:['Lucas','Hugo','Nathan','Louis','Enzo','Rayan','Adam','Mohamed','Yanis','Noah','Mattéo','Ethan','Théo','Maxime','Antoine','Julien'],
-        last:['Bernard','Dubois','Moreau','Lefebvre','Girard','Bonnet','Dupont','Lambert','Fontaine','Rousseau','Vidal','Marchand','Perrin','Gauthier','Robin','Fournier'] },
-  EN: { first:['Jack','Harry','George','Oliver','Charlie','Jake','Callum','Ryan','Tyler','Josh','Aaron','Connor','Liam','Dylan','Ben','Tom'],
-        last:['Smith','Taylor','Wilson','Evans','Thomas','Roberts','Walker','Wright','Robinson','Cooper','Bailey','Reid','Marshall','Owen','Foster','Hughes'] },
-  ES: { first:['Alejandro','Pablo','Álvaro','Diego','Sergio','Iker','Mario','Rubén','Adrián','Marcos','Hugo','Gonzalo','Nico','Javier','Raúl','Bruno'],
-        last:['García','Fernández','López','Martínez','Sánchez','Romero','Navarro','Torres','Domínguez','Vázquez','Iglesias','Castro','Ortega','Molina','Delgado','Serrano'] },
-  IT: { first:['Matteo','Lorenzo','Davide','Federico','Andrea','Riccardo','Simone','Gabriele','Alessio','Marco','Luca','Stefano','Fabio','Nicolò','Tommaso','Leonardo'],
-        last:['Rossi','Ferrari','Russo','Bianchi','Romano','Colombo','Ricci','Marino','Greco','Bruno','Gallo','Conti','De Luca','Mancini','Costa','Fontana'] },
-  DE: { first:['Lukas','Finn','Jonas','Leon','Maximilian','Paul','Elias','Niklas','Tim','Jan','Julian','Moritz','David','Tobias','Felix','Sebastian'],
-        last:['Müller','Schmidt','Schneider','Fischer','Weber','Meyer','Wagner','Becker','Hoffmann','Schulz','Koch','Richter','Klein','Wolf','Neumann','Krüger'] },
-  PT: { first:['João','Rui','Tiago','Bruno','Gonçalo','Rafael','Diogo','André','Miguel','Pedro','Nuno','Tomás','Ricardo','Vasco','Duarte','Afonso'],
-        last:['Silva','Santos','Ferreira','Pereira','Oliveira','Costa','Carvalho','Gomes','Martins','Rocha','Ribeiro','Marques','Correia','Teixeira','Lopes','Cardoso'] },
-  NL: { first:['Daan','Sem','Milan','Lucas','Finn','Bram','Thijs','Sven','Ruben','Jasper','Stijn','Tim','Niels','Joris','Koen','Max'],
-        last:['de Jong','Jansen','de Vries','Bakker','Visser','Smit','Meijer','Mulder','Dekker','Brouwer','Dijkstra','Hoekstra','Postma','Kuipers','Terpstra','van Dijk'] },
-  BE: { first:['Arthur','Louis','Nathan','Victor','Gilles','Thibault','Maxime','Simon','Alexandre','Baptiste','Romain','Quentin','Loïc','Kevin','Cédric','Aurélien'],
-        last:['Peeters','Janssens','Maes','Jacobs','Mertens','Willems','Claes','Goossens','Wouters','De Smet','Vermeulen','Michiels','Dubois','Lambert','Hermans','Van Damme'] },
-  BR: { first:['Gabriel','Lucas','Matheus','Rafael','Bruno','Felipe','Thiago','Rodrigo','Vinícius','Guilherme','Leandro','Igor','Caio','Wesley','Kaique','Everton'],
-        last:['Silva','Souza','Oliveira','Santos','Pereira','Almeida','Costa','Ferreira','Rodrigues','Carvalho','Gomes','Martins','Araújo','Melo','Barbosa','Ribeiro'] },
-  AR: { first:['Franco','Mateo','Bautista','Tomás','Nicolás','Facundo','Agustín','Ignacio','Joaquín','Santiago','Lautaro','Ezequiel','Gastón','Rodrigo','Emiliano','Federico'],
-        last:['González','Rodríguez','Pérez','Fernández','Gómez','Díaz','Álvarez','Romero','Sosa','Acosta','Benítez','Medina','Suárez','Herrera','Aguirre','Cabrera'] },
-  UY: { first:['Agustín','Mateo','Diego','Sebastián','Nahuel','Bruno','Facundo','Rodrigo','Gonzalo','Mauricio','Fernando','Juan','Martín','Nicolás','Federico','Leonardo'],
-        last:['Rodríguez','Pereira','Fernández','Silva','González','Martínez','Ramírez','Rossi','Correa','Machado','Olivera','Estévez','Bentancur','Techera','Cuevas','Cáceres'] },
-  SN: { first:['Mamadou','Ousmane','Ibrahima','Cheikh','Moussa','Abdoulaye','Modou','Serigne','Pape','Alioune','Amadou','Babacar','Souleymane','Ismaïla','Boubacar','Lamine'],
-        last:['Diop','Ndiaye','Fall','Sarr','Diallo','Cissé','Faye','Gueye','Sow','Ba','Mbaye','Diagne','Sy','Camara','Thiam','Sane'] },
-  NG: { first:['Chidi','Emeka','Ifeanyi','Oluwaseun','Tunde','Chinedu','Kelechi','Uche','Segun','Femi','Ayo','Chukwuma','Ikechukwu','Obinna','Kayode','Wale'],
-        last:['Okafor','Adeyemi','Okoro','Balogun','Eze','Nwosu','Adekunle','Chukwu','Okonkwo','Bello','Afolabi','Uzoma','Nnamdi','Ogunleye','Ibrahim','Musa'] },
-  CI: { first:['Yao','Kouassi','Ibrahim','Didier','Franck','Aristide','Serge','Bakary','Souleyman','Christian','Emmanuel','Arsène','Willy','Junior','Cédric','Wilfried'],
-        last:['Koné','Kouamé','Traoré','Bamba','Diabaté','Ouattara',"N'Guessan",'Zadi','Kacou','Doumbia','Touré','Coulibaly','Adou','Gnabry','Yeo','Konaté'] },
-  MA: { first:['Youssef','Mehdi','Anas','Karim','Amine','Hamza','Yassine','Zakaria','Adam','Ayoub','Reda','Soufiane','Nabil','Othmane','Ismail','Walid'],
-        last:['El Amrani','Benali','Chraibi','Bennani','Alaoui','Idrissi','Tazi','Fassi','Berrada','El Fassi','Ziani','Saidi','Amrani','Kabbaj','Lahlou','Ouazzani'] },
-  GH: { first:['Kwame','Kofi','Kwabena','Yaw','Kojo','Emmanuel','Samuel','Andre','Baba','Mohammed','Joseph','Isaac','Daniel','Richmond','Solomon','Prince'],
-        last:['Boateng','Mensah','Owusu','Asante','Appiah','Amoah','Agyemang','Adjei','Danso','Osei','Frimpong','Yeboah','Acheampong','Amankwah','Baffour','Antwi'] },
-  CM: { first:['Samuel','André','Joel','Vincent','Eric','Clinton','Karl','Jean','Christian','Bryan','Junior','Franck','Patrick','Yannick','Merlin','Arnaud'],
-        last:['Fotso','Zambo','Njie','Onguene','Ngamaleu','Etoundi','Mbarga','Abena','Njoya','Fokou','Biyik','Ekwalla','Ondoa','Mbida','Talla','Essomba'] },
-  EG: { first:['Ahmed','Mahmoud','Omar','Karim','Ali','Hassan','Amr','Mostafa','Youssef','Islam','Tarek','Sherif','Adel','Ramy','Wael','Hany'],
-        last:['Farouk','Fathy','Gaber','Hegazi','Sobhi','Zaki','Nassef','Shehata','Rady','Metwally','Ashour','Kamel','Fawzy','Gomaa','Radwan','Aboutrika'] },
-  DZ: { first:['Islam','Youcef','Yacine','Rachid','Sofiane','Ramy','Riad','Abdelkader','Mounir','Farid','Amine','Nassim','Walid','Karim','Nabil','Zinedine'],
-        last:['Boumediene','Cherif','Hamidi','Kaddour','Larbi','Meziane','Rahmani','Tahar','Zerhouni','Belkacem','Djaballah','Haddad','Khelifi','Mansouri','Ouali','Saadi'] },
-  TN: { first:['Youssef','Naïm','Anis','Hamdi','Seifeddine','Taha','Bilel','Karim','Skander','Mehdi','Aymen','Firas','Wassim','Marouane','Chaker','Elyes'],
-        last:['Ghandri','Jaziri','Maaloul','Sassi','Chaalali','Meriah','Skhiri','Talbi','Bouazizi','Trabelsi','Jendoubi','Kchouk','Mejri','Rekik','Selmi','Zribi'] },
-  US: { first:['Ethan','Jayden','Tyler','Brandon','Cole','Mason','Blake','Chase','Landon','Trevor','Austin','Cameron','Derek','Ricardo','Diego','Jordan'],
-        last:['Johnson','Williams','Brown','Anderson','Thompson','White','Harris','Clark','Lewis','Young','Walker','Martinez','Rivera','Turner','Collins','Parker'] },
+  FR: { first:['Lucas','Hugo','Nathan','Louis','Enzo','Arthur','Jules','Gabriel','Raphaël','Léo','Mattéo','Ethan','Théo','Maxime','Antoine','Julien','Clément','Thomas','Alexandre','Baptiste','Quentin','Valentin','Romain','Florian','Corentin','Benjamin','Paul','Victor','Martin','Tom','Axel','Bastien','Mathis','Aurélien','Jérémy','Kévin','Adrien','Loïc','Dylan','Tanguy','Évan','Noé','Sacha','Timothée','Matthieu','Rémi','Lenny','Bryan','Simon','Guillaume','Nicolas'],
+        last:['Bernard','Dubois','Moreau','Lefebvre','Girard','Bonnet','Dupont','Lambert','Fontaine','Rousseau','Vidal','Marchand','Perrin','Gauthier','Robin','Fournier','Martin','Petit','Durand','Leroy','Roux','Morel','Garnier','Chevalier','François','Legrand','Gautier','Mercier','Blanc','Guérin','Boyer','Lemaire','Faure','André','Barbier','Renaud','Brun','Schmitt','Colin','Roussel','Joly','Picard','Caron','Aubert','Masson','Leclerc','Meunier','Dumont','Baron','Huet','Carpentier','Rey','Hoarau','Laurent','Prévost','Collet','Clément','Vincent','Giraud','Lemoine','Arnaud','Royer','Charpentier'] },
+  EN: { first:['Jack','Harry','George','Oliver','Charlie','Jake','Callum','Ryan','Tyler','Josh','Aaron','Connor','Liam','Dylan','Ben','Tom','James','Alfie','Archie','Freddie','Harvey','Lewis','Mason','Reece','Jordan','Kieran','Luke','Joe','Sam','Ollie','Max','Danny','Jamie','Kyle','Curtis','Bradley','Ashley','Rhys','Elliot','Cole','Morgan','Toby','Nathan','Adam','Matthew','Owen'],
+        last:['Smith','Jones','Taylor','Brown','Williams','Wilson','Johnson','Davies','Robinson','Wright','Thompson','Evans','Walker','White','Roberts','Green','Hall','Wood','Jackson','Clarke','Hughes','Edwards','Turner','Hill','Moore','Cooper','Ward','Harris','Lee','King','Baker','Harrison','Morgan','Allen','Parker','Bennett','Mitchell','Carter','Shaw','Lloyd','Phillips','Foster','Barnes','Marshall','Chapman','Webb','Ellis','Mills','Holmes','Cox','Fletcher','Hunt','Palmer','Gibson','Butler','Simpson','Stevens','Pearson','Hayes'] },
+  ES: { first:['Javier','Pablo','Alejandro','Sergio','Carlos','Diego','David','Daniel','Adrián','Álvaro','Marcos','Iker','Hugo','Mario','Raúl','Rubén','Jorge','Iván','Víctor','Gonzalo','Unai','Aitor','Borja','Íñigo','Mikel','Jon','Ander','Pedro','Fernando','Rodrigo','Nacho','Dani','Marc','Pau','Jordi','Gerard','Aleix','Óscar','Rafa','Héctor','Ángel','Samuel','Nico','Mateo','Andrés','Alberto','Joaquín','Manuel','Luis','Antonio'],
+        last:['García','Fernández','González','Rodríguez','López','Martínez','Sánchez','Pérez','Gómez','Martín','Jiménez','Ruiz','Hernández','Díaz','Moreno','Muñoz','Álvarez','Romero','Alonso','Gutiérrez','Navarro','Torres','Domínguez','Vázquez','Ramos','Gil','Ramírez','Serrano','Blanco','Molina','Morales','Suárez','Ortega','Delgado','Castro','Ortiz','Rubio','Marín','Sanz','Iglesias','Medina','Garrido','Cortés','Castillo','Santos','Lozano','Guerrero','Cano','Prieto','Méndez','Cruz','Calvo','Gallego','Herrera','Márquez','León','Peña','Flores','Cabrera','Campos','Vidal','Fuentes','Carrasco','Diez','Arias','Reyes','Aguirre'] },
+  IT: { first:['Marco','Luca','Andrea','Matteo','Lorenzo','Alessandro','Francesco','Davide','Simone','Federico','Riccardo','Gianluca','Nicolò','Stefano','Giorgio','Tommaso','Leonardo','Gabriele','Daniele','Fabio','Antonio','Giovanni','Pietro','Mattia','Edoardo','Filippo','Emanuele','Alberto','Paolo','Massimo','Ciro','Gennaro','Salvatore','Domenico','Vincenzo','Raffaele','Sandro','Manuel','Giacomo','Michele','Christian','Mirko','Samuele','Diego'],
+        last:['Rossi','Russo','Ferrari','Esposito','Bianchi','Romano','Colombo','Ricci','Marino','Greco','Bruno','Gallo','Conti','De Luca','Mancini','Costa','Giordano','Rizzo','Lombardi','Moretti','Barbieri','Fontana','Santoro','Mariani','Rinaldi','Caruso','Ferrara','Galli','Martini','Leone','Longo','Gentile','Martinelli','Vitale','Lombardo','Serra','Coppola','De Santis','D\'Angelo','Marchetti','Parisi','Villa','Ferraro','Ferri','Fabbri','Bianco','Marini','Grasso','Valentini','Messina','Sala','De Rosa','Gatti','Pellegrini','Palumbo','Sanna','Farina','Rizzi','Monti','Cattaneo','Morelli','Amato','Silvestri','Mazza','Testa'] },
+  DE: { first:['Lukas','Leon','Finn','Jonas','Paul','Luis','Max','Felix','Elias','Noah','Ben','Tim','Jan','Niklas','Moritz','Julian','Florian','Tobias','Kevin','Marcel','Dennis','Sebastian','Philipp','Kai','Joshua','Nico','Robin','Maximilian','Fabian','Lennart','Malte','Jannik','Mats','Thilo','Benedikt','Leonard','Timo','Marvin','Pascal','Dominik','Matthias','Christian','Daniel','Jonathan'],
+        last:['Müller','Schmidt','Schneider','Fischer','Weber','Meyer','Wagner','Becker','Schulz','Hoffmann','Schäfer','Koch','Bauer','Richter','Klein','Wolf','Schröder','Neumann','Schwarz','Zimmermann','Braun','Krüger','Hofmann','Hartmann','Lange','Schmitt','Werner','Schmitz','Krause','Meier','Lehmann','Schmid','Schulze','Maier','Köhler','Herrmann','König','Walter','Mayer','Huber','Kaiser','Fuchs','Peters','Lang','Scholz','Möller','Weiß','Jung','Hahn','Schubert','Vogel','Friedrich','Keller','Günther','Frank','Berger','Winkler','Roth','Beck','Lorenz','Baumann','Franke','Albrecht'] },
+  PT: { first:['João','Tiago','Diogo','Rúben','Pedro','Miguel','Gonçalo','Rafael','André','Bruno','Nuno','Ricardo','Bernardo','Rodrigo','Francisco','Nélson','Renato','Hugo','Fábio','Paulo','Luís','Daniel','Vasco','Martim','Duarte','Gustavo','Afonso','Tomás','Henrique','Simão','Leonardo','Filipe','Hélder','Sérgio','Danilo','Jorge','Carlos'],
+        last:['Silva','Santos','Ferreira','Pereira','Oliveira','Costa','Rodrigues','Martins','Jesus','Sousa','Fernandes','Gonçalves','Gomes','Lopes','Marques','Alves','Almeida','Ribeiro','Pinto','Carvalho','Teixeira','Moreira','Correia','Mendes','Nunes','Soares','Vieira','Monteiro','Cardoso','Rocha','Raposo','Neves','Coelho','Cruz','Cunha','Pires','Ramos','Reis','Simões','Antunes','Matos','Fonseca','Machado','Araújo','Barbosa','Tavares','Lourenço','Castro','Figueiredo','Azevedo','Freitas','Leão','Neto'] },
+  NL: { first:['Daan','Sem','Lucas','Levi','Finn','Milan','Jesse','Thijs','Lars','Bram','Ruben','Stijn','Joost','Teun','Luuk','Sven','Niels','Wout','Matthijs','Steven','Ryan','Xavi','Cody','Joey','Quinten','Kenneth','Justin','Brian','Tim','Bart','Jasper','Koen','Rick','Dirk','Gijs','Mark'],
+        last:['de Jong','Jansen','de Vries','van den Berg','van Dijk','Bakker','Janssen','Visser','Smit','Meijer','de Boer','Mulder','de Groot','Bos','Vos','Peters','Hendriks','van Leeuwen','Dekker','Brouwer','de Wit','Dijkstra','Smits','de Graaf','van der Meer','van der Linden','Kok','Jacobs','de Haan','Vermeulen','van den Heuvel','van der Veen','van den Broek','de Bruijn','de Bruin','van der Heijden','Schouten','van Beek','Willems','van Vliet','Hoekstra','Maas','Verhoeven','Koster','Prins','Postma','Kuipers','Veenstra'] },
+  BE: { first:['Kevin','Thibaut','Youri','Axel','Jérémy','Arthur','Charles','Hans','Dries','Thomas','Timothy','Yannick','Maxime','Jan','Wout','Toby','Simon','Koen','Jelle','Senne','Lander','Arne','Bert','Robbe','Gilles','Mathias','Nicolas','Julien','Arnaud','Lucas','Mats','Hugo','Louis','Victor','Thibault','Pieter'],
+        last:['Peeters','Janssens','Maes','Jacobs','Mertens','Willems','Claes','Goossens','Wouters','De Smet','Dubois','Lambert','Dupont','Martens','Michiels','Hermans','Leclercq','Desmet','Van Damme','Vermeulen','De Clercq','Smets','Pauwels','Aerts','Verhaegen','Coppens','Lemmens','Hendrickx','Segers','Cools','Van Acker','Bogaert','Declercq','Lenaerts','Vandenberghe','Wuyts','Gielen'] },
+  BR: { first:['Gabriel','Lucas','Matheus','Pedro','Guilherme','Rafael','Felipe','Bruno','Thiago','Vinícius','Rodrigo','Éder','Danilo','Wesley','Douglas','Arthur','Willian','Philippe','Anderson','Paulo','Igor','João','Caio','Luan','Kaio','Renan','Diego','Murilo','Gerson','Everton','Fernando','Juninho','Leandro','Fábio','Marcelo','Ronaldo','Henrique','Vitor'],
+        last:['Silva','Santos','Oliveira','Souza','Rodrigues','Ferreira','Alves','Pereira','Lima','Gomes','Costa','Ribeiro','Martins','Carvalho','Almeida','Lopes','Soares','Fernandes','Vieira','Barbosa','Rocha','Dias','Nascimento','Andrade','Moreira','Nunes','Marques','Machado','Mendes','Freitas','Cardoso','Ramos','Gonçalves','Santana','Teixeira','Araújo','Moura','Cavalcanti','Monteiro','Batista','Bezerra','Pinto','Campos','Correia','Fonseca','Guimarães','Magalhães','Xavier'] },
+  AR: { first:['Santiago','Mateo','Joaquín','Tomás','Julián','Nicolás','Facundo','Agustín','Franco','Gonzalo','Ángel','Rodrigo','Leandro','Emiliano','Alexis','Nahuel','Valentín','Thiago','Gianluca','Maximiliano','Lucas','Ezequiel','Germán','Cristian','Marcos','Ramiro','Matías','Alan','Giovani','Claudio','Leonardo','Ignacio','Bruno','Juan','Federico','Pablo'],
+        last:['González','Rodríguez','Gómez','Fernández','López','Díaz','Martínez','Pérez','García','Sánchez','Romero','Sosa','Torres','Álvarez','Ruiz','Ramírez','Flores','Benítez','Acosta','Medina','Herrera','Suárez','Aguirre','Giménez','Gutiérrez','Pereyra','Rojas','Molina','Castro','Ortiz','Silva','Núñez','Luna','Juárez','Cabrera','Ríos','Ferreyra','Godoy','Morales','Domínguez','Moreno','Peralta','Vega','Carrizo','Quiroga','Ledesma','Paredes'] },
+  UY: { first:['Federico','Rodrigo','Manuel','Facundo','Matías','Nicolás','Agustín','Maximiliano','Sebastián','Diego','Gastón','Martín','Mathías','Lucas','Brian','Santiago','Franco','Joaquín','Bruno','Emiliano','Felipe','Thiago','Ignacio','Gonzalo','Juan','Pablo'],
+        last:['Rodríguez','González','Pérez','Fernández','García','Martínez','López','Silva','Suárez','Méndez','Píriz','Correa','Castro','Cabrera','Acosta','Sánchez','Olivera','Rocha','Morales','Sosa','Núñez','Viera','Techera','Da Silva','De León','Pereira','Ferreira','Álvarez','Benítez','Duarte'] },
+  SN: { first:['Moussa','Mamadou','Ibrahima','Cheikh','Abdoulaye','Pape','Idrissa','Ismaïla','Youssouf','Lamine','Boulaye','Habib','Pathé','Famara','Bamba','Alioune','Babacar','Modou','Ousmane','Assane','Malick','Ablaye','Saliou','Serigne','Demba','Aliou','Fodé','Bouna','Abdou','Mbaye','Souleymane'],
+        last:['Diop','Ndiaye','Sarr','Diallo','Sow','Fall','Gueye','Ba','Cissé','Faye','Diouf','Mbaye','Diatta','Kouyaté','Seck','Thiam','Ndoye','Niang','Badji','Diédhiou','Camara','Touré','Dieng','Ciss','Mendy','Samb','Wade','Kandji','Cissokho','Gassama','Diagne','Thioune','Dramé','Sylla','Ndao','Sène'] },
+  NG: { first:['Victor','Ademola','Samuel','Wilfred','Alex','Kelechi','Ahmed','Kenneth','Calvin','Joe','Taiwo','Chidozie','Frank','Raphael','Paul','Ola','Emmanuel','Chukwuemeka','Tolu','Umar','Ikechukwu','Chinedu','Bright','Benjamin','Gift','Stanley','Abdullahi','Nathan','Ebere','Tunde','Femi','Segun'],
+        last:['Okafor','Nwosu','Obi','Adebayo','Ogunleye','Olaniyan','Ugochukwu','Akinwale','Ibe','Babatunde','Ojo','Okonkwo','Adeyemi','Balogun','Eze','Okoye','Nwachukwu','Okeke','Uchenna','Bello','Danjuma','Abubakar','Adewale','Oyelaran','Afolabi','Chukwu','Onyekachi','Ezeh','Nnamdi','Olawale','Ogbu','Adeleke','Ige'] },
+  CI: { first:['Sébastien','Franck','Wilfried','Serge','Simon','Odilon','Evan','Willy','Christian','Oumar','Ibrahim','Jérémie','Hamed','Max','Nicolas','Yahia','Karim','Ghislain','Badra','Emmanuel','Lassina','Ismaël','Cheick','Hassane','Gervais','Salomon','Arsène','Didier'],
+        last:['Kouassi','Konan','Koné','Bamba','Traoré','Touré','Doumbia','Coulibaly','Kouamé','Yao','Diomandé','Ouattara','Guéi','Dao','Koffi','N\'Guessan','Kouadio','Aka','Brou','Tanoh','Gnahoré','Yapi','Zadi','Kacou','Assi','Ehui','Amani','Bédi','Kra','Ahoua'] },
+  MA: { first:['Achraf','Hakim','Youssef','Sofiane','Yassine','Romain','Azzedine','Bilal','Zakaria','Selim','Amine','Ilias','Ismael','Brahim','Oussama','Ayoub','Chadi','Munir','Anass','Hamza','Soufiane','Walid','Karim','Mehdi','Nabil','Adil','Rachid','Tarik','Driss','Mohamed','Omar','Reda','Imran'],
+        last:['El Amrani','Alaoui','Berrada','Tazi','Benjelloun','Lahlou','Cherkaoui','Idrissi','Amrani','Bennani','El Fassi','Bouzidi','Haddad','Benali','El Idrissi','Ouazzani','Kettani','Sebti','Benkirane','Lamrani','Chraibi','El Mansouri','Zouhair','Bakkali','Rami','Tahiri','Benchekroun','Naciri','El Ghazi','Belkadi','Moussaoui','Hajji','Fikri','Raji'] },
+  GH: { first:['Thomas','Mohammed','Jordan','André','Daniel','Tariq','Abdul','Alexander','Joseph','Kwame','Kofi','Kwabena','Yaw','Kwadwo','Kojo','Ernest','Elisha','Ransford','Gideon','Majeed','Osman','Salis','Baba','Emmanuel','Lawrence','Felix','Ibrahim','Kwesi','Ebo'],
+        last:['Mensah','Owusu','Agyemang','Ofori','Asante','Appiah','Acheampong','Boakye','Darko','Frimpong','Nkrumah','Opoku','Osei','Yeboah','Amoah','Boateng','Adjei','Ansah','Quaye','Tetteh','Annan','Addo','Bonsu','Danso','Gyamfi','Larbi','Nyarko','Sarpong','Wiredu','Asamoah'] },
+  CM: { first:['Vincent','Bryan','Karl','Samuel','Nicolas','Christian','Olivier','Frank','Clinton','Martin','Collins','Carlos','Jackson','Stéphane','Joël','Enzo','Christopher','Darlin','Jean','Paul','Arnaud','Herve','Rodrigue','Junior'],
+        last:['Mbarga','Nkoulou','Ondoa','Essomba','Ngono','Atangana','Fouda','Mballa','Owona','Abena','Bella','Ekotto','Eyenga','Tchami','Nana','Fotso','Kamga','Tchoupo','Djeumen','Nguemo','Biyik','Mbia','Song','Nlend','Moukoko','Ekambi','Ebongue','Njoh','Kameni','Manga'] },
+  EG: { first:['Mohamed','Mostafa','Ahmed','Omar','Mahmoud','Ramadan','Hamdi','Marwan','Akram','Karim','Amr','Hossam','Ibrahim','Tarek','Ali','Youssef','Ziad','Kamal','Hany','Ayman','Nabil','Walid','Sherif','Osama','Islam','Khaled','Abdallah','Hazem'],
+        last:['Hassan','Mostafa','Ibrahim','Hamed','Sayed','Mansour','Saber','Nasser','Farag','Eid','Gamal','Fawzy','Abdelaziz','Soliman','Mahmoud','Shawky','Rizk','Hegazy','Fathi','Ragab','Zaki','Morsi','Salem','Ashraf','Lotfy','Hamza','Badawi','Fahmy','Helmy','Nour'] },
+  DZ: { first:['Ismaël','Islam','Saïd','Aïssa','Ramy','Youcef','Amine','Houssem','Hicham','Adam','Rayan','Farès','Nabil','Mehdi','Sofiane','Yacine','Bilal','Haris','Ilan','Anis','Karim','Mohamed','Abdelkader','Djamel','Rafik','Walid','Nassim','Zinedine','Lyes'],
+        last:['Benali','Bouzid','Belkacem','Hamidi','Mansouri','Cherif','Saadi','Haddad','Benamar','Rahmani','Meziane','Djebbar','Khelifi','Boudiaf','Bensaïd','Zitouni','Laribi','Belhadj','Brahimi','Ferhat','Kaci','Mokrani','Toumi','Ouali','Amrani','Boukhari','Guessoum','Messaoudi','Lounis','Ait Ali'] },
+  TN: { first:['Youssef','Ellyes','Aïssa','Montassar','Dylan','Ali','Naïm','Anis','Seifeddine','Saad','Hamza','Mohamed','Ferjani','Elias','Omar','Yassine','Wajdi','Firas','Bilel','Haythem','Achref','Oussama','Aymen','Rami','Skander'],
+        last:['Ben Salah','Trabelsi','Gharbi','Jlassi','Ayari','Hammami','Mejri','Dridi','Bouazizi','Ben Ali','Chaabane','Karoui','Saidi','Mathlouthi','Hannachi','Jemal','Abid','Ben Youssef','Khemiri','Masmoudi','Riahi','Sassi','Zouari','Ferchichi','Belhadj','Nasri','Toumi','Kammoun'] },
+  US: { first:['Christian','Weston','Tyler','Tim','Josh','Matt','Zack','Walker','Chris','Malik','Brandon','Cameron','Jordan','Tanner','Caleb','Owen','Ethan','Logan','Diego','Johnny','Aidan','Cade','Jack','Miles','Mark','Julian','Jesus','Michael','Ryan','Kevin','Brian','Kyle','Andrew'],
+        last:['Smith','Johnson','Williams','Brown','Jones','Miller','Davis','Wilson','Anderson','Thomas','Moore','Martin','Jackson','Thompson','White','Harris','Clark','Lewis','Robinson','Walker','Young','Allen','King','Wright','Scott','Hill','Green','Adams','Nelson','Baker','Hall','Campbell','Mitchell','Carter','Roberts','Turner','Phillips','Parker','Evans','Collins','Stewart','Morris','Murphy','Cook','Rogers'] },
+  SC: { first:['Andrew','Scott','John','Callum','Kieran','Billy','Ryan','Lewis','Stuart','Craig','Kenny','Liam','Grant','Aaron','Ross','Jack','Lawrence','Tommy','Greg','Angus','Fraser','Hamish','Ewan','Euan','Calum','Rory','Murray','Duncan','Alistair','Gregor','Iain'],
+        last:['Campbell','Stewart','Anderson','Thomson','Murray','Reid','Paterson','Ross','Fraser','MacDonald','Mackenzie','Grant','Cameron','Hamilton','Kerr','Johnston','Boyd','Robertson','Smith','Brown','Wilson','Clark','Young','Watson','Mitchell','Morrison','Scott','Black','Ferguson','Graham','Muir','Henderson','Kennedy'] },
+  IE: { first:['Seamus','Evan','Nathan','Caoimhín','Gavin','Callum','Shane','Jayson','Matt','Josh','Troy','Jason','Adam','Mikey','Dara','Darragh','Cian','Oisín','Ronan','Conor','Eoin','Fionn','Niall','Séan','Tadhg','Liam','Aidan','Ciarán','Robbie'],
+        last:['Murphy','Kelly','Walsh','Byrne','Ryan','O\'Connor','O\'Sullivan','McCarthy','Doyle','Kennedy','Lynch','Quinn','Gallagher','Doherty','Fitzgerald','Nolan','O\'Brien','Brennan','Burke','Dunne','Farrell','Kavanagh','Moran','Power','Daly','Healy','Keane','Duffy','Collins','Coleman'] },
+  SUI: { first:['Manuel','Nico','Ricardo','Silvan','Fabian','Denis','Ruben','Noah','Dan','Cedric','Michel','Renato','Andi','Steven','Filip','Joël','Miro','Aurèle','Gregor','Fabio','Luca','Yannick','Kevin','Lars','Marco','Simon','Jonas','Florian','Pascal'],
+        last:['Müller','Meier','Schmid','Keller','Weber','Huber','Schneider','Meyer','Steiner','Fischer','Gerber','Brunner','Baumann','Frei','Zimmermann','Moser','Widmer','Wyss','Graf','Roth','Baumgartner','Bühler','Suter','Kälin','Bachmann','Favre','Rochat','Bonvin','Monnier','Perret'] },
+  AT: { first:['David','Marcel','Christoph','Konrad','Michael','Stefan','Philipp','Florian','Nicolas','Romano','Kevin','Patrick','Maximilian','Alexander','Gernot','Leopold','Matthias','Valentin','Lukas','Andreas','Dominik','Raphael','Thomas','Markus','Manuel','Julian'],
+        last:['Gruber','Huber','Wagner','Bauer','Müller','Pichler','Steiner','Moser','Mayer','Hofer','Leitner','Berger','Fuchs','Eder','Fischer','Schmid','Winkler','Weber','Schwarz','Maier','Reiter','Mayr','Schmidt','Wimmer','Egger','Brunner','Lang','Baumgartner','Auer','Binder','Lechner','Wolf','Wallner','Strobl'] },
+  DK: { first:['Christian','Kasper','Rasmus','Joachim','Andreas','Simon','Thomas','Mikkel','Jonas','Mathias','Victor','Jannik','Morten','Mads','Jesper','Kristoffer','Anders','Gustav','Oliver','Albert','Magnus','Frederik','Emil','Jakob','Nikolaj','Patrick','William','Lukas'],
+        last:['Nielsen','Jensen','Hansen','Pedersen','Andersen','Christensen','Larsen','Sørensen','Rasmussen','Jørgensen','Petersen','Madsen','Kristensen','Olsen','Thomsen','Christiansen','Poulsen','Johansen','Møller','Mortensen','Knudsen','Jakobsen','Mikkelsen','Olesen','Frederiksen','Laursen','Henriksen','Lund','Schmidt','Holm'] },
+  SE: { first:['Alexander','Viktor','Emil','Robin','Victor','Jesper','Mattias','Gustaf','Hugo','Anthony','Lucas','Ludwig','Samuel','Jens','Sebastian','Pontus','Oscar','Elliot','Carl','Axel','Filip','Kristoffer','Joel','Erik','Johan','Anton'],
+        last:['Johansson','Andersson','Karlsson','Nilsson','Eriksson','Larsson','Olsson','Persson','Svensson','Gustafsson','Pettersson','Jonsson','Jansson','Hansson','Bengtsson','Jönsson','Lindberg','Jakobsson','Magnusson','Lindström','Lindqvist','Lindgren','Berg','Axelsson','Bergström','Lundberg','Lundgren','Sandberg','Hedlund','Holm'] },
+  NO: { first:['Martin','Alexander','Sander','Kristian','Fredrik','Leo','Oscar','Jørgen','Ørjan','Mohamed','Ola','Julian','Andreas','Marcus','Patrick','Stian','Morten','Joshua','Aron','Felix','Henrik','Even','Eirik','Magnus','Sivert','Håkon','Tobias'],
+        last:['Hansen','Johansen','Olsen','Larsen','Andersen','Pedersen','Nilsen','Kristiansen','Jensen','Karlsen','Johnsen','Pettersen','Eriksen','Berg','Haugen','Hagen','Johannessen','Andreassen','Jacobsen','Dahl','Jørgensen','Halvorsen','Henriksen','Lund','Sørensen','Jakobsen','Moen','Gundersen','Iversen','Strand','Solberg'] },
+  POL: { first:['Piotr','Wojciech','Jakub','Kamil','Przemysław','Sebastian','Krzysztof','Arkadiusz','Bartosz','Mateusz','Karol','Jan','Paweł','Michał','Łukasz','Tomasz','Marcin','Adam','Kacper','Szymon','Bartłomiej','Damian','Patryk','Dawid','Filip','Maciej','Grzegorz'],
+        last:['Nowak','Kowalski','Wiśniewski','Wójcik','Kowalczyk','Kamiński','Lewandowski','Zieliński','Szymański','Woźniak','Dąbrowski','Kozłowski','Jankowski','Mazur','Kwiatkowski','Krawczyk','Piotrowski','Grabowski','Nowakowski','Pawłowski','Michalski','Nowicki','Adamczyk','Dudek','Zając','Wieczorek','Jabłoński','Król','Majewski','Olszewski','Jaworski','Wróbel'] },
+  HR: { first:['Luka','Ivan','Mateo','Josip','Marcelo','Andrej','Mario','Dominik','Lovro','Borna','Martin','Nikola','Ante','Marko','Bruno','Petar','Duje','Dejan','Domagoj','Šime','Igor','Kristijan','Toni','Ivica','Filip','Tomislav'],
+        last:['Horvat','Kovačević','Babić','Marić','Jurić','Novak','Kovačić','Knežević','Vuković','Marković','Petrović','Matić','Tomić','Pavlović','Kovač','Božić','Blažević','Grgić','Pavić','Radić','Perić','Šarić','Lovrić','Vidović','Jukić','Barišić','Bošnjak','Rukavina','Galić','Mandić'] },
+  RS: { first:['Dušan','Aleksandar','Nemanja','Filip','Luka','Strahinja','Saša','Lazar','Andrija','Ivan','Vanja','Uroš','Nikola','Miloš','Darko','Marko','Veljko','Stefan','Srđan','Predrag','Jovan','Petar','Bogdan','Vuk'],
+        last:['Jovanović','Petrović','Nikolić','Marković','Đorđević','Stojanović','Ilić','Stanković','Pavlović','Milošević','Popović','Đukić','Kostić','Mitrović','Živković','Ristić','Lazić','Savić','Tomić','Obradović','Simić','Vasić','Kovačević','Radovanović','Milenković','Lukić','Stevanović','Janković','Todorović','Božović'] },
+  TR: { first:['Hakan','Arda','Kerem','Kenan','Orkun','Merih','Ferdi','Salih','Çağlar','Mert','Barış','Cengiz','Uğurcan','İrfan','Semih','Yusuf','Okay','Zeki','Kaan','Emre','Burak','Ozan','Can','Efe','Berkan','Oğuz','Halil','Emir','Altay','Yunus','Serdar','Volkan'],
+        last:['Yılmaz','Kaya','Demir','Şahin','Çelik','Yıldız','Yıldırım','Öztürk','Aydın','Özdemir','Arslan','Doğan','Kılıç','Aslan','Çetin','Kara','Koç','Kurt','Özkan','Şimşek','Polat','Özçelik','Korkmaz','Çakır','Erdoğan','Yavuz','Aktaş','Güneş','Bulut','Tekin','Keskin','Ünal','Bozkurt','Acar','Taş'] },
+  GR: { first:['Kostas','Giorgos','Dimitris','Christos','Vangelis','Anastasios','Tasos','Fotis','Manolis','Odysseas','Petros','Konstantinos','Panagiotis','Lazaros','Andreas','Giannis','Michalis','Nikos','Thanasis','Pantelis','Sotiris','Vasilis','Charalampos','Christoforos','Stelios'],
+        last:['Papadopoulos','Georgiou','Nikolaou','Konstantinou','Dimitriou','Ioannou','Antoniou','Vasileiou','Makris','Christodoulou','Pappas','Karagiannis','Oikonomou','Papadakis','Alexiou','Athanasiou','Lambrou','Michailidis','Theodorou','Papageorgiou','Angelopoulos','Kyriakou','Mavridis','Panagiotou','Stavrou','Raptis','Galanis','Kostopoulos','Petridis','Zervas'] },
+  UA: { first:['Oleksandr','Mykhailo','Artem','Viktor','Ruslan','Andriy','Roman','Illia','Mykola','Heorhiy','Vitaliy','Taras','Serhiy','Yukhym','Bohdan','Vladyslav','Denys','Anatoliy','Maksym','Dmytro','Volodymyr','Yevhen','Ivan','Pavlo','Yuriy'],
+        last:['Kovalenko','Shevchenko','Bondarenko','Kovalchuk','Tkachenko','Kravchenko','Oliynyk','Shevchuk','Polishchuk','Lysenko','Marchenko','Boyko','Melnyk','Moroz','Savchenko','Rudenko','Petrenko','Klymenko','Pavlenko','Kozak','Levchenko','Ponomarenko','Vasylenko','Hrytsenko','Kuzmenko','Ivanenko','Tymoshenko','Karpenko'] },
+  CZ: { first:['Tomáš','Patrik','Vladimír','Adam','Antonín','Lukáš','Jan','Václav','Ondřej','David','Matěj','Pavel','Michal','Jakub','Petr','Martin','Jiří','Vojtěch','Filip','Ladislav','Robin','Jaroslav','Daniel','Marek'],
+        last:['Novák','Svoboda','Novotný','Dvořák','Černý','Procházka','Kučera','Veselý','Horák','Němec','Pokorný','Marek','Pospíšil','Hájek','Jelínek','Král','Růžička','Beneš','Fiala','Sedláček','Doležal','Zeman','Kolář','Navrátil','Čermák','Urban','Vaněk','Blažek','Kříž','Kovář'] },
+  ML: { first:['Amadou','Moussa','Hamari','Lassana','Falaye','Boubacar','Mamadou','Adama','Abdoulaye','Sékou','Mohamed','Ibrahima','Djigui','Kalifa','Fousseni','Cheick','Massadio','Mahamadou','Seydou','Bakary','Salif','Modibo','Souleymane','Yacouba','Oumar'],
+        last:['Traoré','Coulibaly','Diarra','Keïta','Koné','Diallo','Sangaré','Kanté','Sissoko','Touré','Camara','Diakité','Dembélé','Doumbia','Sacko','Kouyaté','Fofana','Maïga','Cissé','Sidibé','Konaté','Dramé','Bagayoko','Sylla','Samaké','Tounkara','Guindo','Ballo','Sanogo','Togola'] },
+  GN: { first:['Serhou','Mohamed','Amadou','Issiaga','Mory','Aguibou','Morgan','François','Saïdou','Facinet','Abdoulaye','Ibrahima','Ousmane','Sekou','Algassime','Mamadi','Lamine','Momo','Alhassane','Thierno','Boubacar','Alpha'],
+        last:['Diallo','Sylla','Konaté','Camara','Kanté','Soumah','Bah','Barry','Conté','Touré','Cissé','Sow','Kaba','Kouyaté','Fofana','Doumbouya','Bangoura','Kamano','Sankhon','Traoré','Condé','Keïta','Baldé','Haïdara','Kourouma','Fadiga','Diakité'] },
+  CD: { first:['Chancel','Cédric','Yoane','Arthur','Théo','Gaël','Simon','Silas','Meschack','Fiston','Joris','Dylan','Samuel','Axel','Aaron','Brian','Grady','Nathanaël','Jordan','Elia','Charles','Gédéon','Junior','Merveille','Trésor','Glody'],
+        last:['Kasongo','Ilunga','Tshibangu','Mulumba','Mbuyi','Kabongo','Ngoy','Kalonji','Lukusa','Mukendi','Tshimanga','Nzinga','Kabeya','Mutombo','Banza','Kalala','Kayembe','Mbala','Lokonda','Makiadi','Ndombe','Bokanga','Matondo','Ekanga','Masudi','Kitenge','Lumbala'] },
+  CV: { first:['Garry','Ryan','Jovane','Kenny','Logan','Jamiro','Dylan','Laros','Willy','Hélio','Kevin','Deroy','Yannick','Steven','Patrick','Sidny','João','Telmo','Nuno','Rui','Carlos'],
+        last:['Rodrigues','Mendes','Cabral','Tavares','Monteiro','Semedo','Lopes','Pina','Fortes','Gomes','Varela','Duarte','Andrade','Moreira','Brito','Silva','Rocha','Fernandes','Costa','Correia','Évora','Santos','Spencer','Delgado','Carvalho','Barros'] },
+  MX: { first:['Raúl','Edson','Santiago','Guillermo','Luis','Jorge','César','Johan','Henry','Uriel','Alexis','Héctor','Erick','Julián','Carlos','Diego','Andrés','Jesús','Marcelo','Gerardo','Roberto','Jonathan','Emilio','Rodrigo','Alan','Kevin','Miguel','Ángel','Fernando'],
+        last:['Hernández','García','Martínez','López','González','Pérez','Rodríguez','Sánchez','Ramírez','Flores','Torres','Ramos','Mendoza','Castillo','Morales','Ortiz','Guzmán','Cruz','Aguilar','Silva','Delgado','Vázquez','Jiménez','Reyes','Gutiérrez','Chávez','Ruiz','Álvarez','Romero','Herrera','Medina','Domínguez','Vargas'] },
+  CO: { first:['Luis','Juan','Jhon','Daniel','Richard','Rafael','Camilo','Jefferson','Wílmar','Mateus','Jorge','Kevin','Johan','Yáser','Carlos','Duván','Cristian','Andrés','Steven','Santiago','Deiver','Sebastián','Felipe'],
+        last:['Rodríguez','Díaz','Sánchez','Muñoz','Ríos','Santos','Vargas','Barrios','Uribe','Carrascal','Mojica','Córdoba','Machado','Zapata','Arias','Durán','Castaño','Quintero','Valencia','Cuesta','Murillo','Mosquera','Palacios','Gómez','Ospina','Restrepo','Cárdenas','Moreno','Rojas','Bernal'] },
+  CL: { first:['Arturo','Charles','Ben','Erick','Gary','Claudio','Eduardo','Mauricio','Paulo','Guillermo','Darío','Víctor','Marcelino','Diego','Rodrigo','Brayan','Felipe','Esteban','Gabriel','Matías','Ignacio','Sebastián','Cristóbal'],
+        last:['González','Muñoz','Rojas','Díaz','Pérez','Soto','Contreras','Silva','Martínez','Sepúlveda','Morales','Rodríguez','López','Fuentes','Araya','Espinoza','Carrasco','Torres','Núñez','Valenzuela','Castro','Reyes','Gutiérrez','Vergara','Tapia','Figueroa','Cortés','Vidal'] },
+  EC: { first:['Piero','Pervis','William','Ángelo','Félix','Kendry','Jeremy','Gonzalo','Carlos','Alan','Jhegson','Willian','Kevin','Joel','Jordy','John','Ángel','Byron','Michael','Jefferson','Bryan'],
+        last:['Valencia','Torres','Páez','Sarmiento','Plata','Gruezo','Franco','Méndez','Mena','Rodríguez','Ordóñez','Arboleda','Castillo','Cifuentes','Domínguez','Porozo','Hurtado','Quiñónez','Angulo','Corozo','Caicedo','Minda','Ibarra','Reasco','Mina','Cortez','Estrada','Vera'] },
+  JP: { first:['Wataru','Takehiro','Daichi','Ritsu','Junya','Ko','Hidemasa','Takumi','Ayase','Daizen','Shuto','Hiroki','Yuki','Keito','Koki','Daiki','Kento','Sota','Haruto','Yuto','Ren','Riku','Kaito','Shota','Takuma','Yuya','Hiroshi','Kenji'],
+        last:['Sato','Suzuki','Takahashi','Tanaka','Watanabe','Ito','Yamamoto','Nakamura','Kobayashi','Kato','Yoshida','Yamada','Sasaki','Yamaguchi','Matsumoto','Inoue','Kimura','Hayashi','Shimizu','Yamazaki','Mori','Abe','Ikeda','Hashimoto','Ishikawa','Ogawa','Okada','Hasegawa','Fujita','Goto','Kondo','Murakami','Endo','Aoki','Sakamoto'] },
+  KR: { first:['Min-jae','Hee-chan','Woo-yeong','Jae-sung','In-beom','Gue-sung','Seung-ho','Young-gwon','Jin-su','Seol-young','Hyeon-gyu','Jun-ho','Tae-hwan','Seung-woo','Dong-gyeong','Sang-ho','Myung-jae','Chang-hoon','Jin-woo','Min-kyu','Ji-hoon','Hyun-woo','Sung-min'],
+        last:['Kim','Lee','Park','Choi','Jung','Kang','Cho','Yoon','Jang','Lim','Han','Oh','Seo','Shin','Kwon','Hwang','Ahn','Song','Jeon','Hong','Ko','Moon','Yang','Son','Bae','Baek','Heo','Yoo','Nam','Noh'] },
+  KSA: { first:['Salem','Firas','Mohammed','Saud','Abdulrahman','Ali','Abdullah','Hassan','Nasser','Sultan','Saleh','Yasser','Fahad','Hattan','Turki','Nawaf','Ayman','Khalid','Riyadh','Musab','Ziyad','Faisal','Majed','Omar'],
+        last:['Al-Qahtani','Al-Harbi','Al-Otaibi','Al-Zahrani','Al-Ghamdi','Al-Mutairi','Al-Anazi','Al-Shammari','Al-Dosari','Al-Shehri','Al-Malki','Al-Juhani','Al-Subaie','Al-Rashidi','Al-Asmari','Al-Yami','Al-Amri','Al-Hamdan','Al-Ghannam','Al-Faraj','Al-Saleh','Al-Saud','Al-Khaldi','Al-Shahrani','Al-Bishi'] },
+  AU: { first:['Mathew','Harry','Jackson','Riley','Craig','Mitchell','Aiden','Connor','Martin','Jordan','Keanu','Cameron','Alessandro','Jason','Lewis','Kye','Thomas','Bailey','Nathaniel','Marco','Brandon','Tim','Mile','Josh','Lachlan','Liam'],
+        last:['Smith','Jones','Williams','Brown','Wilson','Taylor','Johnson','White','Martin','Anderson','Thompson','Nguyen','Thomas','Walker','Harris','Lee','Ryan','Robinson','Kelly','King','Davis','Wright','Evans','Roberts','Green','Hall','Wood','Jackson','Clarke','Mitchell','Hughes','Murphy','Campbell'] },
+  CA: { first:['Jonathan','Cyle','Tajon','Stephen','Ismaël','Alistair','Richie','Kamal','Derek','Jacob','Liam','Junior','Ali','Dayne','Maxime','Mathieu','Samuel','Luc','Jayden','Lucas','Theo','Nathan','Ethan','Owen','Logan'],
+        last:['Smith','Brown','Tremblay','Martin','Roy','Wilson','MacDonald','Gagnon','Johnson','Taylor','Côté','Campbell','Anderson','Leblanc','Lee','Jones','White','Williams','Miller','Thompson','Gauthier','Young','Morin','Lavoie','Bouchard','Fortin','Gélinas','Ouellet','Bélanger','Fraser'] },
 };
+// réservoirs d'emprunt sans nationalité propre (noms d'origine vietnamienne en France, afro-britanniques, surinamiens…)
+const NAME_EXTRA = {
+  FRV: { first:['Minh','Nam','Vincent','Kevin','Thomas','Anthony','Jean','Alexandre','Paul','Thierry'], last:['Nguyen','Tran','Le','Pham','Hoang','Vu','Phan','Truong','Dang','Bui','Do','Ngo','Duong','Ly','Wong','Chen','Zhang'] },
+  ENC: { first:['Marcus','Reece','Ethan','Tyrick','Ian','Jaden','Kaine','Ashley','Jermaine','Theo','Daniel','Jamal','Tyrone','Dwayne','Kwame','Leon'], last:['Campbell','Richards','Grant','Francis','Clarke','Thomas','Gordon','Morgan','Henry','Reid','Bailey','Forbes','Barrett','Brown','Williams','Graham','Walters','Gayle'] },
+  NLS: { first:['Denzel','Ryan','Patrick','Clarence','Edgar','Jimmy','Quincy','Stefan','Myron','Calvin','Brian','Glenn','Romano','Delano','Gino','Shaquille'], last:['Wijngaarde','Sabajo','Pinas','Fernandes','Kartodikromo','Lie A Fo','Doelwijt','Brunings','Mangroe','Tjin A Djie','Amatmoekrim','Vanenburg','Zeegelaar','Kanhai','Ramdin','Biharie','Hooghart','Wolff'] },
+};
+// une origine (profil de population) peut porter les noms d'autres pays : un Français d'origine maghrébine
+// porte un nom du Maghreb, un Belge d'origine congolaise un nom congolais, etc. (cohérence nom <-> visage)
+const ORIGIN_NAMES = {'FR': {'naf': ['MA', 'DZ', 'TN'], 'waf': ['SN', 'CI', 'ML', 'GN', 'CM', 'CD'], 'mix': ['CV', 'CD', 'CM'], 'eas': ['FRV']}, 'EN': {'waf': ['NG', 'GH'], 'mix': ['ENC'], 'eas': ['FRV']}, 'BE': {'waf': ['CD', 'CM'], 'naf': ['MA']}, 'NL': {'mix': ['NLS'], 'waf': ['GH', 'NG'], 'naf': ['MA']}, 'DE': {'mea': ['TR'], 'waf': ['GH', 'NG', 'CM'], 'mix': ['GH']}, 'PT': {'waf': ['CV'], 'mix': ['CV', 'BR']}, 'ES': {'naf': ['MA'], 'waf': ['GN', 'SN'], 'lat': ['AR', 'CO']}, 'IT': {'waf': ['NG', 'SN', 'CI'], 'naf': ['MA']}, 'SUI': {'bal': ['HR', 'RS'], 'waf': ['CD', 'CM'], 'seu': ['IT', 'PT']}, 'AT': {'bal': ['HR', 'RS'], 'mea': ['TR']}, 'SE': {'mea': ['TR'], 'waf': ['GH', 'NG'], 'bal': ['RS', 'HR']}, 'NO': {'waf': ['GH', 'NG'], 'mea': ['TR']}, 'DK': {'waf': ['GH', 'NG'], 'mea': ['TR']}, 'US': {'lat': ['MX', 'CO'], 'eas': ['KR', 'JP']}, 'CA': {'waf': ['GH', 'NG', 'CD'], 'lat': ['MX', 'CO'], 'eas': ['KR']}, 'AU': {'eas': ['KR', 'JP'], 'seu': ['IT', 'GR'], 'bal': ['HR', 'RS']}, 'BR': {}, 'CO': {}, 'EC': {}, 'UY': {}};
 const NAT_CODES = Object.keys(NAME_POOLS);
-const NAT_FLAG = { FR:'🇫🇷',EN:'\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}',ES:'🇪🇸',IT:'🇮🇹',DE:'🇩🇪',PT:'🇵🇹',NL:'🇳🇱',BE:'🇧🇪',BR:'🇧🇷',AR:'🇦🇷',UY:'🇺🇾',SN:'🇸🇳',NG:'🇳🇬',CI:'🇨🇮',MA:'🇲🇦',US:'🇺🇸',GH:'🇬🇭',CM:'🇨🇲',EG:'🇪🇬',DZ:'🇩🇿',TN:'🇹🇳' };
-const NAT_NAME = { FR:'France',EN:'Angleterre',ES:'Espagne',IT:'Italie',DE:'Allemagne',PT:'Portugal',NL:'Pays-Bas',BE:'Belgique',BR:'Brésil',AR:'Argentine',UY:'Uruguay',SN:'Sénégal',NG:'Nigéria',CI:"Côte d'Ivoire",MA:'Maroc',US:'États-Unis',GH:'Ghana',CM:'Cameroun',EG:'Égypte',DZ:'Algérie',TN:'Tunisie' };
+const NAT_FLAG = { FR:'🇫🇷',EN:'\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}',ES:'🇪🇸',IT:'🇮🇹',DE:'🇩🇪',PT:'🇵🇹',NL:'🇳🇱',BE:'🇧🇪',BR:'🇧🇷',AR:'🇦🇷',UY:'🇺🇾',SN:'🇸🇳',NG:'🇳🇬',CI:'🇨🇮',MA:'🇲🇦',GH:'🇬🇭',CM:'🇨🇲',EG:'🇪🇬',DZ:'🇩🇿',TN:'🇹🇳',US:'🇺🇸',SC:'\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}',IE:'🇮🇪',SUI:'🇨🇭',AT:'🇦🇹',DK:'🇩🇰',SE:'🇸🇪',NO:'🇳🇴',POL:'🇵🇱',HR:'🇭🇷',RS:'🇷🇸',TR:'🇹🇷',GR:'🇬🇷',UA:'🇺🇦',CZ:'🇨🇿',ML:'🇲🇱',GN:'🇬🇳',CD:'🇨🇩',CV:'🇨🇻',MX:'🇲🇽',CO:'🇨🇴',CL:'🇨🇱',EC:'🇪🇨',JP:'🇯🇵',KR:'🇰🇷',KSA:'🇸🇦',AU:'🇦🇺',CA:'🇨🇦' };
+const NAT_NAME = { FR:'France',EN:'Angleterre',ES:'Espagne',IT:'Italie',DE:'Allemagne',PT:'Portugal',NL:'Pays-Bas',BE:'Belgique',BR:'Brésil',AR:'Argentine',UY:'Uruguay',SN:'Sénégal',NG:'Nigéria',CI:'Côte d\'Ivoire',MA:'Maroc',GH:'Ghana',CM:'Cameroun',EG:'Égypte',DZ:'Algérie',TN:'Tunisie',US:'États-Unis',SC:'Écosse',IE:'Irlande',SUI:'Suisse',AT:'Autriche',DK:'Danemark',SE:'Suède',NO:'Norvège',POL:'Pologne',HR:'Croatie',RS:'Serbie',TR:'Turquie',GR:'Grèce',UA:'Ukraine',CZ:'Tchéquie',ML:'Mali',GN:'Guinée',CD:'RD Congo',CV:'Cap-Vert',MX:'Mexique',CO:'Colombie',CL:'Chili',EC:'Équateur',JP:'Japon',KR:'Corée du Sud',KSA:'Arabie saoudite',AU:'Australie',CA:'Canada' };
+// Origines (profils de population) par nationalité : fixent à la fois le nom (ORIGIN_NAMES) et le visage du joueur
+// (même table que portraits/src/genome.js, vérifiée par tests/portraits.test.js). Pas de plancher artificiel :
+// un Sénégalais est d'origine ouest-africaine, un Français peut être d'origine européenne, maghrébine, africaine…
+const NAT_ORIGINS = {
+  FR: { neu: 0.32, seu: 0.28, waf: 0.17, naf: 0.14, mix: 0.06, eas: 0.03 }, EN: { neu: 0.72, waf: 0.12, mix: 0.1, seu: 0.02, eas: 0.04 },
+  ES: { seu: 0.9, naf: 0.04, waf: 0.03, lat: 0.03 }, IT: { seu: 0.94, waf: 0.03, naf: 0.03 }, DE: { neu: 0.8, seu: 0.05, mea: 0.08, waf: 0.04, mix: 0.03 },
+  PT: { seu: 0.82, waf: 0.08, mix: 0.1 }, NL: { neu: 0.76, mix: 0.12, waf: 0.06, naf: 0.06 }, BE: { neu: 0.7, seu: 0.06, waf: 0.14, naf: 0.1 },
+  BR: { seu: 0.4, mix: 0.38, waf: 0.17, lat: 0.05 }, AR: { seu: 0.85, lat: 0.15 }, UY: { seu: 0.82, lat: 0.12, mix: 0.06 },
+  US: { neu: 0.45, waf: 0.27, mix: 0.1, lat: 0.13, eas: 0.05 },
+  SN: { waf: 1 }, NG: { waf: 1 }, CI: { waf: 1 }, CM: { waf: 1 }, GH: { waf: 1 }, ML: { waf: 1 }, GN: { waf: 1 }, CD: { waf: 1 }, CV: { mix: 0.7, waf: 0.3 },
+  MA: { naf: 1 }, DZ: { naf: 1 }, TN: { naf: 1 }, EG: { naf: 1 },
+  SC: { neu: 0.95, waf: 0.03, mix: 0.02 }, IE: { neu: 0.95, waf: 0.03, mix: 0.02 }, SUI: { neu: 0.6, seu: 0.12, bal: 0.12, waf: 0.1, mix: 0.06 },
+  AT: { neu: 0.78, bal: 0.12, mea: 0.07, waf: 0.03 }, DK: { neu: 0.82, waf: 0.07, mea: 0.06, mix: 0.05 }, NO: { neu: 0.82, waf: 0.08, mea: 0.05, mix: 0.05 },
+  SE: { neu: 0.74, mea: 0.08, waf: 0.08, bal: 0.06, mix: 0.04 }, POL: { bal: 0.7, neu: 0.3 }, CZ: { bal: 0.6, neu: 0.4 }, UA: { bal: 1 }, HR: { bal: 1 }, RS: { bal: 1 },
+  TR: { mea: 1 }, GR: { seu: 0.9, bal: 0.1 }, KSA: { mea: 0.85, waf: 0.1, mix: 0.05 },
+  MX: { lat: 0.8, seu: 0.2 }, CO: { lat: 0.6, mix: 0.25, seu: 0.15 }, CL: { lat: 0.6, seu: 0.4 }, EC: { lat: 0.6, mix: 0.25, waf: 0.15 },
+  JP: { eas: 1 }, KR: { eas: 1 }, AU: { neu: 0.7, seu: 0.1, eas: 0.1, bal: 0.05, waf: 0.05 }, CA: { neu: 0.62, waf: 0.1, eas: 0.1, lat: 0.08, mix: 0.1 },
+};
 
 // régions de scouting (cahier des charges) -> mappées aux pools de nationalité
-const SCOUT_REGIONS = [
-  { id:'FR', label:'France', nats:['FR'] },
-  { id:'EN', label:'Angleterre', nats:['EN'] },
-  { id:'ES', label:'Espagne', nats:['ES'] },
-  { id:'IT', label:'Italie', nats:['IT'] },
-  { id:'DE', label:'Allemagne', nats:['DE'] },
-  { id:'PT', label:'Portugal', nats:['PT'] },
-  { id:'NL', label:'Pays-Bas', nats:['NL'] },
-  { id:'BE', label:'Belgique', nats:['BE'] },
-  { id:'BR', label:'Brésil', nats:['BR'] },
-  { id:'AR', label:'Argentine', nats:['AR'] },
-  { id:'UY', label:'Uruguay', nats:['UY'] },
-  { id:'SN', label:'Sénégal', nats:['SN'] },
-  { id:'NG', label:'Nigéria', nats:['NG'] },
-  { id:'CI', label:"Côte d'Ivoire", nats:['CI'] },
-  { id:'MA', label:'Maroc', nats:['MA'] },
-  { id:'GH', label:'Ghana', nats:['GH'] },
-  { id:'CM', label:'Cameroun', nats:['CM'] },
-  { id:'EG', label:'Égypte', nats:['EG'] },
-  { id:'DZ', label:'Algérie', nats:['DZ'] },
-  { id:'TN', label:'Tunisie', nats:['TN'] },
-  { id:'US', label:'États-Unis', nats:['US'] },
-];
+const SCOUT_REGIONS = NAT_CODES.map(c => ({ id: c, label: NAT_NAME[c], nats: [c] }));
 // Paliers de budget de mission (V8, "choisir zone + budget") : investir plus ne se contente pas d'afficher un
 // meilleur chiffre, ça réduit vraiment l'incertitude du rapport (accuracyBonus) en plus du nombre de profils
 // repérés — exactement ce que demande "les bons recruteurs réduisent l'incertitude".
@@ -1091,11 +1434,46 @@ function pickNationalityForClub(club) {
   const league = LEAGUES.find(l => l.id === club.league);
   const homeNat = league ? league.nat : 'FR';
   if (Math.random() < 0.65 && NAME_POOLS[homeNat]) return homeNat;
-  return choice(NAT_CODES);
+  // étranger : plus souvent d'un pays proche de ce championnat (langue, histoire, migrations du football)
+  return weightedChoice(NAT_CODES.filter(n => n !== homeNat), n => Math.pow(countryAffinity(n, homeNat), 1.5));
 }
-function genName(nat) {
-  const pool = NAME_POOLS[nat] || NAME_POOLS.FR;
+function pickOrigin(nat) {
+  const w = NAT_ORIGINS[nat]; if (!w) return null;
+  return weightedChoice(Object.keys(w), k => w[k]);
+}
+// prénom et nom selon la nationalité et l'origine : un Français d'origine maghrébine porte (le plus souvent) un nom
+// du Maghreb, etc. — le visage suit la même origine (portraits).
+function genName(nat, origin) {
+  const own = NAME_POOLS[nat] || NAME_POOLS.FR;
+  const borrow = origin && ORIGIN_NAMES[nat] && ORIGIN_NAMES[nat][origin];
+  const code = borrow && borrow.length ? choice(borrow) : null;
+  const src = code ? (NAME_POOLS[code] || NAME_EXTRA[code]) : null;
+  const pool = src && Math.random() < 0.8 ? src : own;
+  // métis : souvent un prénom du pays et un nom de l'autre origine (ou l'inverse)
+  if (src && origin === 'mix' && Math.random() < 0.5) return { first: choice(own.first), last: choice(src.last) };
   return { first: choice(pool.first), last: choice(pool.last) };
+}
+// noms complets déjà portés dans le monde (V8.9) : 75 % des joueurs avaient un homonyme avec les anciens réservoirs
+const NAMES_IN_USE = new WeakMap();
+function namesInUse(state) {
+  let set = NAMES_IN_USE.get(state);
+  if (!set) { set = new Set(Object.values(state.players || {}).map(p => p.name)); NAMES_IN_USE.set(state, set); }
+  return set;
+}
+function uniqueName(state, nat, origin, previous) {
+  const used = state ? namesInUse(state) : null;
+  let nm;
+  for (let i = 0; i < 40; i++) { nm = genName(nat, origin); if (!used || !used.has(nm.first + ' ' + nm.last)) break; }
+  if (used) { if (previous) used.delete(previous); used.add(nm.first + ' ' + nm.last); }
+  return nm;
+}
+// change la nationalité d'un joueur déjà généré (recrues d'une région de scouting) : origine, nom et rêve suivent
+function assignIdentity(state, p, nat, origin) {
+  p.nat = nat; p.origin = origin || pickOrigin(nat);
+  const nm = uniqueName(state, nat, p.origin, p.name);
+  p.name = nm.first + ' ' + nm.last;
+  p.dreamCountry = pickDreamCountry(nat);
+  return p;
 }
 function baseOvrForTier(tier) {
   const table = { 5: [78, 90], 4: [74, 86], 3: [68, 80], 2: [62, 75], 1: [55, 70] };
@@ -1119,30 +1497,47 @@ function emptySeasonStats(pos) {
   if (pos === 'GK') return { apps: 0, cs: 0, saves: 0, ga: 0, ratingSum: 0, cardY: 0, cardR: 0, minutes: 0 };
   return { apps: 0, goals: 0, assists: 0, ratingSum: 0, cardY: 0, cardR: 0, minutes: 0 };
 }
-const BIG5_NAT = ['FR', 'EN', 'ES', 'IT', 'DE']; // seuls pays disposant de clubs jouables dans ce jeu
+const BIG5_NAT = ['FR', 'EN', 'ES', 'IT', 'DE'];
+// pays « de rêve » (V8.9) : tous ceux qui ont un championnat, pondérés par le prestige du football local
+const DREAM_PRESTIGE = { FR: 1, EN: 1, ES: 1, IT: 1, DE: 1, PT: 0.5, NL: 0.45, BE: 0.25, TR: 0.3, SC: 0.2, SUI: 0.15, AT: 0.15, DK: 0.15, GR: 0.15, BR: 0.25, AR: 0.2, US: 0.3, KSA: 0.35, JP: 0.12 };
+const DREAM_NATS = Object.keys(DREAM_PRESTIGE);
 // Affinité culturelle (V7) : combine langue, histoire des migrations footballistiques, proximité géographique
 // et climat en une seule table plutôt que trois calculs séparés — plus simple à régler, et le résultat est le
 // même genre de logique qu'un vrai recruteur utilise ("tel pays est un vivier naturel pour tel championnat").
 // Échelle 0-100 ; le pays natal (quand il a un championnat jouable) obtient toujours le score le plus haut.
 const COUNTRY_AFFINITY = {
-  FR: { FR: 92, EN: 42, ES: 38, IT: 32, DE: 32, PT: 28 },
-  EN: { EN: 92, FR: 32, ES: 28, IT: 24, DE: 28, PT: 20 },
-  ES: { ES: 92, PT: 55, IT: 35, FR: 32, DE: 24, EN: 28 },
-  IT: { IT: 92, ES: 35, FR: 32, DE: 28, EN: 28, PT: 24 },
-  DE: { DE: 92, EN: 34, FR: 24, ES: 24, IT: 24, PT: 16 },
-  PT: { PT: 92, ES: 55, FR: 34, EN: 26, IT: 22, DE: 16 },
-  NL: { EN: 44, DE: 44, FR: 28, ES: 24, IT: 20, PT: 16 },
-  BE: { FR: 54, EN: 34, DE: 28, ES: 20, IT: 20, PT: 16 },
-  BR: { PT: 70, ES: 40, EN: 34, IT: 30, FR: 24, DE: 18 },
-  AR: { ES: 74, IT: 44, FR: 28, EN: 28, PT: 22, DE: 18 },
-  UY: { ES: 74, IT: 34, EN: 24, FR: 22, PT: 18, DE: 14 },
-  SN: { FR: 68, EN: 28, ES: 20, IT: 18, PT: 18, DE: 18 },
-  NG: { EN: 68, FR: 24, ES: 18, IT: 18, PT: 18, DE: 18 },
-  CI: { FR: 68, EN: 24, ES: 18, IT: 18, PT: 18, DE: 18 },
-  MA: { FR: 64, ES: 44, EN: 22, IT: 22, PT: 18, DE: 18 },
-  US: { EN: 58, ES: 30, DE: 24, FR: 22, IT: 22, PT: 18 },
+  FR: { FR: 92, EN: 42, ES: 38, IT: 32, DE: 32, PT: 28, BE: 54, SUI: 40, US: 24, KSA: 22 },
+  EN: { EN: 92, FR: 32, ES: 28, IT: 24, DE: 28, PT: 20, SC: 48, US: 36, NL: 26, KSA: 22 },
+  ES: { ES: 92, PT: 55, IT: 35, FR: 32, DE: 24, EN: 28, AR: 34, US: 26, MX: 30, KSA: 22 },
+  IT: { IT: 92, ES: 35, FR: 32, DE: 28, EN: 28, PT: 24, SUI: 36, AR: 26, US: 24 },
+  DE: { DE: 92, EN: 34, FR: 24, ES: 24, IT: 24, PT: 16, AT: 66, SUI: 54, NL: 40, DK: 30, US: 24 },
+  PT: { PT: 92, ES: 55, FR: 34, EN: 26, IT: 22, DE: 16, BR: 54, US: 22, KSA: 22 },
+  NL: { EN: 44, DE: 44, FR: 28, ES: 24, IT: 20, PT: 16, BE: 60 },
+  BE: { FR: 54, EN: 34, DE: 28, ES: 20, IT: 20, PT: 16, NL: 56 },
+  BR: { PT: 70, ES: 40, EN: 34, IT: 30, FR: 24, DE: 18, BR: 92, US: 30, KSA: 30, JP: 24 },
+  AR: { ES: 74, IT: 44, FR: 28, EN: 28, PT: 22, DE: 18, AR: 92, BR: 30, US: 34, MX: 30 },
+  UY: { ES: 74, IT: 34, EN: 24, FR: 22, PT: 18, DE: 14, AR: 54, BR: 36, US: 26 },
+  SN: { FR: 68, EN: 28, ES: 20, IT: 18, PT: 18, DE: 18, BE: 40, TR: 30, KSA: 24 },
+  NG: { EN: 68, FR: 24, ES: 18, IT: 18, PT: 18, DE: 18, BE: 32, TR: 32, US: 26, NL: 28 },
+  CI: { FR: 68, EN: 24, ES: 18, IT: 18, PT: 18, DE: 18, BE: 42, TR: 28, KSA: 22 },
+  MA: { FR: 64, ES: 44, EN: 22, IT: 22, PT: 18, DE: 18, BE: 48, NL: 46, KSA: 34, TR: 26 },
+  US: { EN: 58, ES: 30, DE: 24, FR: 22, IT: 22, PT: 18, US: 92 },
+  // V8.9 : nouvelles nationalités et nouveaux championnats (NL, BE, SC, TR, SUI, AT, DK, GR, BR, AR, US, KSA, JP)
+  SC: { EN: 62, SC: 92, IE: 45, NL: 26 }, IE: { EN: 66, SC: 50, US: 30 },
+  SUI: { DE: 55, IT: 38, FR: 42, AT: 50, SUI: 92 }, AT: { DE: 68, SUI: 45, IT: 26 },
+  DK: { DE: 42, EN: 46, NL: 40, IT: 30 }, SE: { DK: 52, NO: 50, EN: 44, DE: 40, NL: 36, IT: 30 }, NO: { DK: 50, EN: 50, DE: 36, NL: 34 },
+  POL: { DE: 48, IT: 34, EN: 32, TR: 24 }, CZ: { DE: 46, AT: 40, IT: 28 }, UA: { DE: 34, TR: 30, EN: 26, IT: 24 },
+  HR: { DE: 44, IT: 40, AT: 42, TR: 30, SUI: 32 }, RS: { DE: 38, IT: 36, TR: 34, GR: 36, AT: 32 },
+  TR: { DE: 44, NL: 30, BE: 26, EN: 24, FR: 24 }, GR: { DE: 32, IT: 30, EN: 26, TR: 20 },
+  ML: { FR: 66, BE: 36, TR: 28, KSA: 22 }, GN: { FR: 62, BE: 34, ES: 30 }, CD: { BE: 62, FR: 56, TR: 26 }, CV: { PT: 72, NL: 38, FR: 36 },
+  MX: { US: 58, ES: 46, NL: 26, AR: 28 }, CO: { AR: 42, ES: 44, US: 34, BR: 30, PT: 32, IT: 28 }, CL: { AR: 46, ES: 46, IT: 28, US: 24 }, EC: { ES: 40, US: 34, AR: 34, BR: 28 },
+  JP: { DE: 40, BE: 34, NL: 32, EN: 30, SC: 32, PT: 26, US: 24 }, KR: { DE: 36, EN: 34, FR: 26, SC: 26, KSA: 22 },
+  KSA: { ES: 22, EN: 22 }, AU: { EN: 48, SC: 44, US: 32, NL: 26, DE: 24 }, CA: { US: 62, FR: 30, EN: 34, SC: 26 },
+  EG: { EN: 30, FR: 30, KSA: 44, TR: 30, BE: 26 }, DZ: { FR: 70, BE: 30, KSA: 28, TR: 24 }, TN: { FR: 66, BE: 28, KSA: 30, TR: 26 },
+  GH: { EN: 56, DE: 34, BE: 30, NL: 32, US: 30 }, CM: { FR: 62, BE: 34, TR: 30, PT: 24 },
 };
 function countryAffinity(nat, leagueNat) {
+  if (nat === leagueNat) return 92;
   const row = COUNTRY_AFFINITY[nat];
   if (!row) return 22;
   return row[leagueNat] !== undefined ? row[leagueNat] : 22;
@@ -1150,7 +1545,7 @@ function countryAffinity(nat, leagueNat) {
 function pickDreamCountry(nat) {
   // pondéré par l'affinité plutôt qu'un simple tirage : un Brésilien rêve plus souvent du Portugal que de l'Allemagne,
   // un Sénégalais de la France, etc. — tout en gardant une vraie variété (ce n'est jamais déterministe à 100%).
-  return weightedChoice(BIG5_NAT, n => Math.pow(countryAffinity(nat, n), 1.6));
+  return weightedChoice(DREAM_NATS, n => Math.pow(countryAffinity(nat, n), 1.6) * DREAM_PRESTIGE[n]);
 }
 // Opportunités de temps de jeu (V7) : un club qui a déjà deux joueurs meilleurs au même poste offre un avenir
 // bien moins engageant qu'un club où le poste est ouvert — ce facteur pèse dans le choix des clubs intéressés
@@ -1163,7 +1558,8 @@ function estimatePlayingTimeOutlook(state, club, player) {
 function generatePlayer(state, opts = {}) {
   const { club = null, ageMin = 18, ageMax = 33, forcedPos = null, isYouth = false } = opts;
   const nat = club ? pickNationalityForClub(club) : choice(NAT_CODES);
-  const { first, last } = genName(nat);
+  const origin = pickOrigin(nat);
+  const { first, last } = uniqueName(state, nat, origin);
   const pos = forcedPos || choice(POSITIONS).code;
   const posMeta = POSITIONS.find(p => p.code === pos) || POSITIONS[0];
   const age = isYouth ? randInt(15, 19) : randInt(ageMin, ageMax);
@@ -1195,7 +1591,7 @@ function generatePlayer(state, opts = {}) {
   const wage = computeWage(value, tier);
   const id = nextId(state, 'p');
   return {
-    id, name: first + ' ' + last, nat, pos, posLine: posMeta.line,
+    id, name: first + ' ' + last, nat, origin, pos, posLine: posMeta.line,
     club: club ? club.id : null, age, ovr, pot,
     foot: choice(['Droit', 'Gauche', 'Ambidextre']),
     value, wage, contractUntil: club ? (seasonStartYearFromScratch(state) + randInt(1, 4)) : null,
@@ -1290,29 +1686,45 @@ function neededPositionForClub(state, club) {
   }
   return choice(best);
 }
-function initWorld(state) {
-  state.leagues = {}; state.clubs = {}; state.players = {};
-  for (const lg of LEAGUES) state.leagues[lg.id] = { id: lg.id, name: lg.name, country: lg.country, clubIds: [], fixtures: [] };
-  for (const [lgId, arr] of Object.entries(CLUB_RAW)) {
-    for (const [id, name, short, city, c1, c2, tier] of arr) {
-      const club = {
-        id, name, short, city, league: lgId, c1, c2, tier,
-        budget: tierBudget(tier), wageBudget: tierWageBudget(tier),
-        squad: [], table: emptyTableRow(), titlesWon: 0,
-      };
-      initClubEconomy(club);
-      state.clubs[id] = club;
-      state.leagues[lgId].clubIds.push(id);
-      for (const [posCode, count] of SQUAD_PLAN) {
-        for (let i = 0; i < count; i++) {
-          const p = generatePlayer(state, { club, forcedPos: posCode, ageMin: 18, ageMax: 33 });
-          state.players[p.id] = p;
-          club.squad.push(p.id);
-        }
+function addLeagueToWorld(state, lgId) {
+  const lg = LEAGUES.find(l => l.id === lgId);
+  state.leagues[lgId] = { id: lg.id, name: lg.name, country: lg.country, clubIds: [], fixtures: [] };
+  for (const [id, name, short, city, c1, c2, tier] of CLUB_RAW[lgId] || []) {
+    if (state.clubs[id]) continue;
+    const club = {
+      id, name, short, city, league: lgId, c1, c2, tier,
+      budget: tierBudget(tier), wageBudget: tierWageBudget(tier),
+      squad: [], table: emptyTableRow(), titlesWon: 0,
+    };
+    initClubEconomy(club);
+    state.clubs[id] = club;
+    state.leagues[lgId].clubIds.push(id);
+    for (const [posCode, count] of SQUAD_PLAN) {
+      for (let i = 0; i < count; i++) {
+        const p = generatePlayer(state, { club, forcedPos: posCode, ageMin: 18, ageMax: 33 });
+        state.players[p.id] = p;
+        club.squad.push(p.id);
       }
     }
   }
-  for (const lg of Object.values(state.leagues)) recomputeLeagueReputation(state, lg);
+  recomputeLeagueReputation(state, state.leagues[lgId]);
+}
+function initWorld(state) {
+  state.leagues = {}; state.clubs = {}; state.players = {};
+  for (const lg of LEAGUES) addLeagueToWorld(state, lg.id);
+}
+// partie commencée avant la V8.9 : les nouveaux championnats rejoignent le monde à l'intersaison, avec leurs
+// clubs et leurs joueurs (contrats alignés sur la saison qui commence), pour démarrer avec tout le monde
+function addMissingLeagues(state, news) {
+  const missing = LEAGUES.filter(l => !state.leagues[l.id]);
+  for (const lg of missing) {
+    addLeagueToWorld(state, lg.id);
+    for (const cid of state.leagues[lg.id].clubIds) for (const pid of state.clubs[cid].squad) {
+      const p = state.players[pid]; if (p && p.contractUntil) p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 4);
+    }
+  }
+  if (missing.length && news) news.push({ text: `Le monde du football s'agrandit : ${missing.length} nouveaux championnats (${missing.map(l => l.name).join(', ')}).`, tag: 'trophee' });
+  return missing.length;
 }
 
 // ---------- Calendrier de championnat (round-robin double, méthode du cercle) ----------
@@ -2317,8 +2729,7 @@ function progressScoutMissions(state, news) {
       for (let i = 0; i < n; i++) {
         const nat = choice(region.nats);
         const p = generatePlayer(state, { club: null, isYouth: true, forcedPos: choice(POSITIONS.filter(x => x.line !== 'GK' || Math.random() < 0.15)).code });
-        const nm = genName(nat);
-        p.nat = nat; p.name = nm.first + ' ' + nm.last;
+        assignIdentity(state, p, nat);
         state.players[p.id] = p;
         state.freeAgents = state.freeAgents || [];
         state.freeAgents.push(p.id);
@@ -3556,7 +3967,14 @@ function checkAchievements(state) {
 }
 
 // ---------- Ligue des Champions (compétition européenne, phase avancée saison suivante) ----------
-const EURO_QUALIFY_SLOTS = { PL: 7, LIGA: 7, SA: 6, BL: 6, L1: 6 }; // 32 places, réparties selon le prestige des championnats
+// 32 places réparties selon le prestige des championnats ; V8.9 : ouvertes aux autres championnats européens
+const EURO_QUALIFY_SLOTS = { PL: 5, LIGA: 5, SA: 5, BL: 5, L1: 4, PT: 2, ERE: 2, JPL: 1, SUL: 1, SPFL: 1, ABL: 1 };
+const BIG5_LEAGUES = ['PL', 'LIGA', 'SA', 'BL', 'L1'];
+// championnats européens de première division (les championnats hors d'Europe n'y ont pas accès)
+function euroEligibleLeagues(state) {
+  const bottoms = new Set(COUNTRY_PAIRS.map(p => p.bottom));
+  return LEAGUES.filter(l => l.zone === 'europe' && !bottoms.has(l.id) && state.leagues[l.id]).map(l => l.id);
+}
 function qualifyForEurope(state) {
   // les places européennes suivent la réputation dynamique des 5 grands championnats une fois qu'elle a été
   // calculée au moins une fois (state.euroSlots) ; sinon (toute première saison, ou sauvegarde très ancienne),
@@ -3774,7 +4192,15 @@ const CUP_DEFS = [
   { id: 'ES', name: 'Copa del Rey', leagues: ['LIGA', 'SEG'] },
   { id: 'IT', name: 'Coppa Italia', leagues: ['SA', 'SB'] },
   { id: 'DE', name: 'DFB-Pokal', leagues: ['BL', 'B2'] },
-  { id: 'PT', name: 'Taça de Portugal', leagues: ['PT'] },
+  { id: 'PT', name: 'Taça de Portugal', leagues: ['PT', 'PT2'] },
+  // V8.9
+  { id: 'NL', name: 'KNVB Beker', leagues: ['ERE'] }, { id: 'BE', name: 'Coupe de Belgique', leagues: ['JPL'] },
+  { id: 'SC', name: 'Scottish Cup', leagues: ['SPFL'] }, { id: 'TR', name: 'Coupe de Turquie', leagues: ['SUL'] },
+  { id: 'SUI', name: 'Coupe de Suisse', leagues: ['SSL'] }, { id: 'AT', name: "Coupe d'Autriche", leagues: ['ABL'] },
+  { id: 'DK', name: 'Coupe du Danemark', leagues: ['DSL'] }, { id: 'GR', name: 'Coupe de Grèce', leagues: ['GSL'] },
+  { id: 'BR', name: 'Copa do Brasil', leagues: ['BSA'] }, { id: 'AR', name: 'Copa Argentina', leagues: ['LPF'] },
+  { id: 'US', name: 'US Open Cup', leagues: ['MLS'] }, { id: 'KSA', name: 'Coupe du Roi', leagues: ['SPL'] },
+  { id: 'JP', name: "Coupe de l'Empereur", leagues: ['J1'] },
 ];
 const CUP_ROUND_MONTHS = { r32: 9, r16: 11, qf: 1, sf: 3, final: 5 };
 const CUP_NEXT_ROUND = { r32: 'r16', r16: 'qf', qf: 'sf', sf: 'final' };
@@ -3784,10 +4210,10 @@ function initCups(state) {
   for (const def of CUP_DEFS) {
     const clubs = def.leagues.flatMap(l => (state.leagues[l] || { clubIds: [] }).clubIds).map(id => state.clubs[id]).filter(Boolean)
       .sort((a, b) => (b.reputation || 0) - (a.reputation || 0));
-    const size = clubs.length >= 32 ? 32 : 16;
+    const size = clubs.length >= 32 ? 32 : clubs.length >= 16 ? 16 : 8; // 8 clubs (dès les quarts) pour les petits championnats
     if (clubs.length < size) continue;
     const entrants = clubs.slice(0, size).map(c => c.id).sort(() => Math.random() - 0.5);
-    state.cups[def.id] = { id: def.id, name: def.name, season: seasonLabel(state), round: size === 32 ? 'r32' : 'r16', ties: pairUp(entrants), history: [], winner: null };
+    state.cups[def.id] = { id: def.id, name: def.name, season: seasonLabel(state), round: { 32: 'r32', 16: 'r16', 8: 'qf' }[size], ties: pairUp(entrants), history: [], winner: null };
   }
 }
 function advanceCupsMonth(state, news, month) {
@@ -3873,10 +4299,13 @@ function updateClubAndLeagueReputation(state, news) {
   for (const lg of Object.values(state.leagues)) recomputeLeagueReputation(state, lg);
   // les places européennes des 5 grands championnats suivent désormais leur réputation, comme un vrai coefficient :
   // un championnat qui monte en puissance gagne des places l'année suivante, un championnat qui décline en perd.
-  const bigFive = ['PL', 'LIGA', 'SA', 'BL', 'L1'].filter(id => state.leagues[id]);
+  // V8.9 : 24 places pour les 5 grands championnats, réparties selon leur réputation (au moins 4 chacun), et 8 pour
+  // les six meilleurs autres championnats européens de première division (2, 2, 1, 1, 1, 1 selon leur réputation).
+  const rep = id => state.leagues[id].reputation || 0;
+  const bigFive = BIG5_LEAGUES.filter(id => state.leagues[id]);
   if (bigFive.length) {
-    const total = 32, minSlots = 4;
-    const reps = bigFive.map(id => Math.max(1, state.leagues[id].reputation));
+    const total = 24, minSlots = 4;
+    const reps = bigFive.map(id => Math.max(1, rep(id)));
     const sumRep = reps.reduce((a, b) => a + b, 0);
     const slots = bigFive.map((id, i) => Math.max(minSlots, Math.round(total * reps[i] / sumRep)));
     let diff = total - slots.reduce((a, b) => a + b, 0);
@@ -3887,6 +4316,8 @@ function updateClubAndLeagueReputation(state, news) {
     }
     state.euroSlots = {};
     bigFive.forEach((id, i) => { state.euroSlots[id] = slots[i]; });
+    const others = euroEligibleLeagues(state).filter(id => !BIG5_LEAGUES.includes(id)).sort((a, b) => rep(b) - rep(a));
+    [2, 2, 1, 1, 1, 1].forEach((n, i) => { if (others[i]) state.euroSlots[others[i]] = n; });
   }
   for (const c of bigDrops.slice(0, 2)) {
     news.push({ text: `${c.name} inquiète ses supporters : sa réputation s'effrite après une saison décevante.`, tag: 'finance', clubId: c.id });
@@ -3957,7 +4388,8 @@ function processEndOfSeason(state, news) {
   checkCareerStatusChanges(state, news);
   const targetPop = Object.keys(state.clubs).length * 23;
   const clubPop = Object.values(state.clubs).reduce((s, c) => s + c.squad.length, 0);
-  let toGenerate = clamp(targetPop - clubPop, 0, 400);
+  // plafond proportionnel au monde (V8.9 : 446 clubs ; l'ancien plafond fixe de 400 vidait peu à peu les effectifs)
+  let toGenerate = clamp(targetPop - clubPop, 0, Math.max(400, Object.keys(state.clubs).length * 2));
   for (let i = 0; i < toGenerate; i++) {
     const club = pickClubNeedingYouth(state);
     // un tiers des arrivants sont des joueurs formés (21-27 ans) venus de championnats non simulés (V8.3, audit P2-3) :
@@ -3992,6 +4424,7 @@ function processEndOfSeason(state, news) {
   checkSeasonGoals(state, news);
   state.agent.lastSeasonCommissions = summary.seasonCommissions || 0;
   state.agent.careerStats.seasonBestFee = 0;
+  addMissingLeagues(state, news); // V8.9 : parties en cours
   for (const lg of Object.values(state.leagues)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
   state.meta.totalSeasonsPlayed = (state.meta.totalSeasonsPlayed || 0) + 1;
   state.agent.seasonStartStats = { commissions: state.agent.careerStats.totalCommissions || 0, transfersDone: state.agent.careerStats.transfersDone || 0, titles: state.agent.careerStats.titlesWonAsAgent || 0 };
@@ -4164,9 +4597,7 @@ const EVENTS = [
       { label: 'Envoyer un recruteur en urgence (5 000€)', effect: (state, p, news) => {
         if (state.agent.cash >= 5000) {
           state.agent.cash -= 5000;
-          const nat = choice(NAT_CODES); const nm = genName(nat);
           const prospect = generatePlayer(state, { club: null, isYouth: true, forcedPos: choice(POSITIONS).code });
-          prospect.nat = nat; prospect.name = nm.first + ' ' + nm.last;
           if (Math.random() < 0.4) prospect.pot = clamp(prospect.pot + randInt(6, 14), 0, 99);
           state.players[prospect.id] = prospect;
           state.freeAgents = state.freeAgents || []; state.freeAgents.push(prospect.id);
@@ -4809,6 +5240,7 @@ const PLAYER_SAVE_FIELDS = [
   'benchStreak', 'startStreak', 'justBrokeIn', 'lastPitchAt', 'pitchLog', 'personalGoal', 'lastStatusMsgAt',
   'lastPermanentMove', // V8.4
   'reservedUntil', // V8.6
+  'origin', // V8.9 : origine (nom et visage cohérents)
 ];
 // Compaction de la sauvegarde : au-delà de l'aplatissement du joueur en tableau positionnel (PLAYER_SAVE_FIELDS),
 // les tableaux 'career' et 'trophies' sont eux aussi des tableaux d'objets répétés ~5000 fois (un par joueur actif) :
@@ -4892,6 +5324,33 @@ async function base64ToGunzip(b64) {
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return await new Response(stream).text();
 }
+// Repli IndexedDB (V8.9) : le monde a doublé (446 clubs) et la sauvegarde compressée atteint ~2,3 M caractères après
+// 20 saisons — sous le quota de Chrome, mais trop près de celui de certains navigateurs (Safari). Si localStorage
+// refuse l'écriture, la partie va dans IndexedDB, qui n'a pas cette limite ; le chargement lit les deux.
+let saveDbPromise = null;
+function saveDB() {
+  // connexion gardée ouverte : à la fermeture de la page, l'écriture de secours démarre sans attendre une ouverture
+  return saveDbPromise || (saveDbPromise = new Promise(resolve => {
+    try {
+      if (typeof indexedDB === 'undefined') return resolve(null);
+      const req = indexedDB.open('football_agent_save', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('s');
+      req.onsuccess = () => { saveDbHandle = req.result; resolve(req.result); }; req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  }));
+}
+let saveDbHandle = null; // connexion déjà ouverte, utilisable de façon synchrone à la fermeture de la page
+async function saveIdb(op, key, value) {
+  const db = await saveDB(); if (!db) return op === 'get' ? null : false;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction('s', op === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore('s');
+      const r = op === 'get' ? st.get(key) : op === 'put' ? st.put(value, key) : st.delete(key);
+      if (op === 'get') { r.onsuccess = () => resolve(r.result || null); r.onerror = () => resolve(null); }
+      else { tx.oncomplete = () => resolve(true); tx.onerror = tx.onabort = () => resolve(false); }
+    } catch (e) { resolve(op === 'get' ? null : false); }
+  });
+}
 // La compression est asynchrone : un compteur garantit qu'une écriture lente ne remplace jamais une plus récente,
 // et le dernier état reste disponible pour une écriture de secours si la page se ferme pendant la compression.
 let saveSeq = 0, pendingSaveJSON = null;
@@ -4906,8 +5365,17 @@ async function saveToLocalStorage(state) {
     const packed = await gzipToBase64(json);
     if (seq !== saveSeq) return true; // une sauvegarde plus récente est en cours : elle écrira à notre place
     pendingSaveJSON = null;
-    localStorage.setItem(SAVE_KEY_GZ, packed);
+    try {
+      localStorage.setItem(SAVE_KEY_GZ, packed);
+    } catch (quota) {
+      // trop gros pour localStorage : IndexedDB (sinon l'échec remonte et le bandeau d'alerte s'affiche)
+      if (!(await saveIdb('put', 'gz', packed))) throw quota;
+      try { localStorage.removeItem(SAVE_KEY_GZ); localStorage.removeItem(SAVE_KEY); } catch (e) { /* sans gravité */ }
+      saveIdb('del', 'raw');
+      return true;
+    }
     localStorage.removeItem(SAVE_KEY); // libère l'ancien format (et un éventuel secours de fermeture)
+    saveIdb('del', 'gz'); saveIdb('del', 'raw'); // une ancienne copie IndexedDB ne doit pas passer pour plus récente
     return true;
   } catch (e) {
     if (seq === saveSeq) pendingSaveJSON = null;
@@ -4916,7 +5384,11 @@ async function saveToLocalStorage(state) {
 }
 function flushPendingSaveOnUnload() {
   if (!pendingSaveJSON) return;
-  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); } catch (e) { /* trop gros pour le format brut : tant pis */ }
+  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); }
+  catch (e) {
+    // trop gros pour localStorage (monde V8.9) : secours IndexedDB, transaction lancée tout de suite
+    try { if (saveDbHandle) { const tx = saveDbHandle.transaction('s', 'readwrite', { durability: 'relaxed' }); tx.objectStore('s').put(pendingSaveJSON, 'raw'); if (tx.commit) tx.commit(); } } catch (e2) { /* tant pis */ }
+  }
 }
 // Sauvegarde présente mais illisible (V8.3, audit) : on la garde en mémoire pour la proposer au téléchargement
 // au lieu de la laisser écraser en silence par une nouvelle partie.
@@ -4934,17 +5406,26 @@ async function loadFromLocalStorage() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) found.push(deserializeState(raw));
   } catch (e) { /* idem */ }
+  try {
+    const idb = canCompressSave() ? await saveIdb('get', 'gz') : null;
+    if (idb) { rawSeen = rawSeen || idb; found.push(deserializeState(await base64ToGunzip(idb))); }
+  } catch (e) { /* copie IndexedDB illisible */ }
+  try {
+    const rawIdb = await saveIdb('get', 'raw');
+    if (rawIdb) found.push(deserializeState(rawIdb));
+  } catch (e) { /* secours de fermeture illisible */ }
   if (!found.length) { corruptSaveRaw = rawSeen; return null; }
   return found.sort((a, b) => ((b.meta && b.meta.saveCounter) || 0) - ((a.meta && a.meta.saveCounter) || 0))[0];
 }
 function deleteLocalStorageSave() {
   saveSeq++; pendingSaveJSON = null; // annule une écriture en cours
+  saveIdb('del', 'gz'); saveIdb('del', 'raw');
   try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_GZ); return true; } catch (e) { return false; }
 }
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES,
+    rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES, NAT_ORIGINS, NAME_POOLS, LEAGUES, LEAGUES_V89, addMissingLeagues,
     calMonth, seasonIdx, seasonStartYear, calYear, seasonLabel, advanceDate,
     generatePlayer, initWorld, generateRoundRobin, generateSeasonFixtures,
     simulateMatch, squadStrength, advanceMonth, processEndOfSeason, createNewGame,
@@ -5036,8 +5517,8 @@ const NAV_ITEMS = [
   { id:'ranking', label:'Classement', ico:'trophy' },
   { id:'world', label:'Monde', ico:'globe' },
 ];
-const ONBOARD_NATIONS = ['France','Angleterre','Espagne','Italie','Allemagne','Portugal','Pays-Bas','Belgique','Brésil','Argentine','Uruguay','Sénégal','Nigéria',"Côte d'Ivoire",'Maroc','États-Unis'];
-const ONBOARD_NAT_CODE = { France:'FR', Angleterre:'EN', Espagne:'ES', Italie:'IT', Allemagne:'DE', Portugal:'PT', 'Pays-Bas':'NL', Belgique:'BE', Brésil:'BR', Argentine:'AR', Uruguay:'UY', Sénégal:'SN', Nigéria:'NG', "Côte d'Ivoire":'CI', Maroc:'MA', 'États-Unis':'US' };
+const ONBOARD_NATIONS = NAT_CODES.map(c => NAT_NAME[c]);
+const ONBOARD_NAT_CODE = Object.fromEntries(NAT_CODES.map(c => [NAT_NAME[c], c]));
 
 /* ---------- Utilitaires d'affichage ---------- */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -5133,10 +5614,10 @@ function hydratePortraits() {
     const p = G.players[el.dataset.portrait];
     if (!p) { el.dataset.pkey = '-'; return; } // ancien joueur retiré du monde : silhouette
     const size = portraitBucket(+el.dataset.psize || 44);
-    const mode = portraitMode(), key = `${mode === '2d' ? 'v2-2d' : 'v2'}:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
+    const mode = portraitMode(), key = `${mode === '2d' ? 'v3-2d' : 'v3'}:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
     const url = portraits.mem.get(key);
     if (url) { applyPortrait(key, url); return; }
-    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, mode, p: { id: p.id, nat: p.nat, age: p.age } }); }
+    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, mode, p: { id: p.id, nat: p.nat, age: p.age, origin: p.origin || null } }); }
   });
   pumpPortraits();
 }
@@ -5360,6 +5841,24 @@ function migrateOldSave(state) {
   }
   if (needsLeagueRecalc) {
     for (const lg of Object.values(state.leagues)) recomputeLeagueReputation(state, lg);
+  }
+  // V8.9 : origine des joueurs d'avant (nom et visage cohérents) : déduite du nom quand il vient d'un réservoir
+  // d'emprunt (ex. un Français au nom du Maghreb), sinon laissée au tirage des portraits
+  for (const p of Object.values(state.players || {})) {
+    if (p.origin !== undefined) continue;
+    p.origin = null;
+    const last = (p.name || '').split(' ').slice(1).join(' ');
+    for (const [origin, srcs] of Object.entries(ORIGIN_NAMES[p.nat] || {})) {
+      if (srcs.some(c => (NAME_POOLS[c] || NAME_EXTRA[c] || { last: [] }).last.includes(last))) { p.origin = origin; break; }
+    }
+  }
+  // V8.9 : nouveaux championnats — tout de suite si la saison n'a pas commencé, sinon à l'intersaison
+  const started = Object.values(state.clubs).some(c => c.table && c.table.mj > 0);
+  if (!started && LEAGUES.some(l => !state.leagues[l.id])) {
+    const before = new Set(Object.keys(state.leagues));
+    const added = addMissingLeagues(state, null);
+    if (added && state.news) state.news.unshift({ text: `Le monde du football s'agrandit : ${added} nouveaux championnats rejoignent la partie.`, tag: 'trophee', season: seasonLabel(state), month: calMonth(state) });
+    for (const lg of Object.values(state.leagues)) if (!before.has(lg.id)) lg.fixtures = generateSeasonFixtures(lg.clubIds);
   }
 }
 
@@ -6041,14 +6540,21 @@ function handleDismissMission(id) { dismissScoutMission(G, id); saveGame(); rend
 
 /* ---------- Clubs ---------- */
 function renderClubs() {
+  if (!G.leagues[ui.clubTab]) ui.clubTab = 'L1';
   const league = G.leagues[ui.clubTab];
   const clubs = league.clubIds.map(id => G.clubs[id]).sort((a, b) => b.tier - a.tier || a.name.localeCompare(b.name));
   return `<div class="page-title">Clubs</div>
-    <div class="tabs">${LEAGUES.map(l => `<button class="tab-btn ${ui.clubTab === l.id ? 'active' : ''}" onclick="setClubTab('${l.id}')">${l.name}</button>`).join('')}</div>
+    ${leaguePickerHTML()}
     <div class="card">${clubs.map(c => `<div class="list-row" onclick="openClubDetail('${c.id}','clubs')">${clubBadgeHTML(c)}<div><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.city)}</div></div><div class="right small">${'★'.repeat(c.tier)}</div></div>`).join('')}</div>
   `;
 }
 function setClubTab(id) { ui.clubTab = id; renderPage(); }
+// V8.9 : 25 championnats, trop pour des onglets — liste déroulante regroupée (Europe / reste du monde)
+function leaguePickerHTML() {
+  const opt = l => `<option value="${l.id}" ${ui.clubTab === l.id ? 'selected' : ''}>${flagFor(l.nat)} ${esc(l.country)} — ${esc(l.name)}</option>`;
+  const group = (label, zone) => `<optgroup label="${label}">${LEAGUES.filter(l => l.zone === zone && G.leagues[l.id]).map(opt).join('')}</optgroup>`;
+  return `<div class="league-picker"><select aria-label="Championnat" onchange="setClubTab(this.value)">${group('Europe', 'europe')}${group('Reste du monde', 'monde')}</select></div>`;
+}
 function openClubDetail(id, returnTo) { ui.selectedClubId = id; ui.returnTo = returnTo || ui.page; navigate('clubdetail'); }
 function renderClubDetail() {
   const c = G.clubs[ui.selectedClubId];
@@ -6848,6 +7354,7 @@ function form5HTML(club) {
   return `<span style="display:inline-flex;gap:2px">${f.map(r => `<i style="width:7px;height:7px;border-radius:50%;background:${color[r]};display:inline-block"></i>`).join('')}</span>`;
 }
 function renderStandings() {
+  if (!G.leagues[ui.clubTab]) ui.clubTab = 'L1';
   const league = G.leagues[ui.clubTab];
   if (league.reputation === undefined) recomputeLeagueReputation(G, league); // filet de sécurité
   const rows = league.clubIds.map(id => G.clubs[id]).sort((a, b) => rankCompare(a.table, b.table));
@@ -6856,7 +7363,7 @@ function renderStandings() {
   const promoLine = pairBot ? pairBot.n : 0;
   const relLine = pair ? pair.n : 0;
   const euroSlotsN = (G.euroSlots || EURO_QUALIFY_SLOTS)[ui.clubTab];
-  return `<div class="tabs">${LEAGUES.map(l => `<button class="tab-btn ${ui.clubTab === l.id ? 'active' : ''}" onclick="setClubTab('${l.id}')">${l.name}</button>`).join('')}</div>
+  return `${leaguePickerHTML()}
     <div class="card">
       <div class="row-between small"><span>Réputation du championnat</span><span class="num">${Math.round(league.reputation)}/100</span></div>
       ${meterHTML(league.reputation, 100, 'var(--blue)')}
