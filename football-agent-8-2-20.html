@@ -1558,6 +1558,13 @@ function computeWage(value, tier) {
   const annual = value * 0.15 * (0.7 + (tier || 2) * 0.08);
   return Math.max(1500, Math.round(annual / 12 / 500) * 500);
 }
+// salaire versé par un club donné (V8.10) : les clubs d'un championnat riche (Arabie saoudite, MLS) paient plus que
+// leur niveau sportif ne le voudrait — sans ça, leur argent s'accumulait (masse salariale à 30-40 % du plafond)
+function clubWage(value, club) {
+  const w = computeWage(value, club && club.tier);
+  const wealth = club && club.wealth > 1 ? Math.pow(club.wealth, 0.75) : 1;
+  return wealth === 1 ? w : Math.round(w * wealth / 500) * 500;
+}
 function emptySeasonStats(pos) {
   if (pos === 'GK') return { apps: 0, cs: 0, saves: 0, ga: 0, ratingSum: 0, cardY: 0, cardR: 0, minutes: 0 };
   return { apps: 0, goals: 0, assists: 0, ratingSum: 0, cardY: 0, cardR: 0, minutes: 0 };
@@ -1677,7 +1684,7 @@ function generatePlayer(state, opts = {}) {
   const wonderkidChance = isYouth ? clamp(0.018 + (club ? (club.reputation || 30) / 2200 : 0.012), 0.012, 0.055) : 0.03;
   if (age <= 18 && Math.random() < wonderkidChance) pot = clamp(pot + randInt(8, 16), 0, 99);
   const value = estimateValue(ovr, pot, age, tier);
-  const wage = computeWage(value, tier);
+  const wage = club ? clubWage(value, club) : computeWage(value, tier);
   const id = nextId(state, 'p');
   return {
     id, name: first + ' ' + last, nat, origin, pos, posLine: posMeta.line,
@@ -1746,6 +1753,9 @@ function clubWealth(c) { return (c && c.wealth) || 1; }
 const LOWER_DIVISION = { L3: { wealth: 0.6, ovr: -6, rep: -8 } };
 function divisionWealth(c) { return (c && LOWER_DIVISION[c.league] && LOWER_DIVISION[c.league].wealth) || 1; }
 function clubBudgetScale(c) { return tierBudget(c.tier) * clubWealth(c) * divisionWealth(c); }
+// plafond de trésorerie, en multiple de clubBudgetScale (V8.10) : plus resserré pour les géants, dont le budget passait
+// de 120 M€ à plus de 500 M€ en 10 saisons (et ne restait qu'à 37 M€ pour d'autres, au gré des saisons)
+function clubBudgetCapMult(c) { return [6, 6, 6, 4.5, 3, 2][clamp(c.tier || 1, 1, 5)]; }
 // ---------- Réputation & économie des clubs (V7) ----------
 // La réputation est une couche vivante distincte du tier (qui reste un simple gabarit de génération initiale) :
 // elle dérive des performances sportives, de la valeur d'effectif et des parcours européens, et pilote en retour
@@ -2280,7 +2290,7 @@ function gainReputation(state, amount) {
 // aux revenus mensuels ordinaires (monthlyClubFinances), qui ne couvrait que cette seule source de revenus.
 function dampedClubIncome(club, amount) {
   if (amount <= 0) return amount;
-  const cap = clubBudgetScale(club) * 10 * (0.6 + (club.reputation || 50) / 100);
+  const cap = clubBudgetScale(club) * clubBudgetCapMult(club) * 1.6 * (0.6 + (club.reputation || 50) / 100);
   if (club.budget >= cap) return Math.round(amount * 0.12);
   const factor = clamp(1 - club.budget / cap, 0.12, 1);
   return Math.round(amount * factor);
@@ -2361,19 +2371,24 @@ function runAIClubTransfers(state, news, isMercato) {
   const attempts = isMercato ? 14 : 2;
   // V8.10 : un club dont l'agent est propriétaire avec la stratégie « Ambition » tente trois recrues par mercato
   const ambitious = isMercato ? Object.keys(state.agent.stakes || {}).map(id => state.clubs[id]).filter(c => (activeOwnerPolicy(state, c) || {}).strategy === 'ambition') : [];
-  const buyers = Array.from({ length: attempts }, () => choice(Object.values(state.clubs))).concat(...ambitious.map(c => [c, c, c]));
+  // V8.10 : les clubs d'un championnat riche (Arabie saoudite, MLS) recrutent davantage au mercato
+  const rich = isMercato ? Object.values(state.clubs).filter(c => c.wealth > 1 && Math.random() < (c.wealth - 1) / 2.5) : [];
+  const buyers = Array.from({ length: attempts }, () => choice(Object.values(state.clubs))).concat(...ambitious.map(c => [c, c, c]), rich);
   for (const buyer of buyers) {
     if (buyer.budget < 300000) continue;
     const line = weakestLine(state, buyer);
     const candidates = (state.transferListed || [])
       .map(id => state.players[id])
-      .filter(p => p && !p.retired && p.club !== buyer.id && p.posLine === line && p.agentId !== 'player' && p.value <= buyer.budget);
+      // V8.10 : un club à 18 joueurs ou moins ne vend plus (des effectifs tombaient à 16 en cours de saison)
+      .filter(p => p && !p.retired && p.club !== buyer.id && p.posLine === line && p.agentId !== 'player' && p.value <= buyer.budget
+        && !(p.club && state.clubs[p.club] && state.clubs[p.club].squad.length <= 18));
     if (!candidates.length) continue;
     // le niveau reste le critère dominant, mais à niveau proche, un club recrute un peu plus volontiers un joueur
     // culturellement familier à son championnat (comme le ferait un vrai recruteur)
     const buyerLgNat = (LEAGUES.find(l => l.id === buyer.league) || {}).nat;
     candidates.sort((a, b) => (b.ovr + countryAffinity(b.nat, buyerLgNat) / 30) - (a.ovr + countryAffinity(a.nat, buyerLgNat) / 30));
     const target = candidates[0];
+    target.wage = Math.max(target.wage, clubWage(target.value, buyer));
     executeTransfer(state, target, buyer, target.value, news, { silent: false });
   }
 }
@@ -2405,7 +2420,7 @@ function runAIClubFreeAgentSignings(state, news, isMercato) {
     const target = candidates[0];
     target.club = buyer.id;
     target.contractUntil = seasonStartYear(state) + randInt(2, 4);
-    target.wage = computeWage(target.value, buyer.tier);
+    target.wage = clubWage(target.value, buyer);
     buyer.squad.push(target.id);
     pool = pool.filter(p => p !== target);
     state.freeAgents = (state.freeAgents || []).filter(id => id !== target.id);
@@ -2471,7 +2486,7 @@ function updateContractsAndListings(state, news) {
     if (mustKeep || Math.random() < renewChance) {
       p.contractUntil = endingNow + randInt(1, 3);
       // légère remise à niveau du salaire à la valeur actuelle du joueur (une prolongation, pas un simple statu quo)
-      if (club) p.wage = Math.max(p.wage, Math.round(computeWage(p.value, club.tier) / 500) * 500);
+      if (club) p.wage = Math.max(p.wage, Math.round(clubWage(p.value, club) / 500) * 500);
     } else {
       releaseToFreeAgency(state, p, news);
     }
@@ -2682,7 +2697,7 @@ function monthlyClubFinances(state) {
     // le plafond suit légèrement la réputation : un club prestigieux peut viser un peu plus haut qu'un tier brut ne le suggère,
     // mais TOUT le revenu (billetterie et sponsors compris) reste soumis au même facteur de convergence qu'avant :
     // ça garde exactement la même propriété de stabilité à long terme, juste avec une composition plus riche et plus lisible.
-    const cap = clubBudgetScale(c) * 6 * (0.6 + c.reputation / 100);
+    const cap = clubBudgetScale(c) * clubBudgetCapMult(c) * (0.6 + c.reputation / 100);
     const factor = clamp(1 - c.budget / cap, 0, 1);
     const tk = TICKET_POLICIES[(activeOwnerPolicy(state, c) || {}).tickets] || TICKET_POLICIES.normal; // V8.10 : choix du propriétaire
     const attendanceRate = clamp(0.35 + c.reputation / 160 + tk.fill, 0.25, 0.97);
@@ -2773,7 +2788,7 @@ function runRivalDeals(state, news) {
       if (!buyers.length) continue;
       const buyer = weightedChoice(buyers, c => (c.reputation || 50));
       const fee = Math.round(p.value * (0.9 + Math.random() * 0.4) / 5000) * 5000;
-      p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+      p.wage = Math.max(p.wage, clubWage(p.value, buyer));
       executeTransfer(state, p, buyer, fee, news, { silent: false });
       break; // une grosse affaire par rival et par mercato
     }
@@ -3347,7 +3362,7 @@ function maxContractYearsForAge(age) {
 // club, majoré d'une marge qui grandit avec la réputation du club. Ne force jamais une baisse : un salaire déjà
 // supérieur au plafond (valeur en baisse, par exemple) peut être conservé, simplement pas relevé.
 function contractWageCeiling(state, club, player) {
-  const fair = computeWage(player.value, club.tier);
+  const fair = clubWage(player.value, club);
   const margin = 1.3 + (club.reputation || 50) / 250; // ~1,34 (club modeste) à ~1,7 (club au sommet)
   return Math.max(player.wage || 0, Math.round(fair * margin / 500) * 500);
 }
@@ -4971,7 +4986,7 @@ const EVENTS = [
         const gate = evaluateTransferGate(state, buyer, p, { fee });
         if (!gate.ok || !p.club) { news.push({ text: `L'opération autour de ${p.name} capote : ${gate.reason || 'le joueur est libre'}`, tag: 'mercato', playerId: p.id }); return; }
         executeTransfer(state, p, buyer, fee, news, { silent: false });
-        p.releaseClause = null; p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+        p.releaseClause = null; p.wage = Math.max(p.wage, clubWage(p.value, buyer));
         gainReputation(state, 1);
       } },
       { label: 'Négocier en coulisses pour faire capoter l\u2019opération', effect: (state, p, news) => {
