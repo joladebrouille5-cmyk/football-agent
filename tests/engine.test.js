@@ -603,7 +603,7 @@ test('V8.13 : sélections nationales — trêves, Coupe du monde, Euro, Copa Am�
   const wc = E.playIntlTournament(s, wcDef, 2030, news);
   assert.equal(wc.groups.length, 8);
   assert.deepEqual(wc.rounds.map(r => r.name), ['Huitièmes de finale', 'Quarts de finale', 'Demi-finales', 'Finale']);
-  assert.ok(news.some(n => /remporte la Coupe du monde 2030/.test(n.text)));
+  assert.ok(news.some(n => /Coupe du monde 2030 : .* s'impose en finale/.test(n.text)));
   const winners = Object.values(s.players).filter(p => (p.trophies || []).some(t => t.title === 'Coupe du monde 2030'));
   assert.ok(winners.length >= 15 && winners.every(p => p.nat === wc.winner), 'les champions du monde ont leur trophée');
   // une saison jouée : trêves (sélections) et tournoi de l'été 2027 (CAN)

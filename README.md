@@ -16,6 +16,10 @@ Détails et licences : [portraits/README.md](portraits/README.md).
 - **Application installable** : servi en https (GitHub Pages), le jeu s'installe sur l'écran d'accueil et fonctionne
   hors connexion (`manifest.webmanifest`, `sw.js`, icônes). Dans la visionneuse claude.ai, seul le raccourci est possible.
 - **Mode clair / sombre / auto** et page **Comment jouer** (menu Plus).
+- **Langues** : français (par défaut), anglais et espagnol (Paramètres → Langue). Le jeu est écrit en français ;
+  à l'affichage, chaque texte est traduit grâce au dictionnaire `I18N_ROWS` ([français, anglais, espagnol], avec des
+  gabarits « {} » pour les parties variables). Tout nouveau texte du jeu doit y recevoir sa ligne ;
+  `tests/i18n.test.js` vérifie la cohérence du dictionnaire.
 
 ## Tests
 
