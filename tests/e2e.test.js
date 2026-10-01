@@ -99,11 +99,20 @@ test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, dé
     await page.evaluate(id => openPlayerDetail(id, 'market'), pid);
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img, 'même visage après rechargement');
-    // réglage « 2D » : visage dessiné (SVG), lui aussi déterministe
-    await page.evaluate(() => setSetting('portraits', '2d')); await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
+    // 3D impossible (ex. pas de WebGL) : la 2D prend le relais et les paramètres l'expliquent
+    await page.evaluate(() => { closeModal(); portraitEngineOff('3d', 'webgl'); openPlayerDetail(G.freeAgents[0], 'market'); });
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     const img2d = await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage);
     assert.match(img2d, /^url\("data:image\/svg\+xml;base64,/);
+    await page.evaluate(() => { closeModal(); openSettingsModal(); });
+    assert.match(await page.textContent('.portrait-status'), /3D coupée.*WebGL/);
+    // cadrage 2D : de y = 20 au plus haut jusqu'à y = 500 au moins (menton et haut des épaules compris)
+    const vb = await page.evaluate(src => atob(src.split(',')[1]).match(/viewBox="([^"]+)"/)[1].split(' ').map(Number), img2d.slice(5, -2));
+    assert.ok(vb[1] <= 20 && vb[1] + vb[3] >= 500 && vb[2] === vb[3], 'cadre 2D carré, visage entier : ' + vb);
+    // réglage « 2D » : même visage dessiné (SVG), déterministe
+    await page.evaluate(() => setSetting('portraits', '2d')); await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
+    await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
+    assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img2d, 'même visage 2D');
     await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img2d, 'même visage 2D');

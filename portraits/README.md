@@ -6,7 +6,8 @@ génome (`src/genome.js`) : un joueur garde la même carnation, les mêmes cheve
 
 - **Déterministe** : identifiant du joueur + nationalité + âge → toujours le même visage. Rien n'est ajouté à la sauvegarde.
 - **Vieillissement** : le même visage mûrit avec l'âge du joueur (morphologie, rides, cheveux gris, recul de la ligne des cheveux).
-- **Diversité** : 48 archétypes (forme du visage, mâchoire, menton, pommettes, nez, yeux, lèvres, front, sourcils), chacun varié en continu sur une quarantaine de réglages, avec une légère asymétrie. L'ascendance est un mélange continu, seulement orienté par la nationalité.
+- **Diversité** : 48 archétypes (forme du visage, mâchoire, menton, pommettes, nez, yeux, lèvres, front, sourcils), chacun varié en continu sur une quarantaine de réglages, avec une légère asymétrie. En 2D, les traits dessinés suivent ces archétypes et toutes les coupes masculines sont utilisées (dont afro, dreads, tresses et cheveux longs).
+- **Origines crédibles** : chaque nationalité du jeu est un mélange explicite de profils de population (Afrique de l'Ouest, Maghreb, Europe du Nord, Europe du Sud, Asie de l'Est, métis afro-européens, métis latino-américains), chacun avec une plage de carnation stricte. Un Sénégalais a toujours la peau foncée, un Marocain la peau mate. Contrôlé par `tests/portraits.test.js`.
 - **Poids** : environ 1 Mo au premier chargement (module 150 Ko compressé + données), ensuite en cache.
 - **Cache** : chaque portrait est dessiné une fois, puis gardé en mémoire et dans IndexedDB (`football_agent_portraits`).
 - **Repli** : sans WebGL ou sur un appareil trop lent, la 3D passe d'elle-même en 2D ; si aucun module ne se charge, ou avec le réglage « Aucun », le jeu garde les silhouettes.
@@ -19,7 +20,7 @@ génome (`src/genome.js`) : un joueur garde la même carnation, les mêmes cheve
 | `portraits.js` | Module 3D prêt à l'emploi (three.js inclus, minifié). Chargé par le jeu à la demande. |
 | `faces2d.js` | Module 2D prêt à l'emploi (facesjs inclus, minifié). |
 | `heads.json` | Maillage tête-cou-épaules et cibles morphologiques (compressés en gzip, encodés en base64), repères anatomiques, ajustement des yeux. |
-| `src/genome.js` | Génome commun : id + nationalité + âge → traits du visage. |
+| `src/genome.js` | Génome commun : id + nationalité + âge → traits du visage (table `NAT_PROFILES` des origines). |
 | `src/portraits.src.js` | Source lisible du module 3D. |
 | `src/faces2d.src.js` | Source lisible du module 2D. |
 | `src/build_assets.py` | Fabrique `heads.bin` / `heads.json` à partir des fichiers MakeHuman. |

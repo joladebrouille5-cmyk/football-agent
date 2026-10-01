@@ -593,6 +593,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after{
 .setting-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-bottom:1px solid var(--line-soft);}
 .setting-row:last-child{border-bottom:none;}
 .setting-row .opts{display:flex; gap:6px; flex-shrink:0;}
+.portrait-status{margin-top:4px; color:var(--gold); font-weight:600;}
 .corrupt-warning{background:#2d1210; border:1px solid var(--red); color:var(--red-soft); border-radius:var(--r-md); padding:12px; margin-bottom:16px; font-size:13px;}
 @media (prefers-reduced-motion: reduce){ *, *::before, *::after{animation:none !important; transition:none !important;} }
 </style>
@@ -4943,7 +4944,7 @@ function deleteLocalStorageSave() {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort,
+    rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES,
     calMonth, seasonIdx, seasonStartYear, calYear, seasonLabel, advanceDate,
     generatePlayer, initWorld, generateRoundRobin, generateSeasonFixtures,
     simulateMatch, squadStrength, advanceMonth, processEndOfSeason, createNewGame,
@@ -5066,7 +5067,7 @@ function portraitHTML(seed, sizePx) {
    génome : même carnation, mêmes cheveux, même barbe) ou silhouettes. Sans WebGL, la 3D passe d'elle-même en 2D ;
    si aucun module ne se charge, la silhouette reste. Rendu en tâche de fond, un portrait à la fois. */
 const PORTRAIT_MODULES = { '3d': './portraits/portraits.js', '2d': './portraits/faces2d.js' };
-const portraits = { engines: { '3d': { load: null, off: false }, '2d': { load: null, off: false } }, mem: new Map(), queue: [], queued: new Set(), busy: false, db: null };
+const portraits = { engines: { '3d': { load: null, off: false, why: '' }, '2d': { load: null, off: false, why: '' } }, mem: new Map(), queue: [], queued: new Set(), busy: false, db: null };
 function portraitBucket(px) { return px <= 48 ? 96 : px <= 96 ? 192 : 256; }
 // style réellement utilisé : celui choisi, ou la 2D quand la 3D est impossible sur cet appareil ; null = silhouettes
 function portraitMode() {
@@ -5079,8 +5080,24 @@ function loadPortraitEngine(mode) {
   const e = portraits.engines[mode];
   if (!e.load) e.load = import(PORTRAIT_MODULES[mode])
     .then(m => { if (!m.portraitsSupported()) throw new Error('WebGL indisponible'); return m; })
-    .catch(err => { e.off = true; console.info(`Portraits ${mode.toUpperCase()} indisponibles :`, err.message); if (typeof G !== 'undefined' && G) renderPage(); return null; });
+    .catch(err => { portraitEngineOff(mode, /WebGL/.test(err.message) ? 'webgl' : 'load', err.message); return null; });
   return e.load;
+}
+// coupe un style de portraits pour la session (la 3D passe alors en 2D) ; la raison s'affiche dans les paramètres
+function portraitEngineOff(mode, why, detail) {
+  const e = portraits.engines[mode]; if (e.off) return;
+  e.off = true; e.why = why; console.info(`Portraits ${mode.toUpperCase()} coupés (${why}) :`, detail || '');
+  if (typeof G !== 'undefined' && G) renderPage();
+  if (document.querySelector('.modal .setting-row')) openSettingsModal();
+  // portraits encore attendus ailleurs à l'écran (modale ouverte…) : repris dans le style de remplacement
+  document.querySelectorAll('[data-pkey]:not(.has-photo)').forEach(el => { delete el.dataset.pkey; });
+  hydratePortraits();
+}
+function portraitStatusText() {
+  const e = portraits.engines['3d'];
+  if (settings.portraits !== '3d' || !e.off) return '';
+  const why = { webgl: "cet appareil ou ce navigateur n'affiche pas la 3D (WebGL)", load: "le module 3D n'a pas pu être chargé", slow: 'la 3D était trop lente sur cet appareil', error: "le rendu 3D a échoué sur cet appareil" }[e.why] || 'la 3D est indisponible';
+  return `3D coupée : ${why}. Visages 2D affichés à la place.`;
 }
 function portraitStore() {
   if (portraits.db) return portraits.db;
@@ -5116,7 +5133,7 @@ function hydratePortraits() {
     const p = G.players[el.dataset.portrait];
     if (!p) { el.dataset.pkey = '-'; return; } // ancien joueur retiré du monde : silhouette
     const size = portraitBucket(+el.dataset.psize || 44);
-    const mode = portraitMode(), key = `${mode === '2d' ? 'v1-2d' : 'v1'}:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
+    const mode = portraitMode(), key = `${mode === '2d' ? 'v2-2d' : 'v2'}:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
     const url = portraits.mem.get(key);
     if (url) { applyPortrait(key, url); return; }
     if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, mode, p: { id: p.id, nat: p.nat, age: p.age } }); }
@@ -5134,12 +5151,15 @@ async function pumpPortraits() {
       let url = await portraitCacheGet(job.key);
       if (!url) {
         const m = await loadPortraitEngine(job.mode); if (!m) continue;
+        // données chargées d'abord : leur téléchargement ne compte pas dans le chrono du garde-fou de lenteur
+        try { await m.loadAssets(); } catch (e) { portraitEngineOff(job.mode, 'load', e.message); continue; }
         await new Promise(r => (window.requestIdleCallback || (f => setTimeout(f, 30)))(r, { timeout: 400 })); // seulement quand le jeu est au repos
         const t0 = performance.now();
-        try { url = (await m.renderPortrait(job.p, job.size)).url; } catch (e) { console.info('Portrait non dessiné :', e.message); continue; }
-        // appareil vraiment trop lent : on revient aux silhouettes plutôt que de ralentir le jeu
+        try { url = (await m.renderPortrait(job.p, job.size)).url; portraits.fails = 0; }
+        catch (e) { console.info('Portrait non dessiné :', e.message); if ((portraits.fails = (portraits.fails || 0) + 1) >= 2) { portraits.fails = 0; portraitEngineOff(job.mode, 'error', e.message); } continue; }
+        // appareil vraiment trop lent : la 3D passe en 2D plutôt que de ralentir le jeu
         portraits.slow = (performance.now() - t0 > 6000) ? (portraits.slow || 0) + 1 : 0;
-        if (portraits.slow >= 3) { portraits.engines[job.mode].off = true; portraits.slow = 0; console.info(`Portraits ${job.mode.toUpperCase()} trop lents sur cet appareil.`); renderPage(); }
+        if (portraits.slow >= 3) { portraits.slow = 0; portraitEngineOff(job.mode, 'slow'); }
         portraitCachePut(job.key, url);
       }
       portraits.mem.set(job.key, url);
@@ -7073,7 +7093,7 @@ function openSettingsModal() {
     ${settingRowHTML('recap', 'Résumé du mois', 'Détaillé à chaque mois, ou seulement les bilans de saison.', [['full', 'Détaillé'], ['short', 'Court']])}
     ${settingRowHTML('text', 'Taille du texte', 'Agrandit tout le contenu du jeu.', [['normal', 'Normale'], ['large', 'Grande']])}
     ${settingRowHTML('motion', 'Animations', 'Désactivez-les pour un affichage plus sobre.', [['on', 'Oui'], ['off', 'Non']])}
-    ${settingRowHTML('portraits', 'Portraits des joueurs', 'Visages 3D réalistes, visages 2D dessinés (plus légers), ou simples silhouettes.', [['3d', '3D'], ['2d', '2D'], ['simple', 'Aucun']])}
+    ${settingRowHTML('portraits', 'Portraits des joueurs', 'Visages 3D réalistes, visages 2D dessinés (plus légers), ou simples silhouettes.' + (portraitStatusText() ? `<div class="portrait-status">${portraitStatusText()}</div>` : ''), [['3d', '3D'], ['2d', '2D'], ['simple', 'Aucun']])}
     <div class="card-title" style="margin-top:18px">Sauvegarde</div>
     <p class="small">Votre partie est sauvegardée automatiquement à chaque mois dans ce navigateur.</p>
     <button class="btn btn-block" style="margin-bottom:8px" onclick="handleExport()">⬇️ Exporter la sauvegarde (.json)</button>

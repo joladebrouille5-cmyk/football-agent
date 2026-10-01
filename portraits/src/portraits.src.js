@@ -249,15 +249,16 @@ function shellMaterial(U, kind) {
       transformed += normal*L*t + vec3(0.,-1.,0.)*uDroop*L*t*t*1.5 + vec3(0.,0.,-1.)*uBack*L*t;`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
       ${NOISE}${HAIRMASKS}
-      uniform vec3 uHair; uniform float uCurl, uDens, uStrand, uClump, uCore, uGrey, uSeed, uStyle, uKind, uRows; varying vec3 vRootQ; varying float vT; varying float vEar;`)
+      uniform vec3 uHair; uniform float uCurl, uDens, uStrand, uClump, uCore, uGrey, uSeed, uStyle, uKind, uRows, uPx; varying vec3 vRootQ; varying float vT; varying float vEar;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
       vec3 q=vRootQ;
       float m = (uKind>0.5 ? beardMask(q, vec3(0,0,1)) : scalpMask(q, vec3(0,0,1))) * (1.-smoothstep(0.08,0.3,vEar));
       if (m < 0.04) discard;
       if (uRows > 0.5){ float row = abs(fract(q.x*3.4+0.5)-0.5); if (row > 0.2) discard; m *= smoothstep(0.2,0.1,row); }
-      vec3 cid; float cc = cell(q*uClump + uSeed*0.1, cid); float cr = h31(cid);
+      float fq = min(uStrand, uPx*0.6), fc = min(uClump, uPx*0.3);
+      vec3 cid; float cc = cell(q*fc + uSeed*0.1, cid); float cr = h31(cid);
       float ph = cr*6.283 + vT*uCurl*14.;
-      vec3 p = q*uStrand + uCurl*0.5*vec3(sin(ph), cos(ph), sin(ph*0.7));
+      vec3 p = q*fq + uCurl*0.5*vec3(sin(ph), cos(ph), sin(ph*0.7));
       vec3 sid; float sc = cell(p + uSeed, sid); float sr = h31(sid);
       float edge = smoothstep(0.04, 0.45, m);
       if (vT > uCore) {
@@ -265,11 +266,11 @@ function shellMaterial(U, kind) {
         if (sc > mix(0.62, 0.1, tt) || sr > uDens*edge) discard;
         if (tt > 0.25 + 0.75*h31(sid+5.)) discard;
       } else {
-        if (h31(floor(q*150.)+uSeed) > edge*1.15) discard;
+        if (h31(floor(q*min(150., uPx*0.8))+uSeed) > edge*1.15) discard;
       }
       vec3 hc = uHair * (0.72 + 0.4*sr) * (0.85 + 0.3*cr);
       hc = mix(hc, vec3(0.62,0.6,0.57), uGrey*step(1.-uGrey*0.85, h31(sid+9.)));
-      if (uKind > 0.5) hc = max(hc*2.2, vec3(0.03,0.024,0.02)) * (0.8 + 0.4*sr);
+      if (uKind > 0.5) hc = max(hc*2.2, vec3(0.03,0.024,0.02)) * (0.8 + 0.4*mix(0.5, sr, smoothstep(30., 90., uPx)));
       float ao = mix(0.32, 1.0, smoothstep(0., 1., vT)) * mix(0.8, 1.0, sr);
       diffuseColor.rgb = hc * ao;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -351,7 +352,7 @@ export function buildHead(D, g) {
   geo.setAttribute('maskA', new THREE.BufferAttribute(mA, 4)); geo.setAttribute('maskB', new THREE.BufferAttribute(mB, 4)); geo.setAttribute('cav', new THREE.BufferAttribute(cav, 1));
   // couleurs
   const mel = g.mel;
-  const skinLight = new THREE.Color().setRGB(0.93, 0.76, 0.66), skinMid = new THREE.Color().setRGB(0.72, 0.5, 0.36), skinDeep = new THREE.Color().setRGB(0.29, 0.18, 0.12), skinDeepest = new THREE.Color().setRGB(0.16, 0.1, 0.07);
+  const skinLight = new THREE.Color().setRGB(0.93, 0.76, 0.66), skinMid = new THREE.Color().setRGB(0.63, 0.42, 0.29), skinDeep = new THREE.Color().setRGB(0.29, 0.18, 0.12), skinDeepest = new THREE.Color().setRGB(0.16, 0.1, 0.07);
   const skin = mel < 0.45 ? skinLight.clone().lerp(skinMid, mel / 0.45) : mel < 0.8 ? skinMid.clone().lerp(skinDeep, (mel - 0.45) / 0.35) : skinDeep.clone().lerp(skinDeepest, (mel - 0.8) / 0.2);
   skin.offsetHSL(g.undertone * 0.012, g.undertone * 0.04, 0); skin.convertSRGBToLinear();
   const skinRed = skin.clone().lerp(new THREE.Color(0.75, 0.22, 0.18).convertSRGBToLinear(), 0.45);
@@ -378,11 +379,12 @@ export function buildHead(D, g) {
     uJersey: { value: new THREE.Color(g.jersey).convertSRGBToLinear() }, uMel: { value: mel }, uAge: { value: g.age }, uFreckles: { value: g.freckles },
     uBrowThick: { value: g.browThick }, uBrowArch: { value: g.browArch }, uBrowGap: { value: g.browGap }, uBrowY: { value: 0.27 + eyeRad * 0.35 },
     uScalpPaint: { value: g.hairStyle === 'shaved' ? 0.25 : g.hairStyle === 'buzz' || g.hairStyle === 'waves' ? 0.85 : 0.95 },
-    uStubble: { value: { none: 0, shadow: 0.35, stubble: 0.75, short: 0.95, full: 1, goatee: 0.9, moustache: 0.9, chinstrap: 0.95 }[g.beard] },
+    // sans mèches (petit portrait), la barbe peinte est renforcée pour rester lisible
+    uStubble: { value: { none: 0, shadow: 0.35, stubble: 0.75, short: 0.95, full: 1, goatee: 0.9, moustache: 0.9, chinstrap: 0.95 }[g.beard] * (['short', 'full', 'goatee', 'moustache', 'chinstrap'].includes(g.beard) && (g.px || 87) < 55 ? 1.7 : 1) },
     uSeed: { value: g.shellSeed }, uCollarY: { value: neckQ.y - 0.55 }, uGrey: { value: g.grey }, uEyeL: { value: eyeLq }, uEyeR: { value: eyeRq }, uEyeRad: { value: eyeRad }, uEyeR3: { value: eyeR3 },
     uHairline: { value: 1.02 + g.hairline }, uRecede: { value: recede }, uSideburn: { value: 0.35 }, uNeckLine: { value: ear.y - 0.45 }, uEarTop: { value: ear.y + 0.3 }, uEarZ: { value: ear.z },
     uNoseY: { value: noseY }, uMouthY: { value: (lipTop + lipBot) / 2 }, uChinY: { value: chinY }, uLipTop: { value: lipTop }, uLipBot: { value: lipBot }, uMouthW: { value: mouthW + 0.05 },
-    uBeardType: { value: beardType }, uFade: { value: g.hairStyle === 'fade' ? 1 : 0 }, uWaves: { value: g.hairStyle === 'waves' ? 1 : 0 }, uDbgBump: { value: 0 },
+    uBeardType: { value: beardType }, uPx: { value: g.px || 87 }, uFade: { value: g.hairStyle === 'fade' ? 1 : 0 }, uWaves: { value: g.hairStyle === 'waves' ? 1 : 0 }, uDbgBump: { value: 0 },
   };
   const group = new THREE.Group();
   const skinMesh = new THREE.Mesh(geo, skinMaterial(g, U)); skinMesh.castShadow = true; skinMesh.receiveShadow = true; group.add(skinMesh);
@@ -412,7 +414,8 @@ export function buildHead(D, g) {
       { style: hs[0], core: hs[2], clump: hs[3], strand: hs[4], curl, droop: hs[6], back: hs[7], dens: hs[8], rows: g.hairStyle === 'cornrows' ? 1 : 0 });
   }
   const BS = { short: [0.045, 0], full: [0.1, 0], goatee: [0.06, 0], moustache: [0.045, 0], chinstrap: [0.045, 0] }[g.beard];
-  if (BS) addShells('beard', i => { const q = qAt(i); return q.y < 0 && q.z > -0.6 && Math.abs(q.x) < 1.25; }, BS[0], 12, { core: BS[1], clump: 18, strand: 140, curl: g.hairTex === 'coily' ? 0.9 : 0.35, dens: 0.8 });
+  // petits portraits : la barbe reste peinte sur la peau (des mèches de moins d'un pixel ne donnent que du bruit)
+  if (BS && (g.px || 87) >= 55) addShells('beard', i => { const q = qAt(i); return q.y < 0 && q.z > -0.6 && Math.abs(q.x) < 1.25; }, BS[0], 12, { core: BS[1], clump: 18, strand: 140, curl: g.hairTex === 'coily' ? 0.9 : 0.35, dens: 0.8 });
   group.userData = { mid, iod, topY, chinY, neckQ };
   return group;
 }
@@ -420,8 +423,10 @@ export function buildHead(D, g) {
 export async function renderPortrait(p, size = 256, over) {
   const D = await loadAssets();
   const g = Object.assign(genome(p), over || {});
+  const ss = size <= 128 ? 3 : 2; // suréchantillonnage : plus fort pour les petits portraits (mèches sans moucheture)
+  g.px = size * ss / 5.9; // pixels par écart inter-pupillaire dans l'image rendue
   const head = buildHead(D, g);
-  const { r, scene, cam, key } = renderer(size * 2);
+  const { r, scene, cam, key } = renderer(size * ss);
   const { mid, iod } = head.userData;
   head.position.set(-mid.x, -mid.y, -mid.z); const holder = new THREE.Group(); holder.add(head); holder.rotation.set(0, g.yaw, g.tilt, 'YXZ');
   scene.add(holder);
@@ -432,7 +437,7 @@ export async function renderPortrait(p, size = 256, over) {
   r.render(scene, cam);
   const out = document.createElement('canvas'); out.width = out.height = size; const ox = out.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(r.domElement, 0, 0, size, size);
   const url = out.toDataURL('image/webp', 0.86);
-  scene.remove(holder); holder.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  scene.remove(holder); holder.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isInstancedMesh) o.dispose(); }); // matériaux gardés : programmes déjà compilés réutilisés
   return { url, g };
 }
 
