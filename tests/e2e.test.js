@@ -139,7 +139,7 @@ test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouv
   }, { portraits: 'simple' });
 });
 
-test('Partie en cours sans les championnats V8.9 : au rechargement, les 25 classements sont visibles', async () => {
+test('Partie en cours sans les championnats V8.9 : au rechargement, les 26 classements sont visibles', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
     await page.click('text=Lancer ma carrière');
     // partie « ancienne » en novembre : sans les championnats ajoutés en V8.9
@@ -152,10 +152,34 @@ test('Partie en cours sans les championnats V8.9 : au rechargement, les 25 class
     });
     await page.reload(); await page.waitForTimeout(1500);
     await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'BSA'; navigate('world'); });
-    assert.equal(await page.$$eval('.league-picker option', o => o.length), 25, '25 championnats dans la liste');
+    assert.equal(await page.$$eval('.league-picker option', o => o.length), 26, '26 championnats dans la liste (Ligue 3 comprise)');
     assert.equal(await page.$$eval('.tbl tbody tr', r => r.length), 20, 'classement du Brésil affiché');
     assert.match(await page.textContent('#content'), /Arrivé en cours de saison/);
     assert.match(await page.evaluate(() => G.news[0].text), /nouveaux championnats rejoignent la partie/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
+
+test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'interface, gestion conservée au rechargement', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { G.agent.cash = 40e6; ui.worldTab = 'classements'; ui.clubTab = 'L3'; navigate('world'); });
+    assert.equal(await page.$$eval('.tbl tbody tr', r => r.length), 18, 'classement de Ligue 3');
+    assert.match(await page.textContent('#content'), /ASC/);
+    await page.evaluate(() => openClubDetail('amiens', 'world'));
+    await page.click('text=Prendre le contrôle');
+    const guard = await page.$('text=Dépenser quand même'); if (guard) await guard.click();
+    assert.equal(await page.evaluate(() => isClubOwner(G, 'amiens')), true);
+    assert.match(await page.textContent('#content'), /Gestion du club/);
+    await page.click('text=Formation');
+    await page.click('text=+1.0M€');
+    await page.reload(); await page.waitForTimeout(800);
+    const st = await page.evaluate(() => ({ pct: stakePct(G, 'amiens'), pol: G.clubs.amiens.ownerPolicy, injected: G.agent.stakes.amiens.injected }));
+    assert.equal(st.pct, 51);
+    assert.equal(st.pol.strategy, 'formation');
+    assert.equal(st.injected, 1e6);
+    await page.evaluate(() => navigate('agency'));
+    assert.match(await page.textContent('#content'), /Parts de clubs[\s\S]*Amiens SC/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
