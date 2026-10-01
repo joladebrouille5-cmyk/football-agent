@@ -33,7 +33,7 @@ description: Football Agent — travailler sur les portraits des joueurs (2D fac
 
 ## Ajouter un championnat (check-list)
 1. Entrée dans `LEAGUES_V89` (`id` unique, `nat`, `zone`) et clubs dans `CLUB_RAW_V89` (tiers réalistes : 3 pour un grand club local, 1 pour le bas de tableau).
-2. Coupe dans `CUP_DEFS` (32, 16 ou 8 clubs selon la taille ; `underdogs` pour tirer au sort quelques petits clubs). Deuxième ou troisième division : `COUNTRY_PAIRS` (les paires s'enchaînent, ex. L1/L2 puis L2/L3 : `applyPromotionRelegation` fige tous les classements avant de déplacer les clubs). Division inférieure aux moyens réduits : `LOWER_DIVISION` (richesse, niveau des joueurs générés, réputation de départ, selon la division où joue le club).
+2. Coupe dans `CUP_DEFS` (32, 16 ou 8 clubs selon la taille ; `underdogs` pour tirer au sort quelques petits clubs). Deuxième ou troisième division : `COUNTRY_PAIRS` (`playoff: true` ajoute un barrage entre le premier non relégué d'en haut et le premier non promu d'en bas ; les paires s'enchaînent, ex. L1/L2 puis L2/L3 : `applyPromotionRelegation` fige tous les classements avant de déplacer les clubs). Division inférieure aux moyens réduits : `LOWER_DIVISION` (richesse, niveau des joueurs générés, réputation de départ, selon la division où joue le club).
 3. Pays de rêve : `DREAM_PRESTIGE` ; attrait pour les étrangers : `LEAGUE_ATTRACTION` ; richesse : `LEAGUE_WEALTH`. Coupe d'Europe : automatique pour les championnats européens de première division.
 4. `npm test` (dont « partie commencée avant les nouveaux championnats ») et une saison simulée : effectifs ≥ 15, pas de contrat expiré.
 
