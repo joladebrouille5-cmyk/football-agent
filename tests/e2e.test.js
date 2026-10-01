@@ -57,6 +57,16 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       await page.evaluate(id => { G.players[id].lastTransferMonth = -99; openTransferSearch(id); }, sid);
       assert.match(await page.textContent('#transferSearchResults'), /mercato est fermé/);
       assert.equal(await page.$$eval('.modal button', bs => bs.filter(b => /Accepter|Chercher/.test(b.textContent)).length), 0);
+      // un client lâché emporte son offre : plus d'action « Offre pour … » sur le tableau de bord (V8.6)
+      await page.evaluate(id => {
+        closeModal(); G.date.absMonth = 5; // janvier : mercato ouvert
+        const club = Object.values(G.clubs).find(c => c.id !== G.players[id].club);
+        createIncomingOffer(G, G.players[id], club, 100000, G.players[id].wage);
+        navigate('dashboard');
+      }, sid);
+      assert.match(await page.textContent('#content'), /Offre pour/);
+      await page.evaluate(id => { resolveDropClient(G, id); navigate('dashboard'); }, sid);
+      assert.doesNotMatch(await page.textContent('#content'), /Offre pour/);
     });
   });
 }

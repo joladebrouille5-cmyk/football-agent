@@ -215,6 +215,7 @@ test('8.5 : hors mercato, un client sous contrat ne peut pas bouger ; les clubs 
   assert.equal(E.canMoveNow(s, p).ok, false);
   assert.match(E.canMoveNow(s, p).reason, /janvier/i);
   playMonths(s, 3); // janvier
+  p.lastTransferMonth = null; // l'IA a pu le transférer entre-temps : on isole la règle de la fenêtre (test instable en 8.5)
   assert.equal(E.canMoveNow(s, p).ok, true);
   p.agentId = 'player'; s.agent.portfolio.push(p.id); p.lastPermanentMove = s.date.absMonth - 2;
   const cur = s.clubs[p.club];
@@ -270,4 +271,45 @@ test('8.5 : le palmarès pèse aussi sur le jury', () => {
   assert.ok(Math.abs(E.reignFactor(s) - 0.85) < 1e-9);
   s.agent.careerStats.agentOfYear = 20; s.agent.careerStats.agentOfYearStreak = 9;
   assert.ok(Math.abs(E.reignFactor(s) - 0.36) < 1e-9);
+});
+
+test('8.6 : un client perdu emporte ses offres (rupture, débauchage, transfert forcé)', () => {
+  const s = newGame(); // août : mercato ouvert
+  const pick = () => { const p = Object.values(s.players).find(x => x.club && !x.agentId && x.ovr >= 60 && x.lastTransferMonth == null); p.agentId = 'player'; s.agent.portfolio.push(p.id); return p; };
+  const offerFor = p => {
+    const c = Object.values(s.clubs).filter(c => c.id !== p.club && !(s.incomingOffers || []).some(o => o.playerId === p.id && o.clubId === c.id)).sort((a, b) => b.budget - a.budget)[0];
+    const r = E.createIncomingOffer(s, p, c, Math.round(p.value), p.wage);
+    assert.ok(r.ok, r.reason);
+    return r.offer;
+  };
+  const dropped = pick(); const o1 = offerFor(dropped);
+  E.resolveDropClient(s, dropped.id);
+  const poached = pick(); const o2 = offerFor(poached);
+  E.poachClient(s, poached, s.rivalAgents[0], []);
+  for (const o of [o1, o2]) {
+    assert.equal(E.visibleOffers(s).some(x => x.id === o.id), false, 'offre encore visible');
+    assert.equal(E.acceptIncomingOffer(s, o.id).ok, false, 'offre encore acceptable');
+  }
+  // une offre restée en mémoire pour un ancien client n'est ni visible ni acceptable
+  const ghost = pick(); const o3 = offerFor(ghost); ghost.agentId = null;
+  assert.equal(E.visibleOffers(s).some(x => x.id === o3.id), false);
+  assert.equal(E.acceptIncomingOffer(s, o3.id).ok, false);
+  // transfert par un autre chemin (clause, événement) : les autres offres tombent
+  const moved = pick(); offerFor(moved);
+  const buyer = Object.values(s.clubs).find(c => c.id !== moved.club && !s.incomingOffers.some(o => o.clubId === c.id && o.playerId === moved.id));
+  E.executeTransfer(s, moved, buyer, Math.round(moved.value), [], { silent: true });
+  assert.equal(s.incomingOffers.some(o => o.playerId === moved.id), false);
+});
+
+test('8.6 : le vivier de départ reste disponible jusqu\'en décembre, et l\'agence nationale coûte 200 k€', () => {
+  for (let run = 0; run < 3; run++) {
+    const s = newGame();
+    const seed = s.freeAgents.slice();
+    playMonths(s, 4); // août -> novembre : ni les clubs ni les rivaux ne les ont pris
+    const left = seed.map(id => s.players[id]).filter(p => p && !p.club && !p.agentId);
+    assert.equal(left.length, seed.length);
+    const q = E.deserializeState(E.serializeState(s)).players[seed[0]];
+    assert.equal(q.reservedUntil, 4, 'réservation conservée par la sauvegarde');
+  }
+  assert.equal(E.OFFICE_LEVELS[1].cost, 200000);
 });
