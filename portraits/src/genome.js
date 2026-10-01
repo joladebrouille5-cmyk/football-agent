@@ -19,11 +19,30 @@ export { clamp, lerp, gauss, pickW };
 // 8 traits « de structure » à plusieurs types : leurs combinaisons forment les archétypes (48), chacun ensuite
 // varié en continu pour chaque joueur. La nationalité n'oriente que légèrement les probabilités d'ascendance.
 const FACE_TYPES = ['oval', 'round', 'rectangular', 'square', 'triangular', 'invertedtriangular', 'diamond'];
-const NAT_PRIOR = { // [africaine, asiatique, européenne] — volontairement large : tout reste possible partout
-  FR: [.25, .07, .68], EN: [.18, .08, .74], ES: [.08, .04, .88], IT: [.06, .03, .91], DE: [.08, .06, .86], PT: [.15, .03, .82],
-  BR: [.35, .04, .61], AR: [.05, .05, .9], SN: [.92, .01, .07], NG: [.94, .01, .05], CI: [.92, .01, .07], CM: [.92, .01, .07], MA: [.25, .05, .7], DZ: [.22, .05, .73],
-  JP: [.02, .93, .05], KR: [.02, .94, .04], NL: [.18, .06, .76], BE: [.2, .05, .75], US: [.3, .1, .6], CO: [.3, .08, .62], MX: [.12, .12, .76], UY: [.08, .03, .89],
+// Origines : chaque nationalité est un mélange explicite de profils de population, sans plancher artificiel.
+// Un profil fixe l'ascendance morphologique [africaine, asiatique, européenne] et une plage de carnation stricte
+// (mel : 0 très clair -> 1 très foncé). Un Sénégalais est toujours à peau foncée, un Marocain à peau mate, etc.
+export const PROFILES = {
+  waf: { anc: [0.92, 0, 0.08], mel: [0.68, 0.95], lightHair: 0, lightEyes: 0 },     // Afrique de l'Ouest et centrale
+  naf: { anc: [0.12, 0, 0.88], mel: [0.34, 0.52], lightHair: 0.04, lightEyes: 0.06, olive: 1 }, // Maghreb, Égypte
+  seu: { anc: [0.02, 0, 0.98], mel: [0.12, 0.3], lightHair: 0.18, lightEyes: 0.2, olive: 0.5 }, // Europe du Sud, Río de la Plata
+  neu: { anc: [0, 0, 1], mel: [0.02, 0.18], lightHair: 0.55, lightEyes: 0.6 },        // Europe du Nord et de l'Ouest
+  eas: { anc: [0, 0.95, 0.05], mel: [0.16, 0.32], lightHair: 0, lightEyes: 0 },       // Asie de l'Est
+  mix: { anc: [0.5, 0, 0.5], mel: [0.45, 0.68], lightHair: 0, lightEyes: 0.03 },      // métis afro-européens
+  lat: { anc: [0.08, 0.18, 0.74], mel: [0.26, 0.44], lightHair: 0.03, lightEyes: 0.04, olive: 0.7 }, // métis latino-américains
 };
+export const NAT_PROFILES = {
+  FR: { neu: 0.32, seu: 0.28, waf: 0.17, naf: 0.14, mix: 0.06, eas: 0.03 },
+  EN: { neu: 0.72, waf: 0.12, mix: 0.1, seu: 0.02, eas: 0.04 },
+  ES: { seu: 0.9, naf: 0.04, waf: 0.03, lat: 0.03 }, IT: { seu: 0.94, waf: 0.03, naf: 0.03 },
+  DE: { neu: 0.85, seu: 0.06, naf: 0.04, waf: 0.03, mix: 0.02 }, PT: { seu: 0.82, waf: 0.08, mix: 0.1 },
+  NL: { neu: 0.78, mix: 0.1, waf: 0.06, naf: 0.06 }, BE: { neu: 0.72, seu: 0.06, waf: 0.12, naf: 0.1 },
+  BR: { seu: 0.4, mix: 0.38, waf: 0.17, lat: 0.05 }, AR: { seu: 0.85, lat: 0.15 }, UY: { seu: 0.82, lat: 0.12, mix: 0.06 },
+  US: { neu: 0.45, waf: 0.27, mix: 0.1, lat: 0.13, eas: 0.05 }, CO: { lat: 0.6, mix: 0.25, seu: 0.15 }, MX: { lat: 0.8, seu: 0.2 },
+  SN: { waf: 1 }, NG: { waf: 1 }, CI: { waf: 1 }, CM: { waf: 1 }, GH: { waf: 1 },
+  MA: { naf: 1 }, DZ: { naf: 1 }, TN: { naf: 1 }, EG: { naf: 1 }, JP: { eas: 1 }, KR: { eas: 1 },
+};
+const NAT_DEFAULT = { seu: 0.45, neu: 0.25, waf: 0.15, naf: 0.1, eas: 0.05 };
 export const ARCHETYPES = (() => { const r = rng('archetypes-v1'), out = []; for (let i = 0; i < 48; i++) out.push({
   face: FACE_TYPES[i % FACE_TYPES.length], jaw: [-0.6, -0.2, 0.25, 0.65][Math.floor(r() * 4)], chin: [-0.5, 0, 0.5][Math.floor(r() * 3)],
   cheekBones: [-0.4, 0.1, 0.6][Math.floor(r() * 3)], nose: ['fin', 'droit', 'large', 'aquilin', 'court', 'long'][Math.floor(r() * 6)],
@@ -32,19 +51,18 @@ export const ARCHETYPES = (() => { const r = rng('archetypes-v1'), out = []; for
 export const ARCHETYPE_COUNT = ARCHETYPES.length;
 
 export function genome(p) {
-  const r = rng('face:' + p.id);
+  const r = rng('face2:' + p.id);
   const arch = ARCHETYPES[Math.floor(r() * ARCHETYPES.length)];
-  const prior = NAT_PRIOR[p.nat] || [.3, .1, .6];
-  // ascendance : tirage d'une composante principale selon le prior, puis métissage continu
-  const main = pickW(r, prior.map((w, i) => [i, w + 0.04]));
-  const anc = [0, 0, 0]; anc[main] = 0.55 + r() * 0.45; const rest = 1 - anc[main]; const o1 = (main + 1 + Math.floor(r() * 2)) % 3; anc[o1] = rest * r(); anc[3 - main - o1] = rest - anc[o1];
-  // carnation : surtout liée à l'ascendance mais avec de la variation individuelle
-  const mel = clamp(anc[0] * 0.78 + anc[1] * 0.3 + anc[2] * 0.08 + gauss(r) * 0.09, 0, 1);
-  const undertone = gauss(r) * 0.5; // <0 rosé, >0 olive/doré
-  const hairTex = clamp(anc[0] * 0.95 + gauss(r) * 0.18, 0, 1) > 0.55 ? (r() < 0.75 ? 'coily' : 'curly') : pickW(r, [['straight', 0.5 + anc[1]], ['wavy', 0.35], ['curly', 0.15]]);
-  const hairDark = mel > 0.35 || anc[1] > 0.5 ? 1 : r();
-  const hairColor = hairDark > 0.62 ? pickW(r, [['#120c09', 4], ['#1d140e', 3], ['#2b1d14', 2]]) : pickW(r, [['#3a271a', 3], ['#5a3d25', 3], ['#7a5634', 2], ['#a77f4c', 1.2], ['#c9a46c', 0.7], ['#8a4a24', 0.5]]);
-  const eyeColor = mel > 0.4 ? pickW(r, [['#2a1a10', 5], ['#3b2416', 3]]) : pickW(r, [['#3b2416', 4], ['#5a3a1c', 2], ['#4f6b4a', 1.2], ['#5d7d9a', 1.4], ['#7b8c95', 0.6]]);
+  const prof = pickW(r, Object.entries(NAT_PROFILES[p.nat] || NAT_DEFAULT)), P = PROFILES[prof];
+  // ascendance morphologique : celle du profil, légèrement variée
+  const anc = P.anc.map(v => Math.max(0, v + (v > 0 && v < 1 ? gauss(r) * 0.05 : 0))); const sA = anc.reduce((a, b) => a + b, 0); for (let i = 0; i < 3; i++) anc[i] /= sA;
+  // carnation : toujours dans la plage du profil
+  const mel = lerp(P.mel[0], P.mel[1], clamp(0.5 + gauss(r) * 0.3, 0, 1));
+  const undertone = (P.olive || 0) * 0.6 + gauss(r) * 0.35; // <0 rosé, >0 olive/doré
+  const hairTex = clamp(anc[0] * 0.95 + gauss(r) * 0.18, 0, 1) > 0.55 ? (r() < 0.75 ? 'coily' : 'curly') : pickW(r, [['straight', 0.5 + anc[1] * 3], ['wavy', 0.35], ['curly', 0.15 + (prof === 'naf' || prof === 'lat' ? 0.3 : 0)]]);
+  const hairColor = r() >= P.lightHair ? pickW(r, [['#120c09', 4], ['#1d140e', 3], ['#2b1d14', 2], ['#3a271a', prof === 'neu' || prof === 'seu' ? 3 : 0.5]])
+    : prof === 'neu' || prof === 'seu' ? pickW(r, [['#5a3d25', 3], ['#7a5634', 2.5], ['#a77f4c', 1.6], ['#c9a46c', 1], ['#8a4a24', 0.6]]) : pickW(r, [['#4a3220', 2], ['#5a3d25', 1]]);
+  const eyeColor = r() >= P.lightEyes ? pickW(r, [['#2a1a10', 5], ['#3b2416', 3], ['#5a3a1c', mel < 0.5 ? 2 : 0]]) : pickW(r, [['#4f6b4a', 1.2], ['#5d7d9a', 1.4], ['#7b8c95', 0.6]]);
   const st = id => r();
   // coiffure : variée, cohérente avec la texture de cheveux et l'âge
   const youngish = p.age <= 24;
@@ -57,7 +75,7 @@ export function genome(p) {
   const beardP = p.age < 19 ? 0.08 : p.age < 23 ? 0.35 : 0.55;
   const beard = r() < beardP ? pickW(r, [['stubble', 4], ['short', 3], ['goatee', 1.2], ['moustache', 0.7], ['chinstrap', 0.6], ['full', p.age >= 24 ? 1.6 : 0.3]]) : (p.age >= 19 && r() < 0.3 ? 'shadow' : 'none');
   const g = {
-    id: p.id, age: p.age, arch, anc, mel, undertone, hairTex, hairStyle, hairColor, eyeColor, beard,
+    id: p.id, age: p.age, arch, prof, anc, mel, undertone, hairTex, hairStyle, hairColor, eyeColor, beard,
     hairline: gauss(r) * 0.12, recede: clamp((p.age - 27) / 14 + gauss(r) * 0.35, 0, 1) * (r() < 0.55 ? 1 : 0.25),
     browThick: arch.brows === 'épais' ? 0.75 + r() * 0.25 : arch.brows === 'fins' ? 0.3 + r() * 0.2 : 0.45 + r() * 0.3,
     browArch: arch.brows === 'arqués' ? 0.55 + r() * 0.35 : arch.brows === 'droits' ? r() * 0.2 : 0.2 + r() * 0.35,
@@ -66,8 +84,8 @@ export function genome(p) {
     shellSeed: r() * 100, grey: clamp((p.age - 31) / 12, 0, 1) * r(),
     m: {}, // valeurs de modificateurs morphologiques
   };
-  const m = g.m, J = s => gauss(r) * s * 1.35;
-  m.shape = arch.face; m.shapeW = 0.3 + r() * 0.35; m.shape2 = FACE_TYPES[Math.floor(r() * FACE_TYPES.length)]; m.shape2W = r() * 0.25;
+  const m = g.m, J = s => gauss(r) * s * 1.7;
+  m.shape = arch.face; m.shapeW = 0.45 + r() * 0.45; m.shape2 = FACE_TYPES[Math.floor(r() * FACE_TYPES.length)]; m.shape2W = r() * 0.25;
   const set = (k, v) => { m[k] = clamp(v, -1, 1); };
   set('head-scale-vert', J(0.25)); set('head-scale-horiz', J(0.22)); set('head-scale-depth', J(0.2)); set('head-fat', J(0.2) - 0.1); set('head-back-scale-depth', J(0.25));
   set('chin-width', arch.jaw * 0.45 + J(0.2)); set('chin-bones', arch.jaw * 0.7 + J(0.2)); set('chin-prominent', arch.chin + J(0.25)); set('chin-height', J(0.3)); set('chin-prognathism', J(0.2)); set('chin-cleft', r() < 0.15 ? r() * 0.7 : 0);
