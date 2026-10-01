@@ -274,11 +274,24 @@ test('V8.15 : avancer par semaine depuis le bouton', async () => {
     await page.click('#fabStep');
     assert.match(await page.textContent('#fabAdvance'), /semaine suivante/i);
     assert.match(await page.textContent('#topbarDate'), /Sem\. 1/);
-    for (let w = 2; w <= 4; w++) {
+    // un client sous contrat au PSG, pour voir les matchs de son club dans le bilan
+    await page.evaluate(() => { const id = G.agent.portfolio[0], p = G.players[id]; p.club = 'psg'; G.clubs.psg.squad.push(id); });
+    // résumé détaillé : une fenêtre « Bilan de la semaine »
+    for (const w of [2, 3]) {
       await page.click('#fabAdvance');
       assert.match(await page.textContent('#topbarDate'), new RegExp('Sem\\. ' + w));
-      assert.match(await page.evaluate(() => window.__toasts[window.__toasts.length - 1]), new RegExp('^Semaine ' + (w - 1) + ' · '));
+      const recap = await page.textContent('#modalRoot');
+      assert.match(recap, new RegExp('Bilan de la semaine[\\s\\S]*Semaine ' + (w - 1) + ' · '));
+      assert.match(recap, /Vos joueurs[\s\S]*Les matchs de la semaine[\s\S]*Paris/);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+      await page.click('#modalRoot >> text=Continuer');
     }
+    // résumé court : un simple message
+    await page.evaluate(() => { setSetting('recap', 'short'); closeModal(); });
+    await page.click('#fabAdvance');
+    assert.match(await page.textContent('#topbarDate'), /Sem\. 4/);
+    assert.match(await page.evaluate(() => window.__toasts[window.__toasts.length - 1]), /^Semaine 3 · /);
+    await page.evaluate(() => { setSetting('recap', 'full'); closeModal(); });
     assert.match(await page.textContent('#fabAdvance'), /fin du mois/);
     const month0 = await page.evaluate(() => G.date.absMonth);
     await page.click('#fabAdvance');
