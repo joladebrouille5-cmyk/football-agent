@@ -429,7 +429,13 @@ test('V8.10 : Ligue 3 avec Amiens — montées et descentes chaînées entre les
   for (const lg of ['L1', 'L2', 'L3']) for (const c of s.leagues[lg].clubIds) before[c] = lg;
   playMonths(s, 12);
   const moves = Object.entries(before).filter(([c, lg]) => s.clubs[c].league !== lg).map(([c, lg]) => lg + '>' + s.clubs[c].league);
-  assert.deepEqual(moves.sort(), ['L1>L2', 'L1>L2', 'L2>L1', 'L2>L1', 'L2>L3', 'L2>L3', 'L3>L2', 'L3>L2'], 'deux clubs dans chaque sens, sans saut de division');
+  const count = m => moves.filter(x => x === m).length;
+  assert.ok(!moves.includes('L1>L3') && !moves.includes('L3>L1'), 'sans saut de division');
+  for (const [down, up] of [['L1>L2', 'L2>L1'], ['L2>L3', 'L3>L2']]) {
+    assert.equal(count(down), count(up), 'autant de montées que de descentes');
+    assert.ok([2, 3].includes(count(down)), 'deux clubs, ou trois après un barrage gagné par le club d\'en bas');
+  }
+  assert.ok(s.news.filter(n => /^Barrage :/.test(n.text)).length >= 2, 'barrages L1/L2 et L2/L3 joués');
   for (const lg of ['L1', 'L2', 'L3']) {
     assert.equal(s.leagues[lg].clubIds.length, 18, lg);
     assert.ok(s.leagues[lg].clubIds.every(c => s.clubs[c].league === lg), lg + ' cohérent');
@@ -469,19 +475,113 @@ test('V8.10 : parts de clubs — achat, prise de contrôle, gestion, dividendes,
   assert.ok(E.setClubPolicy(s, 'amiens', 'tickets', 'bas').ok);
   assert.equal(E.setClubPolicy(s, 'amiens', 'tickets', 'gratuit').ok, false);
   const b0 = c.budget;
-  assert.ok(E.injectClubFunds(s, 'amiens', 5e6).ok);
+  const r5 = E.injectClubFunds(s, 'amiens', 5e6);
+  assert.ok(r5.ok);
   assert.equal(c.budget, b0 + 5e6);
+  assert.ok(r5.pct > 51, 'augmentation de capital : la part monte');
   const cap0 = c.stadiumCapacity;
   assert.ok(E.upgradeClubStadium(s, 'amiens', 'capacity').ok);
   assert.ok(c.stadiumCapacity > cap0);
   const round = E.deserializeState(E.serializeState(s));
-  assert.equal(round.agent.stakes.amiens.pct, 51, 'parts sauvegardées');
+  assert.equal(round.agent.stakes.amiens.pct, s.agent.stakes.amiens.pct, 'parts sauvegardées');
   assert.equal(round.clubs.amiens.ownerPolicy.tickets, 'bas', 'choix du propriétaire sauvegardés');
   const cash0 = s.agent.cash;
   playMonths(s, 12);
   assert.ok(s.agent.stakes.amiens.divs > 0, 'dividendes en fin de saison');
   assert.ok(s.news.some(n => /Dividendes de vos parts de clubs/.test(n.text)));
-  const sold = E.sellClubStake(s, 'amiens', 51, []);
+  const sold = E.sellClubStake(s, 'amiens', s.agent.stakes.amiens.pct, []);
   assert.ok(sold.ok && sold.lostControl && !s.agent.stakes.amiens && !c.ownerPolicy);
   assert.ok(s.agent.cash > cash0, 'revente encaissée');
+});
+
+test('V8.11 : faillite — la banque vend d\'abord les parts de clubs', () => {
+  const s = newGame();
+  s.agent.cash = 20e6;
+  E.buyClubStake(s, 'amiens', 51);
+  s.agent.cash = -3e6;
+  playMonths(s, 7);
+  assert.equal(s.agent.careerStats.bankruptcies || 0, 0, 'les parts couvrent la dette : pas de restructuration');
+  assert.ok(s.agent.cash > -250000);
+  assert.ok((s.agent.stakes.amiens || { pct: 0 }).pct < 51, 'une partie des parts a été vendue');
+  assert.ok(s.news.some(n => /la banque vend/.test(n.text)));
+});
+
+test('V8.11 : propriétaire — augmentation de capital, objectif, supporters, intransférable, centre de formation', () => {
+  const s = newGame();
+  s.agent.cash = 80e6;
+  const c = s.clubs.amiens;
+  E.buyClubStake(s, 'amiens', 51);
+  assert.ok(c.ownerObjective && c.ownerObjective.label, 'objectif fixé à la prise de contrôle');
+  assert.equal(c.fanMood, 60);
+  const expected = E.capitalIncreasePct(s, c, 10e6);
+  const r = E.injectClubFunds(s, 'amiens', 10e6);
+  assert.equal(r.pct, expected);
+  assert.ok(r.pct > 60, 'la part monte avec l\'apport');
+  const sell = E.stakeSellPrice(s, c, r.pct);
+  assert.ok(sell > 0.9 * (E.clubValuation(s, c) * r.pct / 100), 'l\'apport se retrouve dans la valeur de vos parts');
+  const p = s.players[c.squad[0]];
+  assert.ok(E.setPlayerUntouchable(s, p.id, true).ok);
+  s.transferListed.push(p.id);
+  assert.equal(E.setPlayerListed(s, p.id, false).ok, true);
+  assert.ok(!s.transferListed.includes(p.id));
+  assert.equal(E.setPlayerUntouchable(s, s.clubs.psg.squad[0], true).ok, false, 'pas sur un club qu\'on ne possède pas');
+  c.budget = 50e6;
+  assert.ok(E.upgradeClubStadium(s, 'amiens', 'academy').ok);
+  assert.equal(c.academyLevel, 1);
+  playMonths(s, 12);
+  assert.ok(s.players[p.id].club === 'amiens' || !s.players[p.id].untouchable, 'un intransférable reste au club (sauf fin de contrat)');
+  assert.ok(s.news.some(n => /Objectif (atteint|manqué) pour Amiens SC/.test(n.text)), 'bilan de l\'objectif');
+  assert.ok(c.fanMood !== 60, 'l\'humeur des supporters a bougé');
+  assert.ok(c.ownerObjective && c.ownerObjective.league === c.league, 'nouvel objectif pour la nouvelle saison, dans la bonne division');
+  assert.ok(s.achievements.unlocked.includes('president'), 'trophée « Président »');
+});
+
+test('V8.11 : agents rivaux actionnaires — part disponible limitée, rachat avec prime', () => {
+  const s = newGame();
+  s.agent.cash = 80e6;
+  const ra = s.rivalAgents[0];
+  s.rivalStakes = { amiens: { [ra.id]: 60 } };
+  assert.ok(E.rivalOwner(s, 'amiens'), 'un rival contrôle le club');
+  assert.ok(E.clubRelation(s, 'amiens') < 50, 'club d\'un rival : relation dégradée');
+  assert.equal(E.availableStakePct(s, 'amiens'), 40);
+  const refused = E.buyClubStake(s, 'amiens', 51);
+  assert.equal(refused.ok, false);
+  assert.match(refused.reason, /détient 60 %/);
+  const cash0 = ra.cash;
+  const r = E.buyOutRival(s, 'amiens', ra.id, []);
+  assert.ok(r.ok && r.becameOwner);
+  assert.ok(ra.cash > cash0);
+  assert.equal(E.availableStakePct(s, 'amiens'), 40);
+  s.rivalAgents.forEach(x => { x.cash = 50e6; });
+  for (let i = 0; i < 5; i++) E.runRivalInvestments(s, []);
+  assert.ok(Object.keys(s.rivalStakes).length > 0, 'les rivaux investissent');
+  for (const [cid, h] of Object.entries(s.rivalStakes)) assert.ok(Object.values(h).reduce((a, b) => a + b, 0) + E.stakePct(s, cid) <= 100.0001, cid);
+});
+
+test('V8.11 : dividendes imposés, conflit d\'intérêts, derbys et barrages', () => {
+  const s = newGame();
+  s.agent.cash = 200e6;
+  E.buyClubStake(s, 'psg', 2);
+  const p = s.players[s.onboarding.starterPlayerId];
+  p.agentId = 'player';
+  assert.ok(E.buyClubStake(s, 'lens', 30).ok);
+  E.executeTransfer(s, p, s.clubs.lens, 0, [], {});
+  assert.equal(s.agent.careerStats.conflictDeals, 1, 'transfert d\'un client vers un club dont on détient 30 %');
+  assert.equal(E.derbyName('om', 'psg'), 'Le Classique');
+  assert.equal(E.derbyName('amiens', 'lens'), E.derbyName('lens', 'amiens'));
+  playMonths(s, 4);
+  assert.ok(Object.values(s.leagues).some(l => l.fixtures.some(f => f.played && f.derby)), 'des derbys joués');
+  playMonths(s, 8);
+  const divNews = s.news.find(n => /Dividendes de vos parts/.test(n.text));
+  assert.ok(divNews && /après 30 % d'impôt/.test(divNews.text));
+  assert.ok(s.news.filter(n => /^Barrage :/.test(n.text)).length >= 3, 'barrages L1/L2, L2/L3 et Bundesliga');
+  const pr = E.playPlayoff(s, 'psg', 'amiens');
+  assert.ok(['psg', 'amiens'].includes(pr.winner) && pr.aGoals >= 0 && pr.bGoals >= 0);
+});
+
+test('V8.11 : plafond de masse salariale indexé sur la valeur des joueurs', () => {
+  const s = newGame();
+  playMonths(s, 24);
+  const ratios = s.leagues.L1.clubIds.map(id => { const c = s.clubs[id]; return c.squad.reduce((t, pid) => t + (s.players[pid] ? s.players[pid].wage : 0), 0) / c.wageBudget; }).sort((a, b) => a - b);
+  assert.ok(ratios[ratios.length >> 1] < 1.25, 'masse salariale médiane proche du plafond : ' + ratios[ratios.length >> 1].toFixed(2));
 });

@@ -63,7 +63,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'pas de débordement horizontal');
       await page.waitForTimeout(500); // la sauvegarde compressée est asynchrone
       const before = await page.evaluate(() => serializeState(G));
-      await page.reload(); await page.waitForTimeout(800);
+      await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
       assert.equal(await page.evaluate(() => serializeState(G)), before);
       // novembre : hors mercato, la recherche de transfert l'annonce d'emblée, sans bouton « Accepter » voué à l'échec (V8.5)
       await page.evaluate(id => { G.players[id].lastTransferMonth = -99; openTransferSearch(id); }, sid);
@@ -133,7 +133,7 @@ test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouv
     await advanceMonth(page);
     assert.equal(await page.evaluate(() => saveGame()), true, 'écriture réussie grâce au repli');
     const before = await page.evaluate(() => serializeState(G));
-    await page.reload(); await page.waitForTimeout(800);
+    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
     assert.equal(await page.evaluate(() => serializeState(G)), before, 'partie identique après rechargement');
     assert.equal(await page.$$eval('.save-warning, .banner-warning', els => els.length), 0);
   }, { portraits: 'simple' });
@@ -173,13 +173,38 @@ test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'
     assert.match(await page.textContent('#content'), /Gestion du club/);
     await page.click('text=Formation');
     await page.click('text=+1.0M€');
-    await page.reload(); await page.waitForTimeout(800);
+    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
     const st = await page.evaluate(() => ({ pct: stakePct(G, 'amiens'), pol: G.clubs.amiens.ownerPolicy, injected: G.agent.stakes.amiens.injected }));
-    assert.equal(st.pct, 51);
+    assert.ok(st.pct > 51, 'l\'apport fait monter la part (augmentation de capital)');
     assert.equal(st.pol.strategy, 'formation');
     assert.equal(st.injected, 1e6);
     await page.evaluate(() => navigate('agency'));
     assert.match(await page.textContent('#content'), /Parts de clubs[\s\S]*Amiens SC/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
+
+test('V8.11 : propriétaire — rachat des parts d\'un rival, augmentation de capital, joueur intransférable, barrages affichés', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { G.agent.cash = 60e6; G.rivalStakes = { amiens: { [G.rivalAgents[0].id]: 20 } }; openClubDetail('amiens', 'world'); });
+    assert.match(await page.textContent('#content'), /Agents rivaux actionnaires/);
+    await page.click('text=Prendre le contrôle');
+    let guard = await page.$('text=Dépenser quand même'); if (guard) await guard.click();
+    assert.match(await page.textContent('#content'), /Objectif de la saison/);
+    await page.click('text=/^\\+5\\.0M€/');
+    guard = await page.$('text=Dépenser quand même'); if (guard) await guard.click();
+    assert.ok(await page.evaluate(() => stakePct(G, 'amiens') > 51), 'augmentation de capital');
+    await page.click('text=/Racheter/');
+    guard = await page.$('text=Dépenser quand même'); if (guard) await guard.click();
+    assert.equal(await page.evaluate(() => G.rivalStakes.amiens || null), null, 'parts du rival rachetées');
+    const pid = await page.evaluate(() => G.clubs.amiens.squad[0]);
+    await page.evaluate(id => openPlayerDetail(id, 'world'), pid);
+    await page.click('text=Rendre intransférable');
+    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance'));
+    assert.equal(await page.evaluate(id => G.players[id].untouchable, pid), true, 'intransférable conservé au rechargement');
+    await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'L2'; navigate('world'); });
+    assert.match(await page.textContent('#content'), /3e = barrage/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
