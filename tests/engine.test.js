@@ -519,7 +519,8 @@ test('V8.11 : propriétaire — augmentation de capital, objectif, supporters, i
   assert.ok(r.pct > 60, 'la part monte avec l\'apport');
   const sell = E.stakeSellPrice(s, c, r.pct);
   assert.ok(sell > 0.9 * (E.clubValuation(s, c) * r.pct / 100), 'l\'apport se retrouve dans la valeur de vos parts');
-  const p = s.players[c.squad[0]];
+  // le plus jeune du club (un vétéran peut prendre sa retraite pendant la saison simulée)
+  const p = c.squad.map(id => s.players[id]).sort((a, b) => a.age - b.age)[0];
   assert.ok(E.setPlayerUntouchable(s, p.id, true).ok);
   s.transferListed.push(p.id);
   assert.equal(E.setPlayerListed(s, p.id, false).ok, true);
@@ -529,7 +530,8 @@ test('V8.11 : propriétaire — augmentation de capital, objectif, supporters, i
   assert.ok(E.upgradeClubStadium(s, 'amiens', 'academy').ok);
   assert.equal(c.academyLevel, 1);
   playMonths(s, 12);
-  assert.ok(s.players[p.id].club === 'amiens' || !s.players[p.id].untouchable, 'un intransférable reste au club (sauf fin de contrat)');
+  const q = s.players[p.id];
+  assert.ok(q && (q.club === 'amiens' || !q.untouchable), 'un intransférable reste au club (sauf fin de contrat)');
   assert.ok(s.news.some(n => /Objectif (atteint|manqué) pour Amiens SC/.test(n.text)), 'bilan de l\'objectif');
   assert.ok(c.fanMood !== 60, 'l\'humeur des supporters a bougé');
   assert.ok(c.ownerObjective && c.ownerObjective.league === c.league, 'nouvel objectif pour la nouvelle saison, dans la bonne division');
