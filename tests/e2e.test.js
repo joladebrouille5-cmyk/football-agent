@@ -256,7 +256,10 @@ test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au 
     txt = await page.innerText('#app');
     assert.match(txt, /Panel[\s\S]*Mis jugadores/);
     assert.doesNotMatch(txt, /Tableau de bord|Mes joueurs/);
-    await page.reload(); await page.waitForTimeout(800);
+    await page.reload();
+    // attendre que le jeu soit réaffiché (un délai fixe ne suffit pas toujours sur la machine de CI)
+    await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance'), null, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
     assert.match(await page.innerText('#app'), /Mis jugadores/, 'langue conservée au rechargement');
     await page.evaluate(() => { setSetting('lang', 'fr'); closeModal(); });
     assert.match(await page.innerText('#app'), /Tableau de bord[\s\S]*Mes joueurs/, 'retour au français');
