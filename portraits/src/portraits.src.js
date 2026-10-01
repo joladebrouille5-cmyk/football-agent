@@ -20,15 +20,13 @@ const pickW = (r, items) => { const tot = items.reduce((s, x) => s + x[1], 0); l
 let DATA = null;
 let LOADING = null;
 const ASSET_BASE = new URL('./', import.meta.url).href;
-async function fetchBin(url) {
-  const res = await fetch(url); if (!res.ok) throw new Error('portraits: ' + url + ' ' + res.status);
-  if (url.endsWith('.gz')) return new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-  return res.arrayBuffer();
-}
 export function loadAssets(base = ASSET_BASE) { return LOADING || (LOADING = loadAssetsNow(base)); }
 async function loadAssetsNow(base) {
   if (DATA) return DATA;
-  const [info, buf] = await Promise.all([fetch(base + 'heads.json').then(r => r.json()), fetchBin(base + 'heads.bin.gz')]);
+  // un seul fichier de données : l'index + le maillage compressé (gzip) encodé en base64 (servi partout comme du JSON)
+  const info = await fetch(base + 'heads.json').then(r => { if (!r.ok) throw new Error('portraits: heads.json ' + r.status); return r.json(); });
+  const gz = Uint8Array.from(atob(info.bin), c => c.charCodeAt(0)); delete info.bin;
+  const buf = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   const arr = key => { const [off, len, fmt] = info.idx[key]; const T = { f: Float32Array, H: Uint16Array, I: Uint32Array, h: Int16Array }[fmt]; return new T(buf, off, len); };
   const T = {};
   for (const key of Object.keys(info.idx)) { const m = key.match(/^t:(.+):i$/); if (m) T[m[1]] = { i: arr(key), d: arr('t:' + m[1] + ':d') }; }
