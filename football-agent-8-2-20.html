@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Football Agent — Jeu de gestion d'agent de football</title>
+<meta name="theme-color" content="#05080a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Football Agent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -211,6 +218,9 @@ button{font-family:inherit;}
 @keyframes fabSheen{0%,70%{left:-40%;} 100%{left:130%;}}
 .fab-advance:hover{box-shadow:0 14px 34px rgba(0,0,0,.55), 0 0 44px rgba(215,255,60,.32);}
 .fab-advance:active{transform:scale(.985);}
+.spinner{display:inline-block; width:16px; height:16px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.reduce-motion .spinner{animation:none;}
 .fab-advance:disabled{opacity:1; background:var(--bg-3); color:var(--gold-soft); border-color:var(--gold-dim); box-shadow:var(--sh-1); font-size:14px;}
 .fab-advance:disabled::after{display:none;}
 
@@ -600,6 +610,39 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after{
 .portrait-status{margin-top:4px; color:var(--gold); font-weight:600;}
 .corrupt-warning{background:#2d1210; border:1px solid var(--red); color:var(--red-soft); border-radius:var(--r-md); padding:12px; margin-bottom:16px; font-size:13px;}
 @media (prefers-reduced-motion: reduce){ *, *::before, *::after{animation:none !important; transition:none !important;} }
+
+/* ---------- Mode clair (V8.12) ---------- */
+body.theme-light{
+  --bg:#eef2f0; --bg-1:#ffffff; --bg-2:#f6f8f7; --bg-3:#eaefed; --bg-4:#ffffff;
+  --line:#d6dfdb; --line-soft:#e6ece9; --line-strong:#c3cfca;
+  --ink:#0f1a17; --ink-dim:#3e4f4a; --ink-faint:#6b7c77;
+  --accent:#4f7d00; --accent-soft:#6fa000; --accent-dim:#b9d77a; --accent-ink:#ffffff;
+  --gold:#a8790e; --gold-soft:#8a6200; --gold-dim:#d9b867;
+  --emerald:#11885a; --emerald-soft:#0b7a4f;
+  --red:#d33a36; --red-soft:#b42a26;
+  --blue:#2f63d6; --blue-soft:#2552b3; --blue-dim:#c7d6f7;
+  --violet:#6e58d6; --violet-soft:#5a45c0;
+  --sh-1:0 2px 10px rgba(20,40,30,.08); --sh-2:0 18px 50px rgba(20,40,30,.18);
+  --glow:0 0 0 1px rgba(79,125,0,.35), 0 8px 28px rgba(79,125,0,.12);
+  background:var(--bg);
+}
+body.theme-light .topbar{background:rgba(255,255,255,.94);}
+body.theme-light .bottombar{background:rgba(255,255,255,.97);}
+body.theme-light .sidenav{background:#ffffff;}
+body.theme-light .card, body.theme-light .modal, body.theme-light .event-modal, body.theme-light .onboard-card{background:#ffffff;}
+body.theme-light .kpi{background:var(--bg-2);}
+body.theme-light .chip, body.theme-light .toast, body.theme-light .tab-btn, body.theme-light .region-card{background:#ffffff;}
+body.theme-light .btn{background:#ffffff;}
+body.theme-light .tab-btn.active, body.theme-light .btn.on{background:var(--accent); color:#ffffff; border-color:var(--accent);}
+body.theme-light .btn-danger{background:#fff5f4;}
+body.theme-light .btn-primary, body.theme-light .fab-advance{background:var(--accent); color:#ffffff;}
+body.theme-light .fab-advance:disabled{background:#fff7e0; color:var(--gold-soft);}
+body.theme-light .list-row:hover, body.theme-light .tbl tr:hover, body.theme-light .action-item[onclick]:hover,
+body.theme-light .news-item[onclick]:hover, body.theme-light .news-message[onclick]:hover{background:var(--bg-3);}
+body.theme-light .event-banner{background:#fff6dd;}
+body.theme-light .event-overlay{background:rgba(20,30,25,.45);}
+body.theme-light ::-webkit-scrollbar-thumb{background:#c3cfca;}
+body.theme-light input, body.theme-light select, body.theme-light textarea{background:#ffffff; color:var(--ink);}
 </style>
 </head>
 <body>
@@ -2398,8 +2441,8 @@ function runAIClubTransfers(state, news, isMercato) {
     // le niveau reste le critère dominant, mais à niveau proche, un club recrute un peu plus volontiers un joueur
     // culturellement familier à son championnat (comme le ferait un vrai recruteur)
     const buyerLgNat = (LEAGUES.find(l => l.id === buyer.league) || {}).nat;
-    candidates.sort((a, b) => (b.ovr + countryAffinity(b.nat, buyerLgNat) / 30) - (a.ovr + countryAffinity(a.nat, buyerLgNat) / 30));
-    const target = candidates[0];
+    let target = null, best = -Infinity; // V8.12 : un passage au lieu d'un tri
+    for (const p of candidates) { const w = p.ovr + countryAffinity(p.nat, buyerLgNat) / 30; if (w > best) { best = w; target = p; } }
     target.wage = clubWage(target.value, buyer); // nouveau contrat (V8.11 : les salaires ne faisaient que monter)
     executeTransfer(state, target, buyer, target.value, news, { silent: false });
   }
@@ -2428,8 +2471,9 @@ function runAIClubFreeAgentSignings(state, news, isMercato) {
     if (!candidates.length) continue;
     const buyerLgNat = (LEAGUES.find(l => l.id === buyer.league) || {}).nat;
     const worth = p => (p.age <= 21 ? (p.ovr + p.pot) / 2 : p.ovr) + countryAffinity(p.nat, buyerLgNat) / 30;
-    candidates.sort((a, b) => worth(b) - worth(a));
-    const target = candidates[0];
+    // V8.12 : meilleur candidat en un passage (le tri appelait worth() à chaque comparaison)
+    let target = null, best = -Infinity;
+    for (const p of candidates) { const w = worth(p); if (w > best) { best = w; target = p; } }
     target.club = buyer.id;
     target.contractUntil = seasonStartYear(state) + randInt(2, 4);
     target.wage = clubWage(target.value, buyer);
@@ -2817,12 +2861,14 @@ function runRivalDeals(state, news) {
 }
 function runRivalAgentsAI(state, isMercato, news) {
   if (isMercato) { runRivalDeals(state, news); runChallengerPoaching(state, news); }
+  let unsigned = null; // V8.12 : joueurs sans agent, parcourus une fois par mois et non une fois par rival
   for (const ra of state.rivalAgents) {
     if (ra.portfolio.length >= rivalPortfolioCap(ra, state)) continue;
     if (Math.random() > (isMercato ? 0.8 : 0.25)) continue;
     const focus = rivalFocus(state, ra);
+    unsigned = unsigned || Object.values(state.players).filter(p => !p.retired && !p.agentId);
     // vivier de départ réservé (V8.6) : un rival ne vient le chercher que si vous le courtisez déjà
-    const pool = Object.values(state.players).filter(p => !p.retired && !p.agentId && p.ovr >= rivalTasteThreshold(ra)
+    const pool = unsigned.filter(p => !p.agentId && p.ovr >= rivalTasteThreshold(ra)
       && !(p.reservedUntil > state.date.absMonth && !(p.courtship && p.courtship.attempts > 0)));
     if (!pool.length) continue;
     const focusPool = pool.filter(p => focus.match(p));
@@ -3886,10 +3932,15 @@ function maybeRetire(state, p) {
   if (Math.random() < chance) { retirePlayer(state, p); return true; }
   return false;
 }
-function pickClubNeedingYouth(state) {
-  const clubs = Object.values(state.clubs).sort((a, b) => a.squad.length - b.squad.length);
-  const poolTop = clubs.slice(0, Math.max(10, Math.round(clubs.length * 0.3)));
-  return choice(poolTop);
+function pickClubNeedingYouth(state, cache) {
+  // V8.12 : avec un cache, l'ordre des 464 clubs n'est recalculé que toutes les 25 attributions (au lieu de chacune)
+  if (!cache || !cache.pool || cache.uses++ >= 25) {
+    const clubs = Object.values(state.clubs).sort((a, b) => a.squad.length - b.squad.length);
+    const pool = clubs.slice(0, Math.max(10, Math.round(clubs.length * 0.3)));
+    if (!cache) return choice(pool);
+    cache.pool = pool; cache.uses = 1;
+  }
+  return choice(cache.pool);
 }
 // ---------- Récompenses individuelles de fin de saison (Ballon d'Or, Soulier d'Or...) ----------
 // Statut de carrière (V8, priorité 4) : une trajectoire lisible plutôt qu'un simple nombre d'OVR qui monte —
@@ -5065,8 +5116,9 @@ function processEndOfSeason(state, news) {
   const clubPop = Object.values(state.clubs).reduce((s, c) => s + c.squad.length, 0);
   // plafond proportionnel au monde (V8.9 : 446 clubs ; l'ancien plafond fixe de 400 vidait peu à peu les effectifs)
   let toGenerate = clamp(targetPop - clubPop, 0, Math.max(400, Object.keys(state.clubs).length * 2));
+  const youthCache = {};
   for (let i = 0; i < toGenerate; i++) {
-    const club = pickClubNeedingYouth(state);
+    const club = pickClubNeedingYouth(state, youthCache);
     // un tiers des arrivants sont des joueurs formés (21-27 ans) venus de championnats non simulés (V8.3, audit P2-3) :
     // n'intégrer que des 15-19 ans déformait la pyramide des âges (34 % de moins de 21 ans après 20 saisons, contre
     // 19 % au départ) et faisait baisser le niveau médian du monde saison après saison.
@@ -5986,8 +6038,48 @@ function deserializeState(json) {
 // (JSON brut) reste lu, et reste le repli si le navigateur ne sait pas compresser.
 const SAVE_KEY = 'football_agent_save_v2';     // JSON brut (ancien format, et repli)
 const SAVE_KEY_GZ = 'football_agent_save_v3';  // JSON compressé gzip, encodé en base64
+// Plusieurs parties (V8.12) : 3 emplacements. L'emplacement 1 garde exactement les clés d'avant (les parties
+// existantes s'y retrouvent) ; les autres ajoutent un suffixe « _s2 », « _s3 ».
+const SAVE_SLOTS = 3, SLOTS_KEY = 'football_agent_slots';
+let activeSlot = 1;
+function slotSuffix(n) { return n === 1 ? '' : '_s' + n; }
+function slotKeys(n = activeSlot) { const x = slotSuffix(n); return { raw: SAVE_KEY + x, gz: SAVE_KEY_GZ + x, idbGz: 'gz' + x, idbRaw: 'raw' + x }; }
+function readSlotIndex() {
+  try { const ix = JSON.parse(localStorage.getItem(SLOTS_KEY) || 'null'); if (ix && ix.meta) return ix; } catch (e) { /* index illisible : on repart de zéro */ }
+  return { active: 1, meta: {} };
+}
+function writeSlotIndex(ix) { try { localStorage.setItem(SLOTS_KEY, JSON.stringify(ix)); } catch (e) { /* sans gravité */ } }
+function noteSlotMeta(state, n = activeSlot) {
+  const ix = readSlotIndex();
+  ix.active = activeSlot;
+  ix.meta[n] = { agent: state.agent.name, agency: state.agent.agency, season: seasonLabel(state), month: calMonth(state), savedAt: Date.now() };
+  writeSlotIndex(ix);
+}
 function canCompressSave() { return typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined'; }
+// V8.12 : compression dans un Worker (hors du fil principal) : le jeu ne se fige plus pendant la sauvegarde
+let gzipWorker = null, gzipWorkerFailed = false, gzipJobs = new Map(), gzipJobSeq = 0;
+function getGzipWorker() {
+  if (gzipWorker || gzipWorkerFailed) return gzipWorker;
+  try {
+    const code = `onmessage = async e => { try { const s = new Blob([e.data.str]).stream().pipeThrough(new CompressionStream('gzip'));
+      const b = new Uint8Array(await new Response(s).arrayBuffer()); let bin = '';
+      for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+      postMessage({ id: e.data.id, b64: btoa(bin) }); } catch (err) { postMessage({ id: e.data.id, error: String(err) }); } };`;
+    gzipWorker = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+    gzipWorker.onmessage = e => { const job = gzipJobs.get(e.data.id); if (!job) return; gzipJobs.delete(e.data.id); e.data.error ? job.reject(new Error(e.data.error)) : job.resolve(e.data.b64); };
+    gzipWorker.onerror = () => { gzipWorkerFailed = true; gzipWorker = null; for (const job of gzipJobs.values()) job.reject(new Error('worker')); gzipJobs.clear(); };
+  } catch (e) { gzipWorkerFailed = true; gzipWorker = null; }
+  return gzipWorker;
+}
 async function gzipToBase64(str) {
+  const w = typeof Worker !== 'undefined' ? getGzipWorker() : null;
+  if (w) {
+    try { return await new Promise((resolve, reject) => { const id = ++gzipJobSeq; gzipJobs.set(id, { resolve, reject }); w.postMessage({ id, str }); }); }
+    catch (e) { /* repli sur la compression dans la page */ }
+  }
+  return gzipToBase64Inline(str);
+}
+async function gzipToBase64Inline(str) {
   const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let bin = '';
@@ -6035,24 +6127,26 @@ async function saveToLocalStorage(state) {
   state.meta = state.meta || {};
   state.meta.saveCounter = (state.meta.saveCounter || 0) + 1;
   const json = serializeState(state); // instantané pris tout de suite, avant toute attente
-  const seq = ++saveSeq;
+  const seq = ++saveSeq, K = slotKeys(), slot = activeSlot;
   try {
-    if (!canCompressSave()) { localStorage.setItem(SAVE_KEY, json); return true; }
+    if (!canCompressSave()) { localStorage.setItem(K.raw, json); noteSlotMeta(state, slot); return true; }
     pendingSaveJSON = json;
     const packed = await gzipToBase64(json);
     if (seq !== saveSeq) return true; // une sauvegarde plus récente est en cours : elle écrira à notre place
     pendingSaveJSON = null;
     try {
-      localStorage.setItem(SAVE_KEY_GZ, packed);
+      localStorage.setItem(K.gz, packed);
     } catch (quota) {
       // trop gros pour localStorage : IndexedDB (sinon l'échec remonte et le bandeau d'alerte s'affiche)
-      if (!(await saveIdb('put', 'gz', packed))) throw quota;
-      try { localStorage.removeItem(SAVE_KEY_GZ); localStorage.removeItem(SAVE_KEY); } catch (e) { /* sans gravité */ }
-      saveIdb('del', 'raw');
+      if (!(await saveIdb('put', K.idbGz, packed))) throw quota;
+      try { localStorage.removeItem(K.gz); localStorage.removeItem(K.raw); } catch (e) { /* sans gravité */ }
+      saveIdb('del', K.idbRaw);
+      noteSlotMeta(state, slot);
       return true;
     }
-    localStorage.removeItem(SAVE_KEY); // libère l'ancien format (et un éventuel secours de fermeture)
-    saveIdb('del', 'gz'); saveIdb('del', 'raw'); // une ancienne copie IndexedDB ne doit pas passer pour plus récente
+    localStorage.removeItem(K.raw); // libère l'ancien format (et un éventuel secours de fermeture)
+    saveIdb('del', K.idbGz); saveIdb('del', K.idbRaw); // une ancienne copie IndexedDB ne doit pas passer pour plus récente
+    noteSlotMeta(state, slot);
     return true;
   } catch (e) {
     if (seq === saveSeq) pendingSaveJSON = null;
@@ -6060,44 +6154,49 @@ async function saveToLocalStorage(state) {
   }
 }
 function flushPendingSaveOnUnload() {
+  // sauvegarde programmée mais pas encore partie : on prend l'état tout de suite
+  if (saveTimer && G) { if (saveTimer !== -1) clearTimeout(saveTimer); saveTimer = null; try { pendingSaveJSON = serializeState(G); } catch (e) { /* tant pis */ } }
   if (!pendingSaveJSON) return;
-  try { localStorage.setItem(SAVE_KEY, pendingSaveJSON); }
+  const K = slotKeys();
+  try { localStorage.setItem(K.raw, pendingSaveJSON); }
   catch (e) {
     // trop gros pour localStorage (monde V8.9) : secours IndexedDB, transaction lancée tout de suite
-    try { if (saveDbHandle) { const tx = saveDbHandle.transaction('s', 'readwrite', { durability: 'relaxed' }); tx.objectStore('s').put(pendingSaveJSON, 'raw'); if (tx.commit) tx.commit(); } } catch (e2) { /* tant pis */ }
+    try { if (saveDbHandle) { const tx = saveDbHandle.transaction('s', 'readwrite', { durability: 'relaxed' }); tx.objectStore('s').put(pendingSaveJSON, K.idbRaw); if (tx.commit) tx.commit(); } } catch (e2) { /* tant pis */ }
   }
 }
 // Sauvegarde présente mais illisible (V8.3, audit) : on la garde en mémoire pour la proposer au téléchargement
 // au lieu de la laisser écraser en silence par une nouvelle partie.
 let corruptSaveRaw = null;
-async function loadFromLocalStorage() {
+async function loadFromLocalStorage(n = activeSlot) {
   // les deux formats peuvent coexister (secours écrit à la fermeture) : on garde le plus récent
-  const found = [];
+  const found = [], K = slotKeys(n);
   let rawSeen = null;
-  try { rawSeen = localStorage.getItem(SAVE_KEY_GZ) || localStorage.getItem(SAVE_KEY); } catch (e) { /* stockage inaccessible */ }
+  try { rawSeen = localStorage.getItem(K.gz) || localStorage.getItem(K.raw); } catch (e) { /* stockage inaccessible */ }
   try {
-    const gz = localStorage.getItem(SAVE_KEY_GZ);
+    const gz = localStorage.getItem(K.gz);
     if (gz && canCompressSave()) found.push(deserializeState(await base64ToGunzip(gz)));
   } catch (e) { /* sauvegarde compressée illisible : on tente l'autre format */ }
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(K.raw);
     if (raw) found.push(deserializeState(raw));
   } catch (e) { /* idem */ }
   try {
-    const idb = canCompressSave() ? await saveIdb('get', 'gz') : null;
+    const idb = canCompressSave() ? await saveIdb('get', K.idbGz) : null;
     if (idb) { rawSeen = rawSeen || idb; found.push(deserializeState(await base64ToGunzip(idb))); }
   } catch (e) { /* copie IndexedDB illisible */ }
   try {
-    const rawIdb = await saveIdb('get', 'raw');
+    const rawIdb = await saveIdb('get', K.idbRaw);
     if (rawIdb) found.push(deserializeState(rawIdb));
   } catch (e) { /* secours de fermeture illisible */ }
   if (!found.length) { corruptSaveRaw = rawSeen; return null; }
   return found.sort((a, b) => ((b.meta && b.meta.saveCounter) || 0) - ((a.meta && a.meta.saveCounter) || 0))[0];
 }
-function deleteLocalStorageSave() {
-  saveSeq++; pendingSaveJSON = null; // annule une écriture en cours
-  saveIdb('del', 'gz'); saveIdb('del', 'raw');
-  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(SAVE_KEY_GZ); return true; } catch (e) { return false; }
+function deleteLocalStorageSave(n = activeSlot) {
+  if (n === activeSlot) { saveSeq++; pendingSaveJSON = null; } // annule une écriture en cours
+  const K = slotKeys(n);
+  saveIdb('del', K.idbGz); saveIdb('del', K.idbRaw);
+  const ix = readSlotIndex(); delete ix.meta[n]; writeSlotIndex(ix);
+  try { localStorage.removeItem(K.raw); localStorage.removeItem(K.gz); return true; } catch (e) { return false; }
 }
 
 if (typeof module !== 'undefined') {
@@ -6452,8 +6551,17 @@ function toast(msg) {
   setTimeout(() => { if (root) root.innerHTML = ''; }, 2600);
 }
 function saveGame() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (!G) return Promise.resolve(true);
   return saveToLocalStorage(G).then(ok => { setSaveWarning(!ok); return ok; });
+}
+// V8.12 : après un mois, la sauvegarde attend que l'écran soit affiché (résumé du mois) avant de se lancer
+let saveTimer = null;
+function scheduleSave() {
+  if (saveTimer && saveTimer !== -1) clearTimeout(saveTimer);
+  saveTimer = -1; // programmée : à la fermeture de la page, flushPendingSaveOnUnload prend l'état tout de suite
+  const go = () => { if (saveTimer !== -1) return; saveTimer = setTimeout(() => { saveTimer = null; saveGame(); }, 0); };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(go); else go();
 }
 // Échec d'écriture (V8.3, audit P0-3) : un toast de 2,6 s ne suffisait pas — la progression cessait d'être
 // enregistrée sans que le joueur le sache. Le bandeau reste affiché tant que les sauvegardes échouent.
@@ -6470,10 +6578,14 @@ function setSaveWarning(on) {
 /* ---------- Paramètres (V8.3, audit : écran absent) ----------
    Préférences d'affichage propres à ce navigateur, gardées à part de la partie (jamais exportées avec elle). */
 const SETTINGS_KEY = 'football_agent_settings';
-const DEFAULT_SETTINGS = { recap: 'full', text: 'normal', motion: 'on', portraits: '3d' };
+const DEFAULT_SETTINGS = { recap: 'full', text: 'normal', motion: 'on', portraits: '3d', theme: 'dark' };
 function loadSettings() { try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); } }
 let settings = loadSettings();
+function prefersLight() { try { return matchMedia('(prefers-color-scheme: light)').matches; } catch (e) { return false; } }
 function applySettings() {
+  const light = settings.theme === 'light' || (settings.theme === 'auto' && prefersLight());
+  document.body.classList.toggle('theme-light', light);
+  const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.setAttribute('content', light ? '#eef2f0' : '#05080a');
   document.body.classList.toggle('text-large', settings.text === 'large');
   document.body.classList.toggle('reduce-motion', settings.motion === 'off');
 }
@@ -6499,6 +6611,10 @@ function downloadRawCorruptSave() {
 /* ---------- Amorçage ---------- */
 async function boot() {
   window.addEventListener('pagehide', flushPendingSaveOnUnload);
+  activeSlot = clamp(Math.round(readSlotIndex().active || 1), 1, SAVE_SLOTS);
+  registerServiceWorker();
+  if (typeof Worker !== 'undefined' && canCompressSave()) getGzipWorker(); // démarré d'avance : la 1re sauvegarde n'attend pas
+  try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (settings.theme === 'auto') applySettings(); }); } catch (e) { /* ancien navigateur */ }
   applySettings();
   watchPortraits();
   const loaded = await loadFromLocalStorage();
@@ -6547,6 +6663,7 @@ function renderOnboarding() {
     <div class="onboard-kicker">Football Agent</div>
     <div class="onboard-title">Créez votre agence</div>
     <div class="onboard-sub">Débutez petit. Bâtissez un empire mondial, saison après saison.</div>
+    ${(() => { const others = slotsCardHTML(true); return others ? `<div class="field"><label>Reprendre une partie</label>${others}</div><div class="small" style="margin:-4px 0 12px">Ou créez une nouvelle partie dans l'emplacement ${activeSlot} :</div>` : ''; })()}
     ${corruptSaveRaw ? `<div class="corrupt-warning"><b>Votre sauvegarde n'a pas pu être lue</b> (données endommagées). Téléchargez-la avant de lancer une nouvelle partie, qui l'effacera.
       <button class="btn btn-sm btn-danger btn-block" style="margin-top:8px" onclick="downloadRawCorruptSave()">Télécharger la sauvegarde illisible</button></div>` : ''}
     <div class="field"><label>Nom de l'agent</label><input type="text" id="obName" placeholder="Ex. Alex Moreau"></div>
@@ -6557,7 +6674,7 @@ function renderOnboarding() {
         ${SPECIALTIES.map((s, i) => `<div class="spec-card ${i === 0 ? 'sel' : ''}" data-spec="${s.id}" onclick="selectSpec('${s.id}')"><b>${s.label}</b><span>${s.desc}</span></div>`).join('')}
       </div>
     </div>
-    <button class="btn btn-primary btn-block" onclick="submitNewGame()">Lancer ma carrière</button>
+    <button class="btn btn-primary btn-block" id="obLaunch" onpointerdown="this.innerHTML='<span class=&quot;spinner&quot;></span> Création du monde…'" onclick="submitNewGame()">Lancer ma carrière</button>
   </div></div>`;
   ui.chosenSpec = SPECIALTIES[0].id;
 }
@@ -6593,6 +6710,7 @@ const MORE_ITEMS = [
   { id: 'news', label: 'Actualités', ico: 'news' },
   { id: 'finances', label: 'Finances', ico: 'coin' },
   { id: 'ranking', label: 'Classement', ico: 'trophy' },
+  { id: 'aide', label: 'Comment jouer', ico: 'target' },
 ];
 function renderApp() {
   document.getElementById('app').innerHTML = `
@@ -6608,7 +6726,7 @@ function renderApp() {
       <div class="topbar-stats" id="topbarStats"></div>
     </header>
     <main class="content" id="content"></main>
-    <button class="fab-advance" id="fabAdvance" onclick="doAdvanceMonth()">Mois suivant →</button>
+    <button class="fab-advance" id="fabAdvance" onpointerdown="fabPressFeedback()" onclick="doAdvanceMonth()">Mois suivant →</button>
     <nav class="bottombar">
       ${BOTTOM_TABS.map(t => `<button class="tab-item" data-tab="${t.id}" onclick="navigate('${t.id}')"><span class="ico">${icon(t.ico)}</span><span class="lbl">${t.label}</span></button>`).join('')}
       <button class="tab-item" data-tab="more" onclick="openMoreSheet()"><span class="ico">${icon('menu')}</span><span class="lbl">Plus</span></button>
@@ -6630,6 +6748,7 @@ function openMoreSheet() {
 }
 
 const PAGE_RENDERERS = {
+  aide: () => renderHelp(),
   dashboard: renderDashboard, myplayers: renderMyPlayers, playerdetail: renderPlayerDetail,
   scouting: renderScouting, clubs: renderClubs, clubdetail: renderClubDetail, market: renderMarket,
   negotiations: renderNegotiationsHub, news: renderNews, phone: renderPhone, agency: renderAgency, finances: renderFinances,
@@ -6653,6 +6772,7 @@ function renderTopbar() {
   const isMore = MORE_ITEMS.some(it => it.id === ui.page);
   document.querySelectorAll('.tab-item[data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === ui.page || (isMore && el.dataset.tab === 'more')));
   const fab = document.getElementById('fabAdvance');
+  fab.classList.remove('busy');
   fab.disabled = !!G.pendingEvent;
   fab.innerHTML = G.pendingEvent ? `${icon('chat',18)} Répondez à la décision en cours` : `${icon('calendar',19)} Passer au mois suivant <span style="opacity:.6">→</span>`;
 }
@@ -8271,11 +8391,18 @@ function snapshotForRecap(state) {
   }
   return { cash: a.cash, rep: a.reputation, commissions: (a.careerStats && a.careerStats.totalCommissions) || 0, players, label: `${MONTH_NAMES[calMonth(state)]} ${calYear(state)}` };
 }
+// V8.12 : dès qu'on appuie, le bouton affiche « Simulation… » (le calcul suit au relâchement)
+function fabPressFeedback() {
+  const fab = document.getElementById('fabAdvance');
+  if (!fab || fab.disabled || !G || G.pendingEvent) return;
+  fab.classList.add('busy');
+  fab.innerHTML = `<span class="spinner"></span> ${calMonth(G) === 7 ? 'Fin de saison…' : 'Simulation du mois…'}`;
+}
 function doAdvanceMonth() {
   if (G.pendingEvent) { showEventModal(); return; }
   const before = snapshotForRecap(G);
   const { news, seasonSummary } = advanceMonth(G);
-  saveGame();
+  scheduleSave();
   if (settings.recap === 'short' && !seasonSummary) {
     // résumé court : un toast plutôt qu'une fenêtre, les événements et les bilans de saison restent affichés
     const d = Math.round(G.agent.cash - before.cash);
@@ -8408,21 +8535,100 @@ function showSeasonReport() {
 }
 
 /* ---------- Sauvegarde / export / import / reset ---------- */
+/* ---------- Parties (V8.12 : 3 emplacements de sauvegarde) ---------- */
+function slotLabelHTML(n, m) {
+  if (!m) return `<b>Partie ${n}</b><div class="small">Emplacement libre</div>`;
+  const when = m.savedAt ? new Date(m.savedAt).toLocaleDateString('fr-FR') : '';
+  return `<b>${esc(m.agency || 'Partie ' + n)}</b><div class="small">${esc(m.agent || '')} · ${MONTH_NAMES[m.month] || ''} saison ${esc(m.season || '')}${when ? ` · ${when}` : ''}</div>`;
+}
+function slotsCardHTML(inOnboarding) {
+  const ix = readSlotIndex();
+  const rows = [];
+  for (let n = 1; n <= SAVE_SLOTS; n++) {
+    const m = ix.meta[n], isActive = n === activeSlot && G;
+    const actions = isActive ? `<span class="small" style="color:var(--accent);font-weight:700">En cours</span>`
+      : m ? `<button class="btn btn-sm btn-primary" onclick="switchSlot(${n})">Charger</button><button class="btn btn-sm btn-ghost" onclick="confirmDeleteSlot(${n})" aria-label="Supprimer la partie ${n}">${icon('close',14)}</button>`
+      : inOnboarding ? '' : `<button class="btn btn-sm" onclick="switchSlot(${n})">Nouvelle partie ici</button>`;
+    if (inOnboarding && (!m || n === activeSlot)) continue;
+    rows.push(`<div class="list-row" style="cursor:default;gap:8px"><div style="min-width:0">${slotLabelHTML(n, m)}</div><div class="right" style="display:flex;gap:6px;align-items:center">${actions}</div></div>`);
+  }
+  return rows.join('');
+}
+async function switchSlot(n) {
+  if (G) await saveGame();
+  const ix = readSlotIndex(); ix.active = n; writeSlotIndex(ix);
+  location.reload();
+}
+function confirmDeleteSlot(n) {
+  const m = readSlotIndex().meta[n];
+  renderModal(`
+    <div class="modal-head"><h3>Supprimer cette partie ?</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
+    <p>${m ? `« ${esc(m.agency || 'Partie ' + n)} » (${esc(m.agent || '')}) sera supprimée définitivement.` : 'Cet emplacement sera vidé.'}</p>
+    <button class="btn btn-danger btn-block" onclick="deleteLocalStorageSave(${n}); closeModal(); ${G ? 'openSettingsModal()' : 'renderOnboarding()'}">Supprimer</button>
+    <button class="btn btn-block" style="margin-top:8px" onclick="closeModal()">Annuler</button>`);
+}
+
+/* ---------- Application installable (V8.12) ---------- */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstallPrompt = e; });
+function isStandaloneApp() { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } }
+async function handleInstallApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  try { const r = await deferredInstallPrompt.userChoice; toast(r && r.outcome === 'accepted' ? 'Application installée !' : 'Installation annulée.'); } catch (e) { /* sans gravité */ }
+  deferredInstallPrompt = null; openSettingsModal();
+}
+function installCardHTML() {
+  if (isStandaloneApp()) return `<p class="small">✅ Vous jouez depuis l'application installée.</p>`;
+  if (deferredInstallPrompt) return `<button class="btn btn-primary btn-block" onclick="handleInstallApp()">📲 Installer l'application</button>`;
+  return `<p class="small">Pour l'ajouter à l'écran d'accueil : sur iPhone, bouton <b>Partager</b> puis <b>Sur l'écran d'accueil</b> ; sur Android, menu <b>⋮</b> puis <b>Installer l'application</b> (ou <b>Ajouter à l'écran d'accueil</b>). Le jeu fonctionne alors aussi hors connexion lorsqu'il est ouvert depuis son site.</p>`;
+}
+function registerServiceWorker() {
+  try {
+    if (!('serviceWorker' in navigator) || location.protocol !== 'https:' || window.top !== window.self) return; // site en https uniquement (GitHub Pages)
+    navigator.serviceWorker.register('sw.js').catch(() => { /* site sans sw.js (visionneuse, fichier seul) : sans gravité */ });
+  } catch (e) { /* cadre isolé : pas d'installation possible */ }
+}
+
+/* ---------- Comment jouer (V8.12) ---------- */
+const HELP_SECTIONS = [
+  ['🎯 Le but', "Vous dirigez une agence d'agents de football. Recrutez des joueurs, négociez leurs contrats et leurs transferts, touchez des commissions et faites grandir votre réputation, saison après saison."],
+  ['📅 Le mois', "Le gros bouton « Passer au mois suivant » fait avancer le temps : matchs, transferts, événements. Un résumé montre ce qui a changé pour vous et vos clients. Les mercatos ont lieu en été (juillet-août) et en janvier."],
+  ['🔎 Trouver des joueurs', "Le Scouting envoie des recruteurs dans une région ; le Marché liste les joueurs libres et à vendre. Un joueur sans agent peut accepter de vous rejoindre selon votre réputation et votre insistance."],
+  ['🤝 Négocier', "Depuis la fiche d'un client : prolongation, transfert, prêt. Vous fixez salaire, durée, rôle promis et votre commission. Plus vous êtes gourmand, plus le risque d'échec augmente. Une promesse de temps de jeu non tenue fâche le joueur."],
+  ['🏢 L’agence', "Agrandissez vos bureaux pour représenter plus de joueurs, embauchez du personnel (scouts, avocats, négociateurs…), lancez des investissements et des campagnes d'image."],
+  ['💶 Argent et impôts', "Les commissions sont imposées en fin de saison (impôt progressif). Attention à la trésorerie : six mois sous −250 k€ et la banque restructure l'agence (elle vend d'abord vos parts de clubs)."],
+  ['🏟️ Parts de clubs', "Sur la fiche d'un club, achetez des parts (1 %, 5 %, 10 %…). Vous touchez des dividendes selon le classement. Au-delà de 50 %, vous êtes propriétaire : objectif de saison, supporters, stratégie, billetterie, centre de formation, stade, joueurs intransférables. Des agents rivaux investissent aussi."],
+  ['🏆 Compétitions', "26 championnats, montées et descentes (avec barrages en France et en Allemagne), coupes nationales, Ligue des Champions, derbys. Vos clients peuvent gagner des titres et des trophées individuels."],
+  ['⭐ Progression', "Défis de saison, classement des agents (agent de l'année), hauts faits et trophées de président. Une carrière n'a pas de fin : les joueurs vieillissent, de nouveaux talents arrivent."],
+  ['💾 Sauvegardes', "La partie est sauvegardée automatiquement. Les Paramètres permettent d'avoir trois parties, d'exporter ou d'importer une sauvegarde, et de choisir le thème et les portraits."],
+];
+function renderHelp() {
+  return `<div class="page-title">Comment jouer</div>
+    ${HELP_SECTIONS.map(([t, d]) => `<div class="card"><div class="card-title" style="text-transform:none;letter-spacing:0">${t}</div><p style="margin:0">${d}</p></div>`).join('')}`;
+}
 function openSettingsModal() {
   renderModal(`
     <div class="modal-head"><h3>Paramètres</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     <div class="card-title">Affichage</div>
+    ${settingRowHTML('theme', 'Thème', 'Sombre, clair, ou selon le réglage de l\'appareil.', [['dark', 'Sombre'], ['light', 'Clair'], ['auto', 'Auto']])}
     ${settingRowHTML('recap', 'Résumé du mois', 'Détaillé à chaque mois, ou seulement les bilans de saison.', [['full', 'Détaillé'], ['short', 'Court']])}
     ${settingRowHTML('text', 'Taille du texte', 'Agrandit tout le contenu du jeu.', [['normal', 'Normale'], ['large', 'Grande']])}
     ${settingRowHTML('motion', 'Animations', 'Désactivez-les pour un affichage plus sobre.', [['on', 'Oui'], ['off', 'Non']])}
     ${settingRowHTML('portraits', 'Portraits des joueurs', 'Visages 3D réalistes, visages 2D dessinés (plus légers), ou simples silhouettes.' + (portraitStatusText() ? `<div class="portrait-status">${portraitStatusText()}</div>` : ''), [['3d', '3D'], ['2d', '2D'], ['simple', 'Aucun']])}
+    <div class="card-title" style="margin-top:18px">Parties</div>
+    <p class="small">Jusqu'à ${SAVE_SLOTS} parties dans ce navigateur, chacune sauvegardée automatiquement.</p>
+    ${slotsCardHTML(false)}
+    <div class="card-title" style="margin-top:18px">Application</div>
+    ${installCardHTML()}
+    <button class="btn btn-block" style="margin-top:8px" onclick="closeModal(); navigate('aide')">❓ Comment jouer</button>
     <div class="card-title" style="margin-top:18px">Sauvegarde</div>
-    <p class="small">Votre partie est sauvegardée automatiquement à chaque mois dans ce navigateur.</p>
+    <p class="small">Exportez votre partie pour la garder en lieu sûr ou la continuer sur un autre appareil.</p>
     <button class="btn btn-block" style="margin-bottom:8px" onclick="handleExport()">⬇️ Exporter la sauvegarde (.json)</button>
     <label class="btn btn-block" style="margin-bottom:8px; display:flex;">⬆️ Importer une sauvegarde
       <input type="file" accept="application/json" style="display:none" onchange="handleImport(event)">
     </label>
-    <button class="btn btn-danger btn-block" onclick="confirmReset()">Nouvelle partie (efface tout)</button>
+    <button class="btn btn-danger btn-block" onclick="confirmReset()">Effacer cette partie et recommencer</button>
   `);
 }
 async function handleExport() {
@@ -8480,7 +8686,7 @@ function doDropClient(playerId) {
 function confirmReset() {
   renderModal(`
     <div class="modal-head"><h3>Tout effacer ?</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
-    <p>Cette action supprime définitivement votre partie en cours. Pensez à exporter votre sauvegarde avant si besoin.</p>
+    <p>Cette action supprime définitivement la partie en cours (les autres emplacements ne sont pas touchés). Pensez à exporter votre sauvegarde avant si besoin.</p>
     <button class="btn btn-danger btn-block" onclick="doReset()">Oui, recommencer à zéro</button>
     <button class="btn btn-block" style="margin-top:8px" onclick="closeModal()">Annuler</button>
   `);

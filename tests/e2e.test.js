@@ -173,6 +173,7 @@ test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'
     assert.match(await page.textContent('#content'), /Gestion du club/);
     await page.click('text=Formation');
     await page.click('text=+1.0M€');
+    await page.evaluate(() => saveGame()); // attendre la fin de la sauvegarde (compressée dans un Worker) avant de recharger
     await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     const st = await page.evaluate(() => ({ pct: stakePct(G, 'amiens'), pol: G.clubs.amiens.ownerPolicy, injected: G.agent.stakes.amiens.injected }));
     assert.ok(st.pct > 51, 'l\'apport fait monter la part (augmentation de capital)');
@@ -201,10 +202,33 @@ test('V8.11 : propriétaire — rachat des parts d\'un rival, augmentation de ca
     const pid = await page.evaluate(() => G.clubs.amiens.squad[0]);
     await page.evaluate(id => openPlayerDetail(id, 'world'), pid);
     await page.click('text=Rendre intransférable');
+    await page.evaluate(() => saveGame()); // attendre la fin de la sauvegarde (compressée dans un Worker) avant de recharger
     await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     assert.equal(await page.evaluate(id => G.players[id].untouchable, pid), true, 'intransférable conservé au rechargement');
     await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'L2'; navigate('world'); });
     assert.match(await page.textContent('#content'), /3e = barrage/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
+
+test('V8.12 : trois parties, mode clair, page d\'aide', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.fill('#obName', 'Alice'); await page.fill('#obAgency', 'Agence A');
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(async () => { advanceMonth(G); G.pendingEvent = null; await saveGame(); setSetting('theme', 'light'); closeModal(); navigate('aide'); });
+    assert.ok(await page.evaluate(() => document.body.classList.contains('theme-light')), 'mode clair');
+    assert.match(await page.textContent('#content'), /Comment jouer/);
+    await page.evaluate(() => openSettingsModal());
+    await Promise.all([page.waitForNavigation(), page.click('text=Nouvelle partie ici')]);
+    assert.match(await page.textContent('body'), /Reprendre une partie[\s\S]*Agence A/);
+    await page.fill('#obName', 'Bob'); await page.fill('#obAgency', 'Agence B');
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => saveGame());
+    await page.evaluate(() => openSettingsModal());
+    await Promise.all([page.waitForNavigation(), page.click('text=Charger')]);
+    await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
+    const back = await page.evaluate(() => ({ slot: activeSlot, agency: G.agent.agency, month: calMonth(G), light: document.body.classList.contains('theme-light') }));
+    assert.deepEqual(back, { slot: 1, agency: 'Agence A', month: 9, light: true }, 'partie 1 retrouvée intacte');
+    assert.equal(await page.evaluate(() => readSlotIndex().meta[2].agency), 'Agence B');
   }, { portraits: 'simple' });
 });

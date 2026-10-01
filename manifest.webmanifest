@@ -1,0 +1,16 @@
+{
+  "name": "Football Agent",
+  "short_name": "Football Agent",
+  "description": "Jeu de gestion et de carrière d'agent de football",
+  "lang": "fr",
+  "start_url": "football-agent-8-2-20.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05080a",
+  "theme_color": "#05080a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
