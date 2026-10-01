@@ -330,6 +330,16 @@ button{font-family:inherit;}
 .player-card-portrait.pt-4{background:linear-gradient(155deg,#3a2b1f,#1d1510);}
 .player-card-portrait.pt-5{background:linear-gradient(155deg,#233546,#121b26);}
 .player-card-silhouette{display:block; color:var(--ink-faint); opacity:.75;}
+/* portraits 3D réalistes (V8.7) : l'image remplace la silhouette dès qu'elle est prête */
+.player-card-portrait{overflow:hidden;}
+.player-card .player-card-portrait.has-photo, .player-card-portrait.has-photo{background-image:var(--photo) !important; background-size:cover !important; background-position:center 30% !important; background-repeat:no-repeat !important; border-color:rgba(255,255,255,.14); animation:portraitIn .35s ease-out;}
+.player-card-portrait.has-photo svg{display:none;}
+@keyframes portraitIn{from{opacity:.35;} to{opacity:1;}}
+.list-row > .player-card-portrait{border-radius:50% !important; margin:0;}
+.news-message-head .player-card-portrait, .pd-portrait .player-card-portrait{margin:0;}
+.pd-portrait .player-card-portrait{border-radius:16px !important; box-shadow:0 8px 22px rgba(0,0,0,.45);}
+.badge.xs{width:14px; height:16px; font-size:0; vertical-align:-3px;}
+@media (max-width:420px){ .pd-header-top .badge.lg{display:none;} .pd-portrait .player-card-portrait{width:76px !important; height:76px !important;} }
 .player-card-name{position:relative; font-family:var(--font-display); text-transform:uppercase; font-weight:600; letter-spacing:.03em; font-size:14px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .player-card-club{position:relative; display:flex; align-items:center; justify-content:center; gap:5px; margin-top:4px; font-size:10.5px; opacity:.8; white-space:nowrap; overflow:hidden;}
 .player-card-stats{position:relative; display:flex; justify-content:space-around; margin-top:9px; padding-top:8px; border-top:1px solid var(--mline);}
@@ -5046,7 +5056,95 @@ function portraitHTML(seed, sizePx) {
   const s = sizePx || 44;
   const iconSize = Math.round(s * 0.5);
   const radius = Math.max(8, Math.round(s * 0.22));
-  return `<div class="player-card-portrait ${portraitTheme(seed)}" style="width:${s}px;height:${s}px;border-radius:${radius}px;flex-shrink:0"><svg class="player-card-silhouette" viewBox="0 0 24 24" width="${iconSize}" height="${iconSize}" fill="currentColor"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-9 1.7-9 5v2h18v-2c0-3.3-5.7-5-9-5z"/></svg></div>`;
+  // data-portrait : le visage 3D réaliste remplace la silhouette dès qu'il est prêt (V8.7)
+  return `<div class="player-card-portrait ${portraitTheme(seed)}" data-portrait="${esc(seed || '')}" data-psize="${s}" style="width:${s}px;height:${s}px;border-radius:${radius}px;flex-shrink:0"><svg class="player-card-silhouette" viewBox="0 0 24 24" width="${iconSize}" height="${iconSize}" fill="currentColor"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-9 1.7-9 5v2h18v-2c0-3.3-5.7-5-9-5z"/></svg></div>`;
+}
+/* ---------- Portraits réalistes 3D (V8.7) ----------
+   Chaque joueur a un visage déterministe (identifiant + nationalité + âge -> même visage, à chaque partie), dessiné
+   une seule fois en 3D par le module portraits/portraits.js (maillage MakeHuman CC0 + rendu procédural), puis gardé
+   en image : en mémoire et dans IndexedDB, jamais dans la sauvegarde. Sans WebGL ou si le module manque, la
+   silhouette reste affichée. Le rendu se fait en tâche de fond, un portrait à la fois, pour ne pas figer l'écran. */
+const PORTRAIT_MODULE = './portraits/portraits.js';
+const portraits = { mod: null, load: null, off: false, mem: new Map(), queue: [], queued: new Set(), busy: false, db: null };
+function portraitBucket(px) { return px <= 48 ? 96 : px <= 96 ? 192 : 256; }
+function portraitsWanted() { return settings.portraits !== 'simple' && !portraits.off; }
+function loadPortraitEngine() {
+  if (!portraits.load) portraits.load = import(PORTRAIT_MODULE)
+    .then(m => { if (!m.portraitsSupported()) throw new Error('WebGL indisponible'); portraits.mod = m; return m; })
+    .catch(e => { portraits.off = true; console.info('Portraits 3D indisponibles, silhouettes conservées :', e.message); return null; });
+  return portraits.load;
+}
+function portraitStore() {
+  if (portraits.db) return portraits.db;
+  portraits.db = new Promise(resolve => {
+    try {
+      const req = indexedDB.open('football_agent_portraits', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('p');
+      req.onsuccess = () => {
+        const db = req.result;
+        // garde-fou de taille : au-delà de 4 000 portraits gardés, on repart de zéro (ils se redessinent à la demande)
+        try { const c = db.transaction('p').objectStore('p').count(); c.onsuccess = () => { if (c.result > 4000) db.transaction('p', 'readwrite').objectStore('p').clear(); }; } catch (e) { /* sans gravité */ }
+        resolve(db);
+      };
+      req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  });
+  return portraits.db;
+}
+async function portraitCacheGet(key) {
+  const db = await portraitStore(); if (!db) return null;
+  return new Promise(resolve => { try { const r = db.transaction('p').objectStore('p').get(key); r.onsuccess = () => resolve(r.result || null); r.onerror = () => resolve(null); } catch (e) { resolve(null); } });
+}
+async function portraitCachePut(key, url) {
+  const db = await portraitStore(); if (!db) return;
+  try { db.transaction('p', 'readwrite').objectStore('p').put(url, key); } catch (e) { /* quota : le portrait sera redessiné plus tard */ }
+}
+function applyPortrait(key, url) {
+  document.querySelectorAll(`[data-pkey="${key}"]`).forEach(el => { el.style.backgroundImage = `url(${url})`; el.style.setProperty('--photo', `url(${url})`); el.classList.add('has-photo'); });
+}
+function hydratePortraits() {
+  if (!portraitsWanted() || typeof G === 'undefined' || !G || !G.players) return;
+  document.querySelectorAll('[data-portrait]:not([data-pkey])').forEach(el => {
+    const p = G.players[el.dataset.portrait];
+    if (!p) { el.dataset.pkey = '-'; return; } // ancien joueur retiré du monde : silhouette
+    const size = portraitBucket(+el.dataset.psize || 44);
+    const key = `v1:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
+    const url = portraits.mem.get(key);
+    if (url) { applyPortrait(key, url); return; }
+    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, p: { id: p.id, nat: p.nat, age: p.age } }); }
+  });
+  pumpPortraits();
+}
+async function pumpPortraits() {
+  if (portraits.busy) return;
+  portraits.busy = true;
+  try {
+    while (portraits.queue.length && portraitsWanted()) {
+      const job = portraits.queue.shift();
+      portraits.queued.delete(job.key);
+      if (!document.querySelector(`[data-pkey="${job.key}"]`)) continue; // plus à l'écran
+      let url = await portraitCacheGet(job.key);
+      if (!url) {
+        const m = await loadPortraitEngine(); if (!m) break;
+        await new Promise(r => (window.requestIdleCallback || (f => setTimeout(f, 30)))(r, { timeout: 400 })); // seulement quand le jeu est au repos
+        const t0 = performance.now();
+        try { url = (await m.renderPortrait(job.p, job.size)).url; } catch (e) { console.info('Portrait non dessiné :', e.message); continue; }
+        // appareil vraiment trop lent : on revient aux silhouettes plutôt que de ralentir le jeu
+        portraits.slow = (performance.now() - t0 > 6000) ? (portraits.slow || 0) + 1 : 0;
+        if (portraits.slow >= 3) { portraits.off = true; console.info('Portraits 3D trop lents sur cet appareil : silhouettes conservées.'); }
+        portraitCachePut(job.key, url);
+      }
+      portraits.mem.set(job.key, url);
+      if (portraits.mem.size > 500) portraits.mem.delete(portraits.mem.keys().next().value);
+      applyPortrait(job.key, url);
+      await new Promise(r => setTimeout(r, 0)); // laisse l'interface respirer entre deux portraits
+    }
+  } finally { portraits.busy = false; }
+}
+// tout nouveau portrait ajouté à l'écran (page, modale, actualités) est pris en charge automatiquement
+let portraitScan = 0;
+function watchPortraits() {
+  try { new MutationObserver(() => { if (!portraitScan) portraitScan = requestAnimationFrame(() => { portraitScan = 0; hydratePortraits(); }); }).observe(document.body, { childList: true, subtree: true }); } catch (e) { /* navigateur ancien : silhouettes */ }
 }
 function flagFor(nat){ return NAT_FLAG[nat] || '🏳️'; }
 function posLabel(code){ const m = POSITIONS.find(p => p.code === code); return m ? m.label : code; }
@@ -5084,10 +5182,10 @@ function playerRowHTML(p, opts) {
   const club = p.club ? G.clubs[p.club] : null;
   const returnTo = opts.returnTo || ui.page;
   return `<div class="list-row" onclick="openPlayerDetail('${p.id}','${returnTo}')">
-    ${clubBadgeHTML(club, 'sm')}
+    ${portraitHTML(p.id, 40)}
     <div>
       <div class="name">${esc(p.name)} <span class="flag">${flagFor(p.nat)}</span></div>
-      <div class="sub"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${club ? esc(club.short) : 'Libre'}${p.parentClub ? ' (prêt)' : ''} · ${p.age} ans</div>
+      <div class="sub"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${club ? clubBadgeHTML(club, 'xs') + ' ' + esc(club.short) : 'Libre'}${p.parentClub ? ' (prêt)' : ''} · ${p.age} ans</div>
     </div>
     <div class="right">
       <div class="ovr ${ovrTierClass(p.ovr)}">${p.ovr}</div>
@@ -5184,7 +5282,7 @@ function setSaveWarning(on) {
 /* ---------- Paramètres (V8.3, audit : écran absent) ----------
    Préférences d'affichage propres à ce navigateur, gardées à part de la partie (jamais exportées avec elle). */
 const SETTINGS_KEY = 'football_agent_settings';
-const DEFAULT_SETTINGS = { recap: 'full', text: 'normal', motion: 'on' };
+const DEFAULT_SETTINGS = { recap: 'full', text: 'normal', motion: 'on', portraits: '3d' };
 function loadSettings() { try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); } }
 let settings = loadSettings();
 function applySettings() {
@@ -5195,6 +5293,7 @@ function setSetting(key, value) {
   settings[key] = value;
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* préférence non retenue : sans gravité */ }
   applySettings();
+  if (key === 'portraits') { if (value === '3d') portraits.off = false; renderPage(); }
   openSettingsModal();
 }
 function settingRowHTML(key, label, sub, options) {
@@ -5213,6 +5312,7 @@ function downloadRawCorruptSave() {
 async function boot() {
   window.addEventListener('pagehide', flushPendingSaveOnUnload);
   applySettings();
+  watchPortraits();
   const loaded = await loadFromLocalStorage();
   if (loaded && loaded.clubs && loaded.players && loaded.agent) {
     migrateOldSave(loaded);
@@ -5776,6 +5876,7 @@ function renderPlayerDetail() {
     <button class="btn btn-sm" onclick="navigate('${ui.returnTo}')" style="margin-bottom:12px">← Retour</button>
     <div class="card pd-hero" style="--club-c1:${club ? club.c1 : '#1fbf7a'}">
       <div class="pd-header-top">
+        <div class="pd-portrait">${portraitHTML(p.id, 96)}</div>
         <div class="ovr-ring" style="--v:${p.ovr};--c:${p.ovr >= 77 ? 'var(--gold)' : 'var(--accent)'}"><b>${p.ovr}</b><span>Niveau</span></div>
         <div class="pd-header-id">
           <h2>${esc(p.name)}</h2>
@@ -6964,6 +7065,7 @@ function openSettingsModal() {
     ${settingRowHTML('recap', 'Résumé du mois', 'Détaillé à chaque mois, ou seulement les bilans de saison.', [['full', 'Détaillé'], ['short', 'Court']])}
     ${settingRowHTML('text', 'Taille du texte', 'Agrandit tout le contenu du jeu.', [['normal', 'Normale'], ['large', 'Grande']])}
     ${settingRowHTML('motion', 'Animations', 'Désactivez-les pour un affichage plus sobre.', [['on', 'Oui'], ['off', 'Non']])}
+    ${settingRowHTML('portraits', 'Portraits des joueurs', 'Visages 3D réalistes, ou silhouettes simples (plus léger sur un appareil ancien).', [['3d', 'Réalistes'], ['simple', 'Simples']])}
     <div class="card-title" style="margin-top:18px">Sauvegarde</div>
     <p class="small">Votre partie est sauvegardée automatiquement à chaque mois dans ce navigateur.</p>
     <button class="btn btn-block" style="margin-bottom:8px" onclick="handleExport()">⬇️ Exporter la sauvegarde (.json)</button>

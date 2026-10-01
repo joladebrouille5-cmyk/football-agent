@@ -4,14 +4,24 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
 const fs = require('fs');
+const path = require('path');
 const { chromium } = require('playwright');
 const { GAME_FILE } = require('./load-engine');
 
 async function withGame(viewport, fn) {
   const html = fs.readFileSync(GAME_FILE);
-  const srv = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+  const root = path.dirname(GAME_FILE);
+  const TYPES = { '.js': 'text/javascript', '.json': 'application/json', '.gz': 'application/gzip' };
+  // la page du jeu, plus les fichiers du module de portraits (portraits/…)
+  const srv = http.createServer((req, res) => {
+    const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
+    const file = path.join(root, rel);
+    if (rel.startsWith('portraits/') && file.startsWith(root) && fs.existsSync(file)) { res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream' }); return fs.createReadStream(file).pipe(res); }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html);
+  });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
-  const browser = await chromium.launch();
+  // WebGL logiciel (SwiftShader) : les portraits 3D se dessinent aussi dans le navigateur de test
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await browser.newContext({ viewport });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort()); // le jeu doit fonctionner sans les polices
   const page = await ctx.newPage();
@@ -70,3 +80,25 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
     });
   });
 }
+
+test('Portraits 3D : visage dessiné, identique après rechargement, désactivable', async () => {
+  await withGame({ width: 1280, height: 900 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    const pid = await page.evaluate(() => G.freeAgents[0]);
+    await page.evaluate(id => openPlayerDetail(id, 'market'), pid);
+    await page.waitForSelector('.pd-portrait .has-photo', { timeout: 120000 });
+    const img = await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage);
+    assert.match(img, /^url\("data:image\/(webp|png);base64,/);
+    // l'image est vraiment décodable et non vide
+    const size = await page.evaluate(src => new Promise(r => { const i = new Image(); i.onload = () => r([i.naturalWidth, i.naturalHeight]); i.onerror = () => r([0, 0]); i.src = src; }), img.slice(5, -2));
+    assert.ok(size[0] >= 96 && size[1] >= 96, 'image de portrait valide');
+    await page.waitForTimeout(800); // écriture du cache
+    await page.reload(); await page.waitForTimeout(500);
+    await page.evaluate(id => openPlayerDetail(id, 'market'), pid);
+    await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
+    assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img, 'même visage après rechargement');
+    await page.evaluate(() => setSetting('portraits', 'simple')); await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
+    await page.waitForTimeout(400);
+    assert.equal(await page.$$eval('.has-photo', els => els.length), 0, 'silhouettes en mode simple');
+  });
+});
