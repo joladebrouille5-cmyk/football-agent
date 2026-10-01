@@ -266,14 +266,15 @@ test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au 
 test('V8.15 : avancer par semaine depuis le bouton', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
     await page.click('text=Lancer ma carrière');
-    await page.evaluate(() => { G.pendingEvent = null; closeModal(); renderPage(); });
+    // le message de la semaine s'efface après 2,6 s : on le relève au passage plutôt que de dépendre de la vitesse de la machine
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); renderPage(); window.__toasts = []; const t = toast; toast = m => { window.__toasts.push(m); t(m); }; });
     await page.click('#fabStep');
     assert.match(await page.textContent('#fabAdvance'), /semaine suivante/i);
     assert.match(await page.textContent('#topbarDate'), /Sem\. 1/);
     for (let w = 2; w <= 4; w++) {
       await page.click('#fabAdvance');
       assert.match(await page.textContent('#topbarDate'), new RegExp('Sem\\. ' + w));
-      assert.match(await page.textContent('#toastRoot'), /Semaine \d/);
+      assert.match(await page.evaluate(() => window.__toasts[window.__toasts.length - 1]), new RegExp('^Semaine ' + (w - 1) + ' · '));
     }
     assert.match(await page.textContent('#fabAdvance'), /fin du mois/);
     const month0 = await page.evaluate(() => G.date.absMonth);
