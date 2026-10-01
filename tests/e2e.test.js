@@ -8,7 +8,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 const { GAME_FILE } = require('./load-engine');
 
-async function withGame(viewport, fn) {
+async function withGame(viewport, fn, settings) {
   const html = fs.readFileSync(GAME_FILE);
   const root = path.dirname(GAME_FILE);
   const TYPES = { '.js': 'text/javascript', '.json': 'application/json', '.gz': 'application/gzip' };
@@ -24,6 +24,8 @@ async function withGame(viewport, fn) {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await browser.newContext({ viewport });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort()); // le jeu doit fonctionner sans les polices
+  // réglages de départ (ex. portraits 2D : la 3D en WebGL logiciel occupe le processeur et rend les clics lents)
+  if (settings) await ctx.addInitScript(s => { if (!localStorage.getItem('football_agent_settings')) localStorage.setItem('football_agent_settings', s); }, JSON.stringify(settings));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -77,7 +79,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       assert.match(await page.textContent('#content'), /Offre pour/);
       await page.evaluate(id => { resolveDropClient(G, id); navigate('dashboard'); }, sid);
       assert.doesNotMatch(await page.textContent('#content'), /Offre pour/);
-    });
+    }, { portraits: '2d' });
   });
 }
 
