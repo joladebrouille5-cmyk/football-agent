@@ -81,7 +81,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
   });
 }
 
-test('Portraits 3D : visage dessiné, identique après rechargement, désactivable', async () => {
+test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, désactivable', async () => {
   await withGame({ width: 1280, height: 900 }, async page => {
     await page.click('text=Lancer ma carrière');
     const pid = await page.evaluate(() => G.freeAgents[0]);
@@ -97,6 +97,14 @@ test('Portraits 3D : visage dessiné, identique après rechargement, désactivab
     await page.evaluate(id => openPlayerDetail(id, 'market'), pid);
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img, 'même visage après rechargement');
+    // réglage « 2D » : visage dessiné (SVG), lui aussi déterministe
+    await page.evaluate(() => setSetting('portraits', '2d')); await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
+    await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
+    const img2d = await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage);
+    assert.match(img2d, /^url\("data:image\/svg\+xml;base64,/);
+    await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
+    await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
+    assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img2d, 'même visage 2D');
     await page.evaluate(() => setSetting('portraits', 'simple')); await page.evaluate(() => { closeModal(); openPlayerDetail(G.freeAgents[0], 'market'); });
     await page.waitForTimeout(400);
     assert.equal(await page.$$eval('.has-photo', els => els.length), 0, 'silhouettes en mode simple');

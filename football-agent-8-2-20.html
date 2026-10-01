@@ -5059,20 +5059,28 @@ function portraitHTML(seed, sizePx) {
   // data-portrait : le visage 3D réaliste remplace la silhouette dès qu'il est prêt (V8.7)
   return `<div class="player-card-portrait ${portraitTheme(seed)}" data-portrait="${esc(seed || '')}" data-psize="${s}" style="width:${s}px;height:${s}px;border-radius:${radius}px;flex-shrink:0"><svg class="player-card-silhouette" viewBox="0 0 24 24" width="${iconSize}" height="${iconSize}" fill="currentColor"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-9 1.7-9 5v2h18v-2c0-3.3-5.7-5-9-5z"/></svg></div>`;
 }
-/* ---------- Portraits réalistes 3D (V8.7) ----------
+/* ---------- Portraits des joueurs : 3D réalistes ou 2D dessinés (V8.7) ----------
    Chaque joueur a un visage déterministe (identifiant + nationalité + âge -> même visage, à chaque partie), dessiné
-   une seule fois en 3D par le module portraits/portraits.js (maillage MakeHuman CC0 + rendu procédural), puis gardé
-   en image : en mémoire et dans IndexedDB, jamais dans la sauvegarde. Sans WebGL ou si le module manque, la
-   silhouette reste affichée. Le rendu se fait en tâche de fond, un portrait à la fois, pour ne pas figer l'écran. */
-const PORTRAIT_MODULE = './portraits/portraits.js';
-const portraits = { mod: null, load: null, off: false, mem: new Map(), queue: [], queued: new Set(), busy: false, db: null };
+   une seule fois par un module du dossier portraits/ puis gardé en image : en mémoire et dans IndexedDB, jamais dans
+   la sauvegarde. Réglage « Portraits » : 3D (maillage MakeHuman CC0 + rendu WebGL), 2D (dessin vectoriel, même
+   génome : même carnation, mêmes cheveux, même barbe) ou silhouettes. Sans WebGL, la 3D passe d'elle-même en 2D ;
+   si aucun module ne se charge, la silhouette reste. Rendu en tâche de fond, un portrait à la fois. */
+const PORTRAIT_MODULES = { '3d': './portraits/portraits.js', '2d': './portraits/faces2d.js' };
+const portraits = { engines: { '3d': { load: null, off: false }, '2d': { load: null, off: false } }, mem: new Map(), queue: [], queued: new Set(), busy: false, db: null };
 function portraitBucket(px) { return px <= 48 ? 96 : px <= 96 ? 192 : 256; }
-function portraitsWanted() { return settings.portraits !== 'simple' && !portraits.off; }
-function loadPortraitEngine() {
-  if (!portraits.load) portraits.load = import(PORTRAIT_MODULE)
-    .then(m => { if (!m.portraitsSupported()) throw new Error('WebGL indisponible'); portraits.mod = m; return m; })
-    .catch(e => { portraits.off = true; console.info('Portraits 3D indisponibles, silhouettes conservées :', e.message); return null; });
-  return portraits.load;
+// style réellement utilisé : celui choisi, ou la 2D quand la 3D est impossible sur cet appareil ; null = silhouettes
+function portraitMode() {
+  const want = settings.portraits === '2d' ? '2d' : settings.portraits === 'simple' ? null : '3d';
+  if (want === '3d' && portraits.engines['3d'].off) return portraits.engines['2d'].off ? null : '2d';
+  return want && !portraits.engines[want].off ? want : null;
+}
+function portraitsWanted() { return !!portraitMode(); }
+function loadPortraitEngine(mode) {
+  const e = portraits.engines[mode];
+  if (!e.load) e.load = import(PORTRAIT_MODULES[mode])
+    .then(m => { if (!m.portraitsSupported()) throw new Error('WebGL indisponible'); return m; })
+    .catch(err => { e.off = true; console.info(`Portraits ${mode.toUpperCase()} indisponibles :`, err.message); if (typeof G !== 'undefined' && G) renderPage(); return null; });
+  return e.load;
 }
 function portraitStore() {
   if (portraits.db) return portraits.db;
@@ -5108,10 +5116,10 @@ function hydratePortraits() {
     const p = G.players[el.dataset.portrait];
     if (!p) { el.dataset.pkey = '-'; return; } // ancien joueur retiré du monde : silhouette
     const size = portraitBucket(+el.dataset.psize || 44);
-    const key = `v1:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
+    const mode = portraitMode(), key = `${mode === '2d' ? 'v1-2d' : 'v1'}:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
     const url = portraits.mem.get(key);
     if (url) { applyPortrait(key, url); return; }
-    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, p: { id: p.id, nat: p.nat, age: p.age } }); }
+    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, mode, p: { id: p.id, nat: p.nat, age: p.age } }); }
   });
   pumpPortraits();
 }
@@ -5122,16 +5130,16 @@ async function pumpPortraits() {
     while (portraits.queue.length && portraitsWanted()) {
       const job = portraits.queue.shift();
       portraits.queued.delete(job.key);
-      if (!document.querySelector(`[data-pkey="${job.key}"]`)) continue; // plus à l'écran
+      if (!document.querySelector(`[data-pkey="${job.key}"]`) || job.mode !== portraitMode()) continue; // plus à l'écran
       let url = await portraitCacheGet(job.key);
       if (!url) {
-        const m = await loadPortraitEngine(); if (!m) break;
+        const m = await loadPortraitEngine(job.mode); if (!m) continue;
         await new Promise(r => (window.requestIdleCallback || (f => setTimeout(f, 30)))(r, { timeout: 400 })); // seulement quand le jeu est au repos
         const t0 = performance.now();
         try { url = (await m.renderPortrait(job.p, job.size)).url; } catch (e) { console.info('Portrait non dessiné :', e.message); continue; }
         // appareil vraiment trop lent : on revient aux silhouettes plutôt que de ralentir le jeu
         portraits.slow = (performance.now() - t0 > 6000) ? (portraits.slow || 0) + 1 : 0;
-        if (portraits.slow >= 3) { portraits.off = true; console.info('Portraits 3D trop lents sur cet appareil : silhouettes conservées.'); }
+        if (portraits.slow >= 3) { portraits.engines[job.mode].off = true; portraits.slow = 0; console.info(`Portraits ${job.mode.toUpperCase()} trop lents sur cet appareil.`); renderPage(); }
         portraitCachePut(job.key, url);
       }
       portraits.mem.set(job.key, url);
@@ -5293,7 +5301,7 @@ function setSetting(key, value) {
   settings[key] = value;
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* préférence non retenue : sans gravité */ }
   applySettings();
-  if (key === 'portraits') { if (value === '3d') portraits.off = false; renderPage(); }
+  if (key === 'portraits') renderPage();
   openSettingsModal();
 }
 function settingRowHTML(key, label, sub, options) {
@@ -7065,7 +7073,7 @@ function openSettingsModal() {
     ${settingRowHTML('recap', 'Résumé du mois', 'Détaillé à chaque mois, ou seulement les bilans de saison.', [['full', 'Détaillé'], ['short', 'Court']])}
     ${settingRowHTML('text', 'Taille du texte', 'Agrandit tout le contenu du jeu.', [['normal', 'Normale'], ['large', 'Grande']])}
     ${settingRowHTML('motion', 'Animations', 'Désactivez-les pour un affichage plus sobre.', [['on', 'Oui'], ['off', 'Non']])}
-    ${settingRowHTML('portraits', 'Portraits des joueurs', 'Visages 3D réalistes, ou silhouettes simples (plus léger sur un appareil ancien).', [['3d', 'Réalistes'], ['simple', 'Simples']])}
+    ${settingRowHTML('portraits', 'Portraits des joueurs', 'Visages 3D réalistes, visages 2D dessinés (plus légers), ou simples silhouettes.', [['3d', '3D'], ['2d', '2D'], ['simple', 'Aucun']])}
     <div class="card-title" style="margin-top:18px">Sauvegarde</div>
     <p class="small">Votre partie est sauvegardée automatiquement à chaque mois dans ce navigateur.</p>
     <button class="btn btn-block" style="margin-bottom:8px" onclick="handleExport()">⬇️ Exporter la sauvegarde (.json)</button>
