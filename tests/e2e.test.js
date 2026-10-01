@@ -243,3 +243,22 @@ test('V8.13 : onglet Sélections — tournoi de l\'été, classement des sélect
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
+
+test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au français', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { for (let i = 0; i < 2; i++) { G.pendingEvent = null; advanceMonth(G); } G.news.unshift({ text: 'Amiens SC monte en Ligue 2 !', tag: 'promotion', season: seasonLabel(G), month: calMonth(G) }); setSetting('lang', 'en'); closeModal(); navigate('news'); });
+    let txt = await page.innerText('#app');
+    assert.match(txt, /Amiens SC go up to Ligue 2!/, 'actualité traduite');
+    assert.match(txt, /Dashboard[\s\S]*My players/);
+    assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
+    await page.evaluate(() => { setSetting('lang', 'es'); closeModal(); navigate('dashboard'); });
+    txt = await page.innerText('#app');
+    assert.match(txt, /Panel[\s\S]*Mis jugadores/);
+    assert.doesNotMatch(txt, /Tableau de bord|Mes joueurs/);
+    await page.reload(); await page.waitForTimeout(800);
+    assert.match(await page.innerText('#app'), /Mis jugadores/, 'langue conservée au rechargement');
+    await page.evaluate(() => { setSetting('lang', 'fr'); closeModal(); });
+    assert.match(await page.innerText('#app'), /Tableau de bord[\s\S]*Mes joueurs/, 'retour au français');
+  }, { portraits: 'simple' });
+});
