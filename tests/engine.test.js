@@ -419,3 +419,69 @@ test('V8.9.1 : prépositions des pays', () => {
   assert.equal(E.ofCountry('NL'), 'des Pays-Bas');
   for (const c of E.NAT_CODES) assert.match(E.inCountry(c), /^(en|au|aux) /);
 });
+
+test('V8.10 : Ligue 3 avec Amiens — montées et descentes chaînées entre les trois divisions', () => {
+  const s = newGame();
+  assert.equal(s.leagues.L3.clubIds.length, 18);
+  assert.equal(s.clubs.amiens.league, 'L3');
+  assert.ok(E.clubBudgetScale(s.clubs.bastia) < E.clubBudgetScale({ tier: 1, league: 'L2' }), 'moyens réduits en Ligue 3');
+  const before = {};
+  for (const lg of ['L1', 'L2', 'L3']) for (const c of s.leagues[lg].clubIds) before[c] = lg;
+  playMonths(s, 12);
+  const moves = Object.entries(before).filter(([c, lg]) => s.clubs[c].league !== lg).map(([c, lg]) => lg + '>' + s.clubs[c].league);
+  assert.deepEqual(moves.sort(), ['L1>L2', 'L1>L2', 'L2>L1', 'L2>L1', 'L2>L3', 'L2>L3', 'L3>L2', 'L3>L2'], 'deux clubs dans chaque sens, sans saut de division');
+  for (const lg of ['L1', 'L2', 'L3']) {
+    assert.equal(s.leagues[lg].clubIds.length, 18, lg);
+    assert.ok(s.leagues[lg].clubIds.every(c => s.clubs[c].league === lg), lg + ' cohérent');
+  }
+  assert.ok(E.CUP_DEFS.find(d => d.id === 'FR').leagues.includes('L3'), 'Coupe de France ouverte à la Ligue 3');
+});
+
+test('V8.10 : partie existante — la Ligue 3 arrive au chargement, même en cours de saison', () => {
+  const s = newGame();
+  playMonths(s, 3);
+  for (const cid of s.leagues.L3.clubIds) { for (const pid of s.clubs[cid].squad) delete s.players[pid]; delete s.clubs[cid]; }
+  delete s.leagues.L3;
+  s.cups.FR.ties = s.cups.FR.ties.filter(t => t.every(c => s.clubs[c]));
+  const res = E.integrateMissingLeagues(s);
+  assert.equal(res.count, 1);
+  assert.match(res.text, /un nouveau championnat rejoint la partie \(Ligue 3\)/);
+  assert.ok(s.leagues.L3.fixtures.length > 0 && s.clubs.amiens);
+  playMonths(s, 9);
+  assert.ok(s.news.some(n => /sacré champion de Ligue 3/.test(n.text)));
+});
+
+test('V8.10 : parts de clubs — achat, prise de contrôle, gestion, dividendes, vente', () => {
+  const s = newGame();
+  s.agent.cash = 50e6;
+  const c = s.clubs.amiens;
+  assert.equal(E.buyClubStake(s, 'amiens', 101).ok, false, 'pas plus de 100 %');
+  assert.equal(E.injectClubFunds(s, 'amiens', 1e6).ok, false, 'pas de gestion sans le contrôle');
+  const p10 = E.stakeBuyPrice(s, c, 10);
+  assert.ok(Math.abs(p10 - E.clubValuation(s, c) / 10 * 1.03) < 10, 'prix = valorisation + 3 % de frais');
+  assert.ok(E.buyClubStake(s, 'amiens', 10).ok);
+  assert.equal(E.isClubOwner(s, 'amiens'), false);
+  assert.ok(E.clubRelation(s, 'amiens') > 50, 'un actionnaire a l\'oreille du club');
+  const news = [];
+  const r = E.buyClubStake(s, 'amiens', 41, news);
+  assert.ok(r.becameOwner && E.isClubOwner(s, 'amiens'));
+  assert.match(news[0].text, /propriétaire d'Amiens SC/);
+  assert.ok(E.setClubPolicy(s, 'amiens', 'tickets', 'bas').ok);
+  assert.equal(E.setClubPolicy(s, 'amiens', 'tickets', 'gratuit').ok, false);
+  const b0 = c.budget;
+  assert.ok(E.injectClubFunds(s, 'amiens', 5e6).ok);
+  assert.equal(c.budget, b0 + 5e6);
+  const cap0 = c.stadiumCapacity;
+  assert.ok(E.upgradeClubStadium(s, 'amiens', 'capacity').ok);
+  assert.ok(c.stadiumCapacity > cap0);
+  const round = E.deserializeState(E.serializeState(s));
+  assert.equal(round.agent.stakes.amiens.pct, 51, 'parts sauvegardées');
+  assert.equal(round.clubs.amiens.ownerPolicy.tickets, 'bas', 'choix du propriétaire sauvegardés');
+  const cash0 = s.agent.cash;
+  playMonths(s, 12);
+  assert.ok(s.agent.stakes.amiens.divs > 0, 'dividendes en fin de saison');
+  assert.ok(s.news.some(n => /Dividendes de vos parts de clubs/.test(n.text)));
+  const sold = E.sellClubStake(s, 'amiens', 51, []);
+  assert.ok(sold.ok && sold.lostControl && !s.agent.stakes.amiens && !c.ownerPolicy);
+  assert.ok(s.agent.cash > cash0, 'revente encaissée');
+});

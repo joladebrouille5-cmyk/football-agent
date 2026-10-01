@@ -141,6 +141,8 @@ button{font-family:inherit;}
 .btn-ghost{background:transparent;}
 .btn-block{width:100%;}
 .btn-sm{min-height:34px; padding:6px 12px; font-size:12.5px;}
+.btn-wrap{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.btn.on{border-color:var(--accent); color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent);}
 .btn-primary.btn-sm{font-size:13px;}
 
 /* ---------- Structure : barre du haut, navigation, bouton de mois ---------- */
@@ -613,6 +615,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after{
 const LEAGUES = [
   { id: 'L1',  name: 'Ligue 1',        country: 'France',    nat: 'FR' },
   { id: 'L2',  name: 'Ligue 2',        country: 'France',    nat: 'FR' },
+  { id: 'L3',  name: 'Ligue 3',        country: 'France',    nat: 'FR' }, // V8.10
   { id: 'PL',  name: 'Premier League', country: 'Angleterre', nat: 'EN' },
   { id: 'LIGA',name: 'La Liga',        country: 'Espagne',   nat: 'ES' },
   { id: 'SA',  name: 'Serie A',        country: 'Italie',    nat: 'IT' },
@@ -627,6 +630,7 @@ const LEAGUES = [
 // paires championnat du haut / championnat du bas, par pays, pour la montée-descente
 const COUNTRY_PAIRS = [
   { top: 'L1',  bottom: 'L2',  n: 2 },
+  { top: 'L2',  bottom: 'L3',  n: 2 }, // V8.10 : divisions chaînées (voir applyPromotionRelegation)
   { top: 'PL',  bottom: 'CH',  n: 3 },
   { top: 'LIGA',bottom: 'SEG', n: 3 },
   { top: 'SA',  bottom: 'SB',  n: 3 },
@@ -675,6 +679,28 @@ const CLUB_RAW = {
     ['dijon','Dijon FCO','DFCO','Dijon','#d0021b','#ffffff',1],
     ['sochaux','FC Sochaux','FCSM','Sochaux','#ffd200','#002b5c',1],
     ['boulogne','US Boulogne','USB','Boulogne-sur-Mer','#d0021b','#002b5c',1],
+  ],
+  // V8.10 : Ligue 3, troisième division professionnelle depuis 2026-27. Composition plausible (relégués de Ligue 2
+  // et habitués du National), pas une liste officielle. Niveau et moyens réduits par LOWER_DIVISION tant qu'on y joue.
+  L3: [
+    ['amiens','Amiens SC','ASC','Amiens','#1a1a1a','#ffffff',2],
+    ['caen','Stade Malherbe Caen','SMC','Caen','#002d72','#d0021b',2],
+    ['bastia','SC Bastia','SCB','Bastia','#003399','#ffffff',1],
+    ['valenciennes','Valenciennes FC','VAFC','Valenciennes','#d0021b','#ffffff',1],
+    ['rouen','FC Rouen 1899','FCR','Rouen','#d0021b','#ffffff',1],
+    ['qrm','US Quevilly-Rouen','QRM','Le Petit-Quevilly','#ffd200','#000000',1],
+    ['orleans','US Orléans','USO','Orléans','#d0021b','#ffd200',1],
+    ['chateauroux','LB Châteauroux','LBC','Châteauroux','#002b5c','#ffffff',1],
+    ['concarneau','US Concarneau','USC','Concarneau','#0055a4','#d0021b',1],
+    ['versailles','FC Versailles 78','FCV','Versailles','#002d72','#ffffff',1],
+    ['bourg','FC Bourg-Péronnas','FBBP','Bourg-en-Bresse','#d0021b','#ffffff',1],
+    ['villefranche','FC Villefranche Beaujolais','FCVB','Villefranche-sur-Saône','#0055a4','#ffffff',1],
+    ['fleury','FC Fleury 91','FF91','Fleury-Mérogis','#1a1a1a','#d0021b',1],
+    ['lepuy','Le Puy Foot 43','LPF43','Le Puy-en-Velay','#002b5c','#ffffff',1],
+    ['aubagne','Aubagne FC','AUB','Aubagne','#00843d','#ffffff',1],
+    ['stbrieuc','Stade Briochin','SB22','Saint-Brieuc','#d0021b','#ffffff',1],
+    ['paris13','Paris 13 Atletico','P13','Paris','#0055a4','#ffffff',1],
+    ['martigues','FC Martigues','FCM13','Martigues','#d0021b','#ffd200',1],
   ],
   PL: [
     ['liverpool','Liverpool FC','LIV','Liverpool','#c8102e','#ffffff',4],
@@ -1532,6 +1558,13 @@ function computeWage(value, tier) {
   const annual = value * 0.15 * (0.7 + (tier || 2) * 0.08);
   return Math.max(1500, Math.round(annual / 12 / 500) * 500);
 }
+// salaire versé par un club donné (V8.10) : les clubs d'un championnat riche (Arabie saoudite, MLS) paient plus que
+// leur niveau sportif ne le voudrait — sans ça, leur argent s'accumulait (masse salariale à 30-40 % du plafond)
+function clubWage(value, club) {
+  const w = computeWage(value, club && club.tier);
+  const wealth = club && club.wealth > 1 ? Math.pow(club.wealth, 0.75) : 1;
+  return wealth === 1 ? w : Math.round(w * wealth / 500) * 500;
+}
 function emptySeasonStats(pos) {
   if (pos === 'GK') return { apps: 0, cs: 0, saves: 0, ga: 0, ratingSum: 0, cardY: 0, cardR: 0, minutes: 0 };
   return { apps: 0, goals: 0, assists: 0, ratingSum: 0, cardY: 0, cardR: 0, minutes: 0 };
@@ -1626,14 +1659,15 @@ function generatePlayer(state, opts = {}) {
   const posMeta = POSITIONS.find(p => p.code === pos) || POSITIONS[0];
   const age = isYouth ? randInt(15, 19) : randInt(ageMin, ageMax);
   const tier = club ? club.tier : randInt(1, 3);
-  const [lo, hi] = baseOvrForTier(tier);
+  const lowDiv = club && LOWER_DIVISION[club.league] ? LOWER_DIVISION[club.league].ovr : 0; // V8.10 : Ligue 3
+  const [lo, hi] = baseOvrForTier(tier).map(v => v + lowDiv);
   let ovr, potHeadroom;
   if (isYouth) {
     // un club à la réputation flatteuse a un centre de formation mieux doté (encadrement, recrutement de jeunes) :
     // ses prospects sont en moyenne un peu meilleurs — mais jamais garantis, un petit club continue de temps en
     // temps à sortir une vraie pépite, et c'est justement ce qui rend l'histoire crédible plutôt que déterministe.
-    const repEdge = club ? ((club.reputation || 30) - 45) / 6 : 0;
-    ovr = clamp(randInt(34, 54) + Math.round(repEdge * 0.7), 26, 66);
+    const repEdge = (club ? ((club.reputation || 30) - 45) / 6 : 0) + ((activeOwnerPolicy(state, club) || {}).strategy === 'formation' ? 4 : 0); // V8.10
+    ovr = clamp(randInt(34, 54) + Math.round(repEdge * 0.7) + Math.round(lowDiv / 2), 26, 66);
     // potentiel relevé (V9.4, mesuré sur 20 saisons) : les jeunes atteignaient bien ~92 % de leur potentiel, mais ce
     // potentiel moyen (~66) restait sous celui de la génération de départ (~71) — le monde s'appauvrissait à chaque
     // renouvellement de génération, jusqu'à ne plus pouvoir remplir les onze des grands clubs.
@@ -1650,7 +1684,7 @@ function generatePlayer(state, opts = {}) {
   const wonderkidChance = isYouth ? clamp(0.018 + (club ? (club.reputation || 30) / 2200 : 0.012), 0.012, 0.055) : 0.03;
   if (age <= 18 && Math.random() < wonderkidChance) pot = clamp(pot + randInt(8, 16), 0, 99);
   const value = estimateValue(ovr, pot, age, tier);
-  const wage = computeWage(value, tier);
+  const wage = club ? clubWage(value, club) : computeWage(value, tier);
   const id = nextId(state, 'p');
   return {
     id, name: first + ' ' + last, nat, origin, pos, posLine: posMeta.line,
@@ -1714,7 +1748,14 @@ function tierWageBudget(tier) { return [0, 150000, 400000, 900000, 2000000, 5000
 // que leur niveau sportif ne le laisse penser. Fixée sur le club à sa création (il la garde s'il change de division).
 const LEAGUE_WEALTH = { SPL: 3.5, MLS: 1.5 };
 function clubWealth(c) { return (c && c.wealth) || 1; }
-function clubBudgetScale(c) { return tierBudget(c.tier) * clubWealth(c); }
+// division inférieure (V8.10, Ligue 3) : moyens, niveau des joueurs générés et réputation de départ réduits. Suit la
+// division où joue le club (contrairement à LEAGUE_WEALTH) : un club qui monte en Ligue 2 retrouve des moyens normaux.
+const LOWER_DIVISION = { L3: { wealth: 0.6, ovr: -6, rep: -8 } };
+function divisionWealth(c) { return (c && LOWER_DIVISION[c.league] && LOWER_DIVISION[c.league].wealth) || 1; }
+function clubBudgetScale(c) { return tierBudget(c.tier) * clubWealth(c) * divisionWealth(c); }
+// plafond de trésorerie, en multiple de clubBudgetScale (V8.10) : plus resserré pour les géants, dont le budget passait
+// de 120 M€ à plus de 500 M€ en 10 saisons (et ne restait qu'à 37 M€ pour d'autres, au gré des saisons)
+function clubBudgetCapMult(c) { return [6, 6, 6, 4.5, 3, 2][clamp(c.tier || 1, 1, 5)]; }
 // ---------- Réputation & économie des clubs (V7) ----------
 // La réputation est une couche vivante distincte du tier (qui reste un simple gabarit de génération initiale) :
 // elle dérive des performances sportives, de la valeur d'effectif et des parcours européens, et pilote en retour
@@ -1758,14 +1799,15 @@ function addLeagueToWorld(state, lgId) {
   state.leagues[lgId] = { id: lg.id, name: lg.name, country: lg.country, clubIds: [], fixtures: [] };
   for (const [id, name, short, city, c1, c2, tier] of CLUB_RAW[lgId] || []) {
     if (state.clubs[id]) continue;
-    const wealth = LEAGUE_WEALTH[lgId] || 1;
+    const wealth = LEAGUE_WEALTH[lgId] || 1, low = LOWER_DIVISION[lgId];
     const club = {
       id, name, short, city, league: lgId, c1, c2, tier,
-      budget: tierBudget(tier) * wealth, wageBudget: tierWageBudget(tier) * wealth,
+      budget: tierBudget(tier) * wealth * (low ? low.wealth : 1), wageBudget: tierWageBudget(tier) * wealth * (low ? low.wealth : 1),
       squad: [], table: emptyTableRow(), titlesWon: 0,
     };
     if (wealth !== 1) club.wealth = wealth;
     initClubEconomy(club);
+    if (low) club.reputation = clamp(club.reputation + low.rep, 5, 95);
     state.clubs[id] = club;
     state.leagues[lgId].clubIds.push(id);
     for (const [posCode, count] of SQUAD_PLAN) {
@@ -1792,8 +1834,15 @@ function addMissingLeagues(state, news) {
       const p = state.players[pid]; if (p && p.contractUntil) p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 4);
     }
   }
-  if (missing.length && news) news.push({ text: `Le monde du football s'agrandit : ${missing.length} nouveaux championnats (${missing.map(l => l.name).join(', ')}).`, tag: 'trophee' });
+  if (missing.length && news) news.push({ text: `Le monde du football s'agrandit : ${newLeaguesLabel(missing)}.`, tag: 'trophee' });
   return missing.length;
+}
+// « un nouveau championnat rejoint la partie (Ligue 3) » / « 14 nouveaux championnats rejoignent la partie (…) »
+// (V8.10 : accord au singulier) ; sans verbe : « un nouveau championnat (Ligue 3) »
+function newLeaguesLabel(list, verbs) {
+  const names = list.map(l => l.name).join(', '), one = list.length === 1;
+  const verb = verbs ? ' ' + verbs[one ? 0 : 1] : '';
+  return one ? `un nouveau championnat${verb} (${names})` : `${list.length} nouveaux championnats${verb} (${names})`;
 }
 // V8.9.1 : dans une partie commencée avant la V8.9, les nouveaux championnats arrivent dès le chargement, même en
 // cours de saison (leurs classements étaient invisibles jusqu'à l'intersaison) : calendrier complet si la saison
@@ -1814,9 +1863,10 @@ function integrateMissingLeagues(state) {
   state.cups = state.cups || {};
   const ids = new Set(missing.map(l => l.id));
   for (const def of CUP_DEFS) if (!state.cups[def.id] && def.leagues.some(l => ids.has(l))) createCup(state, def, fresh ? null : months);
-  const how = fresh ? '' : modes.next === missing.length ? ' Leur première saison commence en août.'
+  const one = missing.length === 1;
+  const how = fresh ? '' : modes.next === missing.length ? (one ? ' Sa' : ' Leur') + ' première saison commence en août.'
     : modes.single ? ' Calendrier resserré pour cette fin de saison (aller simple pour certains).' : ' Calendrier resserré pour cette fin de saison.';
-  return { count: missing.length, text: `Le monde du football s'agrandit : ${missing.length} nouveaux championnats rejoignent la partie (${missing.map(l => l.name).join(', ')}).${how}` };
+  return { count: missing.length, text: `Le monde du football s'agrandit : ${newLeaguesLabel(missing, ['rejoint la partie', 'rejoignent la partie'])}.${how}` };
 }
 // un championnat a-t-il joué cette saison ? (un championnat arrivé trop tard pour jouer n'a ni titre, ni montée,
 // ni place européenne, et sa réputation n'est pas jugée sur un classement vide)
@@ -2240,7 +2290,7 @@ function gainReputation(state, amount) {
 // aux revenus mensuels ordinaires (monthlyClubFinances), qui ne couvrait que cette seule source de revenus.
 function dampedClubIncome(club, amount) {
   if (amount <= 0) return amount;
-  const cap = clubBudgetScale(club) * 10 * (0.6 + (club.reputation || 50) / 100);
+  const cap = clubBudgetScale(club) * clubBudgetCapMult(club) * 1.6 * (0.6 + (club.reputation || 50) / 100);
   if (club.budget >= cap) return Math.round(amount * 0.12);
   const factor = clamp(1 - club.budget / cap, 0.12, 1);
   return Math.round(amount * factor);
@@ -2319,19 +2369,26 @@ function weakestLine(state, club) {
 }
 function runAIClubTransfers(state, news, isMercato) {
   const attempts = isMercato ? 14 : 2;
-  for (let i = 0; i < attempts; i++) {
-    const buyer = choice(Object.values(state.clubs));
+  // V8.10 : un club dont l'agent est propriétaire avec la stratégie « Ambition » tente trois recrues par mercato
+  const ambitious = isMercato ? Object.keys(state.agent.stakes || {}).map(id => state.clubs[id]).filter(c => (activeOwnerPolicy(state, c) || {}).strategy === 'ambition') : [];
+  // V8.10 : les clubs d'un championnat riche (Arabie saoudite, MLS) recrutent davantage au mercato
+  const rich = isMercato ? Object.values(state.clubs).filter(c => c.wealth > 1 && Math.random() < (c.wealth - 1) / 2.5) : [];
+  const buyers = Array.from({ length: attempts }, () => choice(Object.values(state.clubs))).concat(...ambitious.map(c => [c, c, c]), rich);
+  for (const buyer of buyers) {
     if (buyer.budget < 300000) continue;
     const line = weakestLine(state, buyer);
     const candidates = (state.transferListed || [])
       .map(id => state.players[id])
-      .filter(p => p && !p.retired && p.club !== buyer.id && p.posLine === line && p.agentId !== 'player' && p.value <= buyer.budget);
+      // V8.10 : un club à 18 joueurs ou moins ne vend plus (des effectifs tombaient à 16 en cours de saison)
+      .filter(p => p && !p.retired && p.club !== buyer.id && p.posLine === line && p.agentId !== 'player' && p.value <= buyer.budget
+        && !(p.club && state.clubs[p.club] && state.clubs[p.club].squad.length <= 18));
     if (!candidates.length) continue;
     // le niveau reste le critère dominant, mais à niveau proche, un club recrute un peu plus volontiers un joueur
     // culturellement familier à son championnat (comme le ferait un vrai recruteur)
     const buyerLgNat = (LEAGUES.find(l => l.id === buyer.league) || {}).nat;
     candidates.sort((a, b) => (b.ovr + countryAffinity(b.nat, buyerLgNat) / 30) - (a.ovr + countryAffinity(a.nat, buyerLgNat) / 30));
     const target = candidates[0];
+    target.wage = Math.max(target.wage, clubWage(target.value, buyer));
     executeTransfer(state, target, buyer, target.value, news, { silent: false });
   }
 }
@@ -2363,7 +2420,7 @@ function runAIClubFreeAgentSignings(state, news, isMercato) {
     const target = candidates[0];
     target.club = buyer.id;
     target.contractUntil = seasonStartYear(state) + randInt(2, 4);
-    target.wage = computeWage(target.value, buyer.tier);
+    target.wage = clubWage(target.value, buyer);
     buyer.squad.push(target.id);
     pool = pool.filter(p => p !== target);
     state.freeAgents = (state.freeAgents || []).filter(id => id !== target.id);
@@ -2429,7 +2486,7 @@ function updateContractsAndListings(state, news) {
     if (mustKeep || Math.random() < renewChance) {
       p.contractUntil = endingNow + randInt(1, 3);
       // légère remise à niveau du salaire à la valeur actuelle du joueur (une prolongation, pas un simple statu quo)
-      if (club) p.wage = Math.max(p.wage, Math.round(computeWage(p.value, club.tier) / 500) * 500);
+      if (club) p.wage = Math.max(p.wage, Math.round(clubWage(p.value, club) / 500) * 500);
     } else {
       releaseToFreeAgency(state, p, news);
     }
@@ -2640,10 +2697,11 @@ function monthlyClubFinances(state) {
     // le plafond suit légèrement la réputation : un club prestigieux peut viser un peu plus haut qu'un tier brut ne le suggère,
     // mais TOUT le revenu (billetterie et sponsors compris) reste soumis au même facteur de convergence qu'avant :
     // ça garde exactement la même propriété de stabilité à long terme, juste avec une composition plus riche et plus lisible.
-    const cap = clubBudgetScale(c) * 6 * (0.6 + c.reputation / 100);
+    const cap = clubBudgetScale(c) * clubBudgetCapMult(c) * (0.6 + c.reputation / 100);
     const factor = clamp(1 - c.budget / cap, 0, 1);
-    const attendanceRate = clamp(0.35 + c.reputation / 160, 0.25, 0.97);
-    const ticketIncome = c.stadiumCapacity * attendanceRate * ticketPriceForTier(c.tier) * 1.15;
+    const tk = TICKET_POLICIES[(activeOwnerPolicy(state, c) || {}).tickets] || TICKET_POLICIES.normal; // V8.10 : choix du propriétaire
+    const attendanceRate = clamp(0.35 + c.reputation / 160 + tk.fill, 0.25, 0.97);
+    const ticketIncome = c.stadiumCapacity * attendanceRate * ticketPriceForTier(c.tier) * tk.price * 1.15;
     const sponsorIncome = clubBudgetScale(c) * 0.006 * (0.4 + c.reputation / 70);
     const baseIncome = clubBudgetScale(c) * 0.014 * (0.7 + Math.random() * 0.6);
     const grossIncome = (baseIncome + ticketIncome + sponsorIncome) * factor * (0.7 + Math.random() * 0.6);
@@ -2730,7 +2788,7 @@ function runRivalDeals(state, news) {
       if (!buyers.length) continue;
       const buyer = weightedChoice(buyers, c => (c.reputation || 50));
       const fee = Math.round(p.value * (0.9 + Math.random() * 0.4) / 5000) * 5000;
-      p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+      p.wage = Math.max(p.wage, clubWage(p.value, buyer));
       executeTransfer(state, p, buyer, fee, news, { silent: false });
       break; // une grosse affaire par rival et par mercato
     }
@@ -3104,7 +3162,10 @@ function declineIncomingOffer(state, offerId) {
 // ---------- Négociations ----------
 function clubRelation(state, clubId) {
   if (!clubId) return 50;
-  return (state.agent.clubRelations && state.agent.clubRelations[clubId] !== undefined) ? state.agent.clubRelations[clubId] : 50;
+  const base = (state.agent.clubRelations && state.agent.clubRelations[clubId] !== undefined) ? state.agent.clubRelations[clubId] : 50;
+  // actionnaire (V8.10) : jusqu'à +20 de relation, le maximum dès qu'on contrôle le club
+  const pct = stakePct(state, clubId);
+  return pct ? clamp(Math.round(base + Math.min(20, pct * 0.4)), 0, 100) : base;
 }
 // La relation garde désormais aussi une mémoire courte des moments marquants (bonnes/mauvaises affaires), pas
 // seulement un chiffre : le reason est optionnel pour ne pas polluer le journal des ajustements de routine.
@@ -3301,7 +3362,7 @@ function maxContractYearsForAge(age) {
 // club, majoré d'une marge qui grandit avec la réputation du club. Ne force jamais une baisse : un salaire déjà
 // supérieur au plafond (valeur en baisse, par exemple) peut être conservé, simplement pas relevé.
 function contractWageCeiling(state, club, player) {
-  const fair = computeWage(player.value, club.tier);
+  const fair = clubWage(player.value, club);
   const margin = 1.3 + (club.reputation || 50) / 250; // ~1,34 (club modeste) à ~1,7 (club au sommet)
   return Math.max(player.wage || 0, Math.round(fair * margin / 500) * 500);
 }
@@ -3878,23 +3939,30 @@ function computeSeasonAwards(state, news) {
 }
 
 // ---------- Montée / descente entre championnats du même pays ----------
+// V8.10 : divisions chaînées (Ligue 1 / Ligue 2 / Ligue 3). Tous les classements sont figés avant le moindre
+// mouvement : sinon un club relégué de Ligue 1 se retrouvait dernier du classement de Ligue 2 et redescendait aussitôt.
 function applyPromotionRelegation(state, news) {
+  const ranked = {}, moves = [], arrivals = {};
+  const rank = id => ranked[id] || (ranked[id] = [...state.leagues[id].clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table)));
   for (const pair of COUNTRY_PAIRS) {
     const topLg = state.leagues[pair.top], botLg = state.leagues[pair.bottom];
     if (!topLg || !botLg || !leagueHasPlayed(state, topLg) || !leagueHasPlayed(state, botLg)) continue;
-    const topRanked = [...topLg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
-    const botRanked = [...botLg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
-    const relegated = topRanked.slice(-pair.n);
-    const promoted = botRanked.slice(0, pair.n);
-    topLg.clubIds = topRanked.slice(0, topRanked.length - pair.n).concat(promoted);
-    botLg.clubIds = botRanked.slice(pair.n).concat(relegated);
+    moves.push({ pair, relegated: rank(pair.top).slice(-pair.n), promoted: rank(pair.bottom).slice(0, pair.n) });
+  }
+  const leaving = new Set(moves.flatMap(m => m.relegated.concat(m.promoted)));
+  for (const { pair, relegated, promoted } of moves) {
+    (arrivals[pair.top] = arrivals[pair.top] || []).push(...promoted);
+    (arrivals[pair.bottom] = arrivals[pair.bottom] || []).push(...relegated);
+  }
+  for (const lgId of Object.keys(arrivals)) state.leagues[lgId].clubIds = rank(lgId).filter(id => !leaving.has(id)).concat(arrivals[lgId]);
+  for (const { pair, relegated, promoted } of moves) {
     for (const id of relegated) {
       state.clubs[id].league = pair.bottom;
-      news.push({ text: `${state.clubs[id].name} relégué en ${botLg.name}.`, tag: 'relegation', clubId: id });
+      news.push({ text: `${state.clubs[id].name} relégué en ${state.leagues[pair.bottom].name}.`, tag: 'relegation', clubId: id });
     }
     for (const id of promoted) {
       state.clubs[id].league = pair.top;
-      news.push({ text: `${state.clubs[id].name} monte en ${topLg.name} !`, tag: 'promotion', clubId: id });
+      news.push({ text: `${state.clubs[id].name} monte en ${state.leagues[pair.top].name} !`, tag: 'promotion', clubId: id });
     }
   }
 }
@@ -4042,6 +4110,170 @@ function signClubPartnership(state, clubId) {
   state.agent.clubPartnerships[clubId] = seasonIdx(state);
   nudgeClubRelation(state, clubId, 12, `Partenariat financier avec ${club.name}`);
   return { ok: true, cost };
+}
+
+// ---------- Parts de clubs (V8.10) ----------
+// L'agent achète des parts d'un club (en %), au prix de sa valorisation : effectif, trésorerie, stade et prestige.
+// Chaque fin de saison, le club verse un dividende selon son classement (prélevé sur son budget). Au-delà de 50 %,
+// l'agent devient propriétaire et gère le club : apports d'argent, stratégie sportive, billetterie, dividendes, stade.
+const STAKE_STEPS = [1, 5, 10, 25];
+const STAKE_FEE = 0.03;          // frais d'achat et de vente (banques, avocats)
+const CONTROL_PREMIUM = 0.25;    // prime de contrôle : les parts au-delà de 50 % coûtent 25 % plus cher
+const OWNER_THRESHOLD = 50;      // strictement au-dessus : propriétaire
+const CLUB_STRATEGIES = {
+  formation: { label: 'Formation', desc: 'Centre de formation prioritaire : les jeunes du club sortent plus forts.' },
+  equilibre: { label: 'Équilibre', desc: 'Gestion classique, sans priorité particulière.' },
+  ambition: { label: 'Ambition', desc: 'Le club recrute davantage pendant les mercatos (avec son budget).' },
+};
+const TICKET_POLICIES = {
+  bas: { label: 'Billets bon marché', desc: 'Stade plus rempli, recettes −25 %, supporters ravis (+réputation).', price: 0.75, fill: 0.08, rep: 0.8 },
+  normal: { label: 'Prix normaux', desc: 'Tarifs habituels pour ce niveau.', price: 1, fill: 0, rep: 0 },
+  eleve: { label: 'Billets chers', desc: 'Recettes +30 %, mais moins de monde et des supporters mécontents.', price: 1.3, fill: -0.1, rep: -0.8 },
+};
+const DIVIDEND_POLICIES = {
+  reinvestir: { label: 'Tout réinvestir', desc: "Aucun dividende : l'argent reste dans le club.", mult: 0, rep: 0 },
+  normal: { label: 'Dividende normal', desc: 'Une part des bénéfices selon les résultats.', mult: 1, rep: 0 },
+  max: { label: 'Dividende maximal', desc: 'Dividende +60 %, mais le club s’appauvrit et les supporters grondent.', mult: 1.6, rep: -1 },
+};
+// « d'Amiens SC », « du Havre AC », « de Lens »
+function deName(name) {
+  if (/^Le /.test(name)) return 'du ' + name.slice(3);
+  if (/^Les /.test(name)) return 'des ' + name.slice(4);
+  return /^[AEIOUYÀÂÉÈÊÎÔÛaeiouy]/.test(name) ? "d'" + name : 'de ' + name;
+}
+function clubStakes(state) { return (state.agent.stakes = state.agent.stakes || {}); }
+function stakePct(state, clubId) { const st = ((state.agent && state.agent.stakes) || {})[clubId]; return st ? st.pct : 0; }
+function isClubOwner(state, clubId) { return stakePct(state, clubId) > OWNER_THRESHOLD; }
+function clubOwnerPolicy(club) { return Object.assign({ strategy: 'equilibre', tickets: 'normal', dividends: 'normal' }, club.ownerPolicy || {}); }
+// politique du propriétaire, seulement si l'agent contrôle encore le club (sinon le club revient à une gestion normale)
+function activeOwnerPolicy(state, club) { return club && isClubOwner(state, club.id) ? clubOwnerPolicy(club) : null; }
+function clubValuation(state, c) {
+  const squad = c.squad.reduce((s, id) => s + (state.players[id] ? state.players[id].value : 0), 0);
+  const stadium = (c.stadiumCapacity || 0) * (600 + (c.stadiumLevel || 1) * 250);
+  const brand = clubBudgetScale(c) * (0.5 + (c.reputation || 30) / 50);
+  return Math.max(1000000, Math.round((squad * 0.7 + Math.max(0, c.budget) + stadium + brand) / 100000) * 100000);
+}
+// prix d'achat de `pct` points de capital (frais et prime de contrôle compris)
+function stakeBuyPrice(state, club, pct) {
+  const cur = stakePct(state, club.id), unit = clubValuation(state, club) / 100;
+  const ctrl = Math.max(0, cur + pct - Math.max(cur, OWNER_THRESHOLD));
+  return Math.round(unit * (pct + ctrl * CONTROL_PREMIUM) * (1 + STAKE_FEE));
+}
+function stakeSellPrice(state, club, pct) { return Math.round(clubValuation(state, club) / 100 * pct * (1 - STAKE_FEE)); }
+function buyClubStake(state, clubId, pct, news) {
+  const club = state.clubs[clubId];
+  if (!club) return { ok: false, reason: 'Club introuvable.' };
+  const cur = stakePct(state, clubId);
+  pct = Math.round(pct);
+  if (pct <= 0) return { ok: false, reason: 'Quantité invalide.' };
+  if (cur + pct > 100) return { ok: false, reason: `Il ne reste que ${100 - cur} % à acheter.` };
+  const price = stakeBuyPrice(state, club, pct);
+  if (state.agent.cash < price) return { ok: false, reason: `Trésorerie insuffisante (${fmtMoneyShort(price)} nécessaires).` };
+  const stakes = clubStakes(state);
+  const st = stakes[clubId] = stakes[clubId] || { pct: 0, cost: 0, injected: 0, divs: 0, since: seasonLabel(state) };
+  state.agent.cash -= price;
+  st.pct = cur + pct; st.cost += price;
+  if (!cur) nudgeClubRelation(state, clubId, 5, `Entrée au capital ${deName(club.name)}`);
+  const becameOwner = cur <= OWNER_THRESHOLD && st.pct > OWNER_THRESHOLD;
+  if (becameOwner) {
+    nudgeClubRelation(state, clubId, 10, `Prise de contrôle ${deName(club.name)}`);
+    gainReputation(state, 2);
+    if (news) news.push({ text: `Vous devenez propriétaire ${deName(club.name)} (${st.pct} % du capital) !`, tag: 'business', clubId });
+  }
+  return { ok: true, price, pct: st.pct, becameOwner };
+}
+function sellClubStake(state, clubId, pct, news) {
+  const club = state.clubs[clubId], st = (state.agent.stakes || {})[clubId];
+  if (!club || !st) return { ok: false, reason: 'Vous ne possédez aucune part de ce club.' };
+  pct = Math.min(Math.round(pct), st.pct);
+  if (pct <= 0) return { ok: false, reason: 'Quantité invalide.' };
+  const wasOwner = st.pct > OWNER_THRESHOLD;
+  const proceeds = stakeSellPrice(state, club, pct);
+  state.agent.cash += proceeds;
+  st.cost = Math.round(st.cost * (st.pct - pct) / st.pct);
+  st.pct -= pct;
+  if (st.pct <= 0) delete state.agent.stakes[clubId];
+  const lostControl = wasOwner && st.pct <= OWNER_THRESHOLD;
+  if (lostControl) {
+    delete club.ownerPolicy;
+    if (news) news.push({ text: `Vous n'êtes plus propriétaire ${deName(club.name)}.`, tag: 'business', clubId });
+  }
+  return { ok: true, proceeds, pct: Math.max(0, st.pct), lostControl };
+}
+// ---- décisions du propriétaire (plus de 50 %) ----
+function ownerGuard(state, clubId) {
+  const club = state.clubs[clubId];
+  if (!club) return { error: 'Club introuvable.' };
+  if (!isClubOwner(state, clubId)) return { error: 'Il faut détenir plus de 50 % du club pour le gérer.' };
+  return { club };
+}
+function injectClubFunds(state, clubId, amount) {
+  const g = ownerGuard(state, clubId); if (g.error) return { ok: false, reason: g.error };
+  amount = Math.round(amount);
+  if (!(amount > 0)) return { ok: false, reason: 'Montant invalide.' };
+  if (state.agent.cash < amount) return { ok: false, reason: 'Trésorerie insuffisante.' };
+  state.agent.cash -= amount;
+  g.club.budget += amount;
+  state.agent.stakes[clubId].injected = (state.agent.stakes[clubId].injected || 0) + amount;
+  nudgeClubRelation(state, clubId, 2);
+  return { ok: true, amount };
+}
+function setClubPolicy(state, clubId, key, value) {
+  const g = ownerGuard(state, clubId); if (g.error) return { ok: false, reason: g.error };
+  const allowed = { strategy: CLUB_STRATEGIES, tickets: TICKET_POLICIES, dividends: DIVIDEND_POLICIES }[key];
+  if (!allowed || !allowed[value]) return { ok: false, reason: 'Choix invalide.' };
+  g.club.ownerPolicy = Object.assign(clubOwnerPolicy(g.club), { [key]: value });
+  return { ok: true };
+}
+// travaux payés sur le budget du club (le propriétaire peut d'abord y apporter de l'argent)
+function stadiumExpansion(club) { return Math.max(2000, Math.round(club.stadiumCapacity * 0.15 / 500) * 500); }
+function stadiumWorksCost(club, kind) {
+  return kind === 'capacity' ? stadiumExpansion(club) * 1500 : 4000000 * club.stadiumLevel * club.stadiumLevel;
+}
+function upgradeClubStadium(state, clubId, kind) {
+  const g = ownerGuard(state, clubId); if (g.error) return { ok: false, reason: g.error };
+  const club = g.club;
+  if (kind === 'level' && club.stadiumLevel >= 5) return { ok: false, reason: 'Infrastructures déjà au niveau maximal.' };
+  if (kind === 'capacity' && club.stadiumCapacity >= 90000) return { ok: false, reason: 'Le stade ne peut plus être agrandi.' };
+  const cost = stadiumWorksCost(club, kind);
+  if (club.budget < cost) return { ok: false, reason: `Budget du club insuffisant (${fmtMoneyShort(cost)} nécessaires) : apportez des fonds.` };
+  club.budget -= cost;
+  if (kind === 'capacity') club.stadiumCapacity += stadiumExpansion(club);
+  else { club.stadiumLevel++; club.reputation = clamp(club.reputation + 1.5, 4, 99); }
+  return { ok: true, cost };
+}
+// fin de saison : dividendes (selon le classement, plafonnés par la trésorerie du club) et humeur des supporters
+function payClubDividends(state, news, summary) {
+  const stakes = state.agent.stakes || {};
+  let total = 0;
+  for (const [clubId, st] of Object.entries(stakes)) {
+    const club = state.clubs[clubId]; if (!club) continue;
+    const pol = activeOwnerPolicy(state, club);
+    if (pol) club.reputation = clamp(club.reputation + TICKET_POLICIES[pol.tickets].rep + DIVIDEND_POLICIES[pol.dividends].rep, 4, 99);
+    const lg = state.leagues[club.league];
+    if (!leagueHasPlayed(state, lg)) continue;
+    const ranked = [...lg.clubIds].sort((a, b) => rankCompare(state.clubs[a].table, state.clubs[b].table));
+    const rank = ranked.indexOf(clubId), n = ranked.length;
+    const posScore = n > 1 ? 1 - rank / (n - 1) : 1;
+    // rendement de 0,5 % (lanterne rouge) à 3,5 % (champion) de la valorisation, plafonné à 20 % de la trésorerie
+    const yieldRate = 0.005 + 0.02 * posScore + (rank === 0 ? 0.01 : 0);
+    const pool = Math.min(clubValuation(state, club) * yieldRate, Math.max(0, club.budget) * 0.2) * (pol ? DIVIDEND_POLICIES[pol.dividends].mult : 1);
+    const amount = Math.round(pool * st.pct / 100 / 1000) * 1000;
+    if (amount <= 0) continue;
+    club.budget -= amount;
+    state.agent.cash += amount;
+    st.divs = (st.divs || 0) + amount;
+    total += amount;
+  }
+  if (summary) summary.dividends = total;
+  if (total > 0 && news) news.push({ text: `Dividendes de vos parts de clubs : ${fmtMoneyShort(total)} encaissés.`, tag: 'finance' });
+  return total;
+}
+function stakesPortfolio(state) {
+  return Object.entries(state.agent.stakes || {}).map(([clubId, st]) => {
+    const club = state.clubs[clubId];
+    return club ? { club, pct: st.pct, cost: st.cost, injected: st.injected || 0, divs: st.divs || 0, value: stakeSellPrice(state, club, st.pct), owner: st.pct > OWNER_THRESHOLD } : null;
+  }).filter(Boolean).sort((a, b) => b.value - a.value);
 }
 
 // ---------- Hauts faits (achievements) ----------
@@ -4308,7 +4540,7 @@ function advanceEuropeMonth(state, news, month) {
 // Une coupe à élimination directe par pays, ouverte aux 32 clubs les plus réputés des deux divisions (16 pour le
 // Portugal) : des surprises possibles, un titre de plus à viser pour les clients, un match par tour.
 const CUP_DEFS = [
-  { id: 'FR', name: 'Coupe de France', leagues: ['L1', 'L2'] },
+  { id: 'FR', name: 'Coupe de France', leagues: ['L1', 'L2', 'L3'], underdogs: 6 }, // V8.10 : 6 places tirées au sort hors des 26 plus réputés
   { id: 'EN', name: 'FA Cup', leagues: ['PL', 'CH'] },
   { id: 'ES', name: 'Copa del Rey', leagues: ['LIGA', 'SEG'] },
   { id: 'IT', name: 'Coppa Italia', leagues: ['SA', 'SB'] },
@@ -4336,7 +4568,11 @@ function createCup(state, def, months) {
   if (clubs.length < natural) return null;
   const first = CUP_FIRST_ROUNDS.find(([r, size]) => size <= natural && (!months || months.includes(CUP_ROUND_MONTHS[r])));
   if (!first) return null;
-  const entrants = clubs.slice(0, first[1]).map(c => c.id).sort(() => Math.random() - 0.5);
+  let field = clubs.slice(0, first[1]);
+  // petits poucets (V8.10) : quelques places tirées au sort parmi les autres clubs, pour que la Ligue 3 y ait sa chance
+  const k = Math.min(def.underdogs || 0, clubs.length - first[1]);
+  if (k > 0) field = clubs.slice(0, first[1] - k).concat(clubs.slice(first[1] - k).sort(() => Math.random() - 0.5).slice(0, k));
+  const entrants = field.map(c => c.id).sort(() => Math.random() - 0.5);
   return (state.cups[def.id] = { id: def.id, name: def.name, season: seasonLabel(state), round: first[0], ties: pairUp(entrants), history: [], winner: null });
 }
 function initCups(state) {
@@ -4485,6 +4721,7 @@ function processEndOfSeason(state, news) {
       }
     }
   }
+  payClubDividends(state, news, summary); // V8.10 : selon le classement final, avant la remise à zéro des tableaux
   // V8.9.1 : un championnat encore absent (sauvegarde très ancienne) arrive ici, AVANT les places européennes et le
   // tirage des coupes : son pays a sa coupe dès la saison suivante et la Ligue des Champions reste à 32 clubs
   addMissingLeagues(state, news);
@@ -4749,7 +4986,7 @@ const EVENTS = [
         const gate = evaluateTransferGate(state, buyer, p, { fee });
         if (!gate.ok || !p.club) { news.push({ text: `L'opération autour de ${p.name} capote : ${gate.reason || 'le joueur est libre'}`, tag: 'mercato', playerId: p.id }); return; }
         executeTransfer(state, p, buyer, fee, news, { silent: false });
-        p.releaseClause = null; p.wage = Math.max(p.wage, computeWage(p.value, buyer.tier));
+        p.releaseClause = null; p.wage = Math.max(p.wage, clubWage(p.value, buyer));
         gainReputation(state, 1);
       } },
       { label: 'Négocier en coulisses pour faire capoter l\u2019opération', effect: (state, p, news) => {
@@ -5290,7 +5527,7 @@ function createNewGame({ agentName, agency, nationality, specialty }) {
       cash: 150000 + (specialty === 'business' ? 50000 : 0),
       officeLevel: 1, careerTier: 0, investments: {},
       staff: { scouts: 0, avocats: 0, negociateurs: 0, analystes: 0, communicants: 0 },
-      portfolio: [], clubRelations: {},
+      portfolio: [], clubRelations: {}, stakes: {},
       careerStats: {
         totalCommissions: 0, transfersDone: 0, peakReputation: 5,
         playersSignedEver: 0, biggestFeeDone: 0, titlesWonAsAgent: 0, individualAwardsWon: 0,
@@ -5557,6 +5794,7 @@ function deleteLocalStorageSave() {
 
 if (typeof module !== 'undefined') {
   module.exports = {
+    clubValuation, stakeBuyPrice, stakeSellPrice, buyClubStake, sellClubStake, isClubOwner, stakePct, injectClubFunds, setClubPolicy, upgradeClubStadium, payClubDividends, stakesPortfolio, clubBudgetScale, OWNER_THRESHOLD, CLUB_RAW,
     rand, randInt, clamp, choice, weightedChoice, poissonSample, fmtMoneyShort, NAT_CODES, NAT_ORIGINS, NAME_POOLS, LEAGUES, LEAGUES_V89, addMissingLeagues, integrateMissingLeagues, qualifyForEurope, createCup, leagueHasPlayed, FAMOUS_PLAYERS, renameFamousPlayers, inCountry, ofCountry, NAT_NAME,
     calMonth, seasonIdx, seasonStartYear, calYear, seasonLabel, advanceDate,
     generatePlayer, initWorld, generateRoundRobin, generateSeasonFixtures,
@@ -6698,7 +6936,7 @@ function renderClubDetail() {
   return `
     <button class="btn btn-sm" onclick="navigate('${ui.returnTo}')" style="margin-bottom:12px">← Retour</button>
     <div class="card row-between">
-      <div><h2>${esc(c.name)}</h2><div class="small">${esc(c.city)} · ${(LEAGUES.find(l => l.id === c.league) || {}).name || ''}</div></div>
+      <div><h2>${esc(c.name)}</h2><div class="small">${esc(c.city)} · ${(LEAGUES.find(l => l.id === c.league) || {}).name || ''}${isClubOwner(G, c.id) ? ' · <b style="color:var(--gold)">👑 Votre club</b>' : stakePct(G, c.id) ? ` · <b style="color:var(--accent)">Actionnaire (${stakePct(G, c.id)} %)</b>` : ''}</div></div>
       ${clubBadgeHTML(c, 'lg')}
     </div>
     <div class="grid-3">
@@ -6737,6 +6975,8 @@ function renderClubDetail() {
         return `<div class="sep"></div>` + log.slice().reverse().map(e => `<div class="row-between small" style="padding:3px 0"><span>${esc(e.text)}</span><span class="num" style="color:${e.delta >= 0 ? 'var(--emerald-soft)' : 'var(--red-soft)'}">${e.delta >= 0 ? '+' : ''}${e.delta}</span></div>`).join('');
       })()}
     </div>
+    ${clubStakeCardHTML(c)}
+    ${isClubOwner(G, c.id) ? clubOwnerCardHTML(c) : ''}
     <div class="card"><div class="card-title">Calendrier</div><div style="max-height:340px;overflow-y:auto">${clubFixturesHTML(c)}</div></div>
     <div class="card"><div class="card-title">Meilleurs buteurs (saison)</div>${scorers.length ? scorers.map(p => playerRowHTML(p, { returnTo: 'clubdetail' })).join('') : '<p class="small">Pas encore de but marqué cette saison.</p>'}</div>
     <div class="card"><div class="card-title">Effectif (${squad.length})</div>${squad.map(p => playerRowHTML(p, { returnTo: 'clubdetail' })).join('')}</div>
@@ -7279,6 +7519,7 @@ function renderAgency() {
       ${next ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="handleUpgradeOffice()">Passer à « ${next.label} » — ${fmtMoneyShort(next.cost)}</button>` : '<p class="small">Niveau maximum atteint : empire mondial.</p>'}
     </div>
     ${investmentsCardHTML(a)}
+    ${stakesCardHTML()}
     ${influenceCardHTML(a)}
     <div class="card"><div class="card-title">Spécialité</div><b>${spec.label || ''}</b><p class="small">${spec.desc || ''}</p></div>
     <div class="card"><div class="card-title">Personnel</div>
@@ -7339,6 +7580,94 @@ function doCloseInvestment(id) {
   const inv = AGENCY_INVESTMENTS.find(i => i.id === id);
   closeInvestment(G, id); saveGame(); closeModal(); toast(`${inv.label} fermé.`); renderPage();
 }
+/* ---------- Parts de clubs (V8.10) ---------- */
+function clubStakeCardHTML(c) {
+  const pct = stakePct(G, c.id), st = (G.agent.stakes || {})[c.id], cash = G.agent.cash;
+  const buyBtn = (n, label) => {
+    const price = stakeBuyPrice(G, c, n);
+    return `<button class="btn btn-sm${label ? ' btn-primary' : ''}" onclick="handleBuyStake('${c.id}',${n})" ${cash < price ? 'disabled' : ''}>${label || `+${n} %`} · ${fmtMoneyShort(price)}</button>`;
+  };
+  const steps = STAKE_STEPS.filter(n => pct + n <= 100);
+  const ctrl = pct <= OWNER_THRESHOLD ? OWNER_THRESHOLD + 1 - pct : 0;
+  return `<div class="card"><div class="card-title">${icon('bank',15)} Actionnariat</div>
+    <div class="row-between small"><span>Valorisation du club</span><span class="num">${fmtMoneyShort(clubValuation(G, c))}</span></div>
+    <div class="row-between small"><span>Vos parts</span><b class="num">${pct ? pct + ' %' : 'aucune'}</b></div>
+    ${meterHTML(pct, 100, pct > OWNER_THRESHOLD ? 'var(--gold)' : 'var(--accent)')}
+    ${st ? `<div class="row-between small" style="margin-top:6px"><span>Valeur à la revente</span><span class="num">${fmtMoneyShort(stakeSellPrice(G, c, pct))}</span></div>
+      <div class="row-between small"><span>Investi (achats${st.injected ? ' et apports' : ''})</span><span class="num">${fmtMoneyShort(st.cost + (st.injected || 0))}</span></div>
+      <div class="row-between small"><span>Dividendes reçus</span><span class="num">${fmtMoneyShort(st.divs || 0)}</span></div>` : ''}
+    ${steps.length || ctrl ? `<div class="btn-wrap">${steps.map(n => buyBtn(n)).join('')}${ctrl ? buyBtn(ctrl, `Prendre le contrôle (${OWNER_THRESHOLD + 1} %)`) : ''}</div>` : ''}
+    ${pct ? `<div class="btn-wrap">${pct > 5 ? `<button class="btn btn-sm btn-ghost" onclick="handleSellStake('${c.id}',5)">Vendre 5 % · ${fmtMoneyShort(stakeSellPrice(G, c, 5))}</button>` : ''}<button class="btn btn-sm btn-ghost" onclick="handleSellStake('${c.id}',${pct})">Tout vendre · ${fmtMoneyShort(stakeSellPrice(G, c, pct))}</button></div>` : ''}
+    <p class="small" style="margin-top:8px">Au-delà de ${OWNER_THRESHOLD} %, vous devenez propriétaire et gérez le club. Dividendes en fin de saison selon le classement. Frais de ${Math.round(STAKE_FEE * 100)} % à l'achat comme à la vente ; les parts au-delà de ${OWNER_THRESHOLD} % coûtent ${Math.round(CONTROL_PREMIUM * 100)} % plus cher (prime de contrôle).</p>
+  </div>`;
+}
+function clubOwnerCardHTML(c) {
+  const pol = clubOwnerPolicy(c), cash = G.agent.cash;
+  const choices = (key, table) => `<div class="btn-wrap">${Object.entries(table).map(([id, o]) => `<button class="btn btn-sm${pol[key] === id ? ' on' : ''}" onclick="handleClubPolicy('${c.id}','${key}','${id}')">${esc(o.label)}</button>`).join('')}</div>
+    <p class="small" style="margin-top:4px">${esc(table[pol[key]].desc)}</p>`;
+  const capCost = stadiumWorksCost(c, 'capacity'), lvlCost = stadiumWorksCost(c, 'level');
+  return `<div class="card"><div class="card-title">👑 Gestion du club</div>
+    <div class="row-between small"><span>Budget du club</span><b class="num">${fmtMoneyShort(c.budget)}</b></div>
+    <div class="sep"></div><div class="small"><b>Apporter des fonds</b> (de votre trésorerie vers le budget du club)</div>
+    <div class="btn-wrap">${[100000, 1000000, 5000000, 20000000].map(v => `<button class="btn btn-sm" onclick="handleInjectFunds('${c.id}',${v})" ${cash < v ? 'disabled' : ''}>+${fmtMoneyShort(v)}</button>`).join('')}</div>
+    <div class="sep"></div><div class="small"><b>Stratégie sportive</b></div>${choices('strategy', CLUB_STRATEGIES)}
+    <div class="sep"></div><div class="small"><b>Billetterie</b></div>${choices('tickets', TICKET_POLICIES)}
+    <div class="sep"></div><div class="small"><b>Dividendes</b></div>${choices('dividends', DIVIDEND_POLICIES)}
+    <div class="sep"></div><div class="small"><b>Stade</b> (travaux payés sur le budget du club)</div>
+    <div class="btn-wrap">
+      <button class="btn btn-sm" onclick="handleStadiumWorks('${c.id}','capacity')" ${c.budget < capCost || c.stadiumCapacity >= 90000 ? 'disabled' : ''}>Agrandir (+${stadiumExpansion(c).toLocaleString('fr-FR')} places) · ${fmtMoneyShort(capCost)}</button>
+      ${c.stadiumLevel < 5 ? `<button class="btn btn-sm" onclick="handleStadiumWorks('${c.id}','level')" ${c.budget < lvlCost ? 'disabled' : ''}>Moderniser (${'★'.repeat(c.stadiumLevel + 1)}) · ${fmtMoneyShort(lvlCost)}</button>` : ''}
+    </div>
+  </div>`;
+}
+function stakesCardHTML() {
+  const list = stakesPortfolio(G);
+  const total = list.reduce((t, x) => t + x.value, 0);
+  return `<div class="card"><div class="card-title">${icon('bank',15)} Parts de clubs</div>
+    ${list.length ? list.map(x => `<div class="list-row" onclick="openClubDetail('${x.club.id}','agency')">
+        <div style="display:flex;gap:10px;align-items:center">${clubBadgeHTML(x.club, 'sm')}<div><div class="name">${esc(x.club.name)}${x.owner ? ' 👑' : ''}</div>
+          <div class="sub">${x.pct} %${x.owner ? ' · propriétaire' : ''} · dividendes reçus ${fmtMoneyShort(x.divs)}</div></div></div>
+        <div class="right"><b class="num">${fmtMoneyShort(x.value)}</b></div></div>`).join('')
+      + `<div class="row-between small" style="margin-top:6px"><span>Valeur totale à la revente</span><b class="num">${fmtMoneyShort(total)}</b></div>`
+      : `<p class="small">Aucune part pour l'instant. Depuis la fiche d'un club, achetez des parts (1 %, 5 %, 10 %…) : au-delà de ${OWNER_THRESHOLD} %, vous en devenez propriétaire et le gérez.</p>`}
+  </div>`;
+}
+function handleBuyStake(id, n, force) {
+  const c = G.clubs[id]; if (!c) return;
+  if (!force && !taxGuard(stakeBuyPrice(G, c, n), `handleBuyStake('${id}',${n},true)`)) return;
+  const news = [];
+  const r = buyClubStake(G, id, n, news);
+  pushNews(G, news); saveGame();
+  toast(!r.ok ? r.reason : r.becameOwner ? `👑 Vous êtes propriétaire ${deName(c.name)} !` : `Parts achetées : vous détenez ${r.pct} % ${deName(c.name)}.`);
+  renderPage();
+}
+function handleSellStake(id, n, confirmed) {
+  const c = G.clubs[id]; if (!c) return;
+  const pct = stakePct(G, id);
+  if (!confirmed && isClubOwner(G, id) && pct - n <= OWNER_THRESHOLD) {
+    renderModal(`
+      <div class="modal-head"><h3>Céder le contrôle ${esc(deName(c.name))} ?</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
+      <p>Avec ${pct - n} % du capital, vous ne serez plus propriétaire : le club reprendra une gestion normale. Vous recevrez <b class="num">${fmtMoneyShort(stakeSellPrice(G, c, n))}</b> (la prime de contrôle payée à l'achat n'est pas récupérée).</p>
+      <button class="btn btn-danger btn-block" onclick="closeModal();handleSellStake('${id}',${n},true)">Vendre</button>
+      <button class="btn btn-block" style="margin-top:8px" onclick="closeModal()">Annuler</button>`);
+    return;
+  }
+  const news = [];
+  const r = sellClubStake(G, id, n, news);
+  pushNews(G, news); saveGame();
+  toast(r.ok ? `Parts vendues : +${fmtMoneyShort(r.proceeds)}.` : r.reason);
+  renderPage();
+}
+function handleInjectFunds(id, amount, force) {
+  if (!force && !taxGuard(amount, `handleInjectFunds('${id}',${amount},true)`)) return;
+  const r = injectClubFunds(G, id, amount); saveGame();
+  toast(r.ok ? `${fmtMoneyShort(amount)} apportés au budget du club.` : r.reason); renderPage();
+}
+function handleClubPolicy(id, key, value) { const r = setClubPolicy(G, id, key, value); saveGame(); if (!r.ok) toast(r.reason); renderPage(); }
+function handleStadiumWorks(id, kind) {
+  const r = upgradeClubStadium(G, id, kind); saveGame();
+  toast(r.ok ? (kind === 'capacity' ? "Travaux lancés : le stade s'agrandit." : 'Infrastructures modernisées.') : r.reason); renderPage();
+}
 function handleUpgradeOffice(force) { const next = OFFICE_LEVELS[G.agent.officeLevel]; if (!force && next && !taxGuard(next.cost, 'handleUpgradeOffice(true)')) return; const r = upgradeOffice(G); saveGame(); toast(r.ok ? 'Agence agrandie !' : (r.reason || 'Impossible.')); renderPage(); }
 function handleHireStaff(id) { const r = hireStaff(G, id); saveGame(); toast(r.ok ? 'Nouvelle recrue en poste !' : (r.reason || 'Impossible.')); renderPage(); }
 
@@ -7361,6 +7690,7 @@ function renderFinances() {
       <div class="row-between small"><span>Transferts conclus</span><span class="num">${a.careerStats.transfersDone || 0}</span></div>
       <div class="row-between small"><span>Réputation la plus haute</span><span class="num">${Math.round(a.careerStats.peakReputation || 0)}</span></div>
       <div class="row-between small"><span>Personnel employé</span><span class="num">${Object.values(a.staff).reduce((x, y) => x + y, 0)}</span></div>
+      ${stakesPortfolio(G).length ? `<div class="row-between small"><span>Parts de clubs (valeur de revente)</span><span class="num">${fmtMoneyFull(stakesPortfolio(G).reduce((t, x) => t + x.value, 0))}</span></div>` : ''}
     </div>
     ${financeLedgerHTML(a)}
   `;
@@ -7503,7 +7833,7 @@ function renderStandings() {
     ${league.catchUp ? `<p class="small">${league.catchUp === 'next' ? "🕒 Ce championnat a rejoint la partie trop tard pour jouer cette saison : il démarre en août." : `🕒 Arrivé en cours de saison : calendrier resserré (${league.catchUp === 'single' ? 'aller simple' : 'aller-retour'}) jusqu'en mai.`}</p>` : ''}
     ${(promoLine || relLine) ? `<p class="small">${promoLine ? `🟢 Top ${promoLine} = montée · ` : ''}${relLine ? `🔴 Derniers ${relLine} = relégation` : ''}</p>` : ''}
     <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th></th><th>Club</th><th>Pts</th><th>MJ</th><th>V</th><th>N</th><th>D</th><th>BP</th><th>BC</th><th>Diff</th><th>Forme</th></tr></thead><tbody>
-    ${rows.map((c, i) => { const diff = c.table.bp - c.table.bc; return `<tr onclick="openClubDetail('${c.id}','world')" style="cursor:pointer"><td class="rk">${i + 1}</td><td class="name-cell">${clubBadgeHTML(c, 'sm')}${esc(c.short)}</td><td>${c.table.pts}</td><td>${c.table.mj}</td><td>${c.table.v}</td><td>${c.table.n}</td><td>${c.table.d}</td><td>${c.table.bp}</td><td>${c.table.bc}</td><td>${diff >= 0 ? '+' : ''}${diff}</td><td>${form5HTML(c)}</td></tr>`; }).join('')}
+    ${rows.map((c, i) => { const diff = c.table.bp - c.table.bc; return `<tr onclick="openClubDetail('${c.id}','world')" style="cursor:pointer"><td class="rk">${i + 1}</td><td class="name-cell">${clubBadgeHTML(c, 'sm')}${esc(c.short)}${isClubOwner(G, c.id) ? ' 👑' : ''}</td><td>${c.table.pts}</td><td>${c.table.mj}</td><td>${c.table.v}</td><td>${c.table.n}</td><td>${c.table.d}</td><td>${c.table.bp}</td><td>${c.table.bc}</td><td>${diff >= 0 ? '+' : ''}${diff}</td><td>${form5HTML(c)}</td></tr>`; }).join('')}
     </tbody></table></div>
     ${leagueTopScorersHTML(league)}
     ${leagueReputationRankingHTML()}
