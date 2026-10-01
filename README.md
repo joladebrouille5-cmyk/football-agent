@@ -15,6 +15,9 @@ Détails et licences : [portraits/README.md](portraits/README.md).
 - **Plusieurs parties** : jusqu'à 3 emplacements dans le même navigateur (Paramètres → Parties).
 - **Application installable** : servi en https (GitHub Pages), le jeu s'installe sur l'écran d'accueil et fonctionne
   hors connexion (`manifest.webmanifest`, `sw.js`, icônes). Dans la visionneuse claude.ai, seul le raccourci est possible.
+- **Avancer par semaine ou par mois** : petit bouton à droite du gros bouton (ou Paramètres → Avancer le temps).
+  Par semaine, chaque appui joue les journées de championnat de la semaine (`advanceWeek`) ; la 4e semaine boucle le
+  mois (coupes, Europe, finances, mercato) comme « mois suivant ».
 - **Mode clair / sombre / auto** et page **Comment jouer** (menu Plus).
 - **Langues** : français (par défaut), anglais et espagnol (Paramètres → Langue). Le jeu est écrit en français ;
   à l'affichage, chaque texte est traduit grâce au dictionnaire `I18N_ROWS` ([français, anglais, espagnol], avec des

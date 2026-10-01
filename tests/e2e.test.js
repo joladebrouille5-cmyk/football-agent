@@ -262,3 +262,27 @@ test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au 
     assert.match(await page.innerText('#app'), /Tableau de bord[\s\S]*Mes joueurs/, 'retour au français');
   }, { portraits: 'simple' });
 });
+
+test('V8.15 : avancer par semaine depuis le bouton', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); renderPage(); });
+    await page.click('#fabStep');
+    assert.match(await page.textContent('#fabAdvance'), /semaine suivante/i);
+    assert.match(await page.textContent('#topbarDate'), /Sem\. 1/);
+    for (let w = 2; w <= 4; w++) {
+      await page.click('#fabAdvance');
+      assert.match(await page.textContent('#topbarDate'), new RegExp('Sem\\. ' + w));
+      assert.match(await page.textContent('#toastRoot'), /Semaine \d/);
+    }
+    assert.match(await page.textContent('#fabAdvance'), /fin du mois/);
+    const month0 = await page.evaluate(() => G.date.absMonth);
+    await page.click('#fabAdvance');
+    assert.equal(await page.evaluate(() => G.date.absMonth), month0 + 1, 'la 4e semaine boucle le mois');
+    assert.match(await page.textContent('#modalRoot'), /Bilan du mois/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+    await page.evaluate(() => { closeModal(); G.pendingEvent = null; renderPage(); });
+    await page.click('#fabStep');
+    assert.match(await page.textContent('#fabAdvance'), /mois suivant/i);
+  }, { portraits: 'simple' });
+});
