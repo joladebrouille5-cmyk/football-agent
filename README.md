@@ -26,6 +26,10 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
   (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
   histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
+- **8.19** : page de démarrage (reprendre, nouvelle carrière, scénario avec difficulté, langue) ; la fenêtre de message
+  dit qui écrit (client, directeur sportif, club, presse, fédération, réseau, marque, agent rival — `EVENT_FROM`) et de
+  qui on parle ; plus d'onglet Conversations (les échanges restent dans l'histoire du joueur et sur la carte de
+  l'ennemi juré) ; « Relancer Amiens » à crédit (`agent.loan`) ; ennemi juré déclaré dès la 1re saison.
 - **Calendrier** de vos joueurs (tableau de bord et fiche joueur) et **match en direct** à revivre minute par minute.
 - **Mode clair / sombre / auto** et page **Comment jouer** (menu Plus).
 - **Langues** : français (par défaut), anglais et espagnol (Paramètres → Langue). Le jeu est écrit en français ;
