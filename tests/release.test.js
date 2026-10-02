@@ -143,3 +143,38 @@ test('V8.26 : dist/ est un site complet (accueil, manifeste, service worker, con
   assert.match(siteHeaders()['content-security-policy'], /script-src[^;]*https:\/\/static\.cloudflareinsights\.com/, 'CSP : script du compteur');
   assert.match(siteHeaders()['content-security-policy'], /connect-src[^;]*https:\/\/cloudflareinsights\.com/, 'CSP : envoi des statistiques');
 });
+
+// V8.28 : une application installée reste ouverte en arrière-plan ; une version publiée pendant ce temps doit être
+// proposée (bandeau en pleine partie) puis chargée, partie conservée. Service worker réel : https local (certificat
+// éphémère) sous le vrai nom du site.
+test('V8.28 : l\'application installée reçoit les mises à jour (bandeau, rechargement, partie conservée)', { skip: !fs.existsSync(DIST) && 'dist absent : npm run build' }, async () => {
+  const https = require('https'), os = require('os'), { execSync } = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-upd-')), site = path.join(tmp, 'site');
+  execSync(`openssl req -x509 -newkey rsa:2048 -nodes -keyout "${tmp}/k.pem" -out "${tmp}/c.pem" -days 1 -subj /CN=play.footagent.workers.dev`, { stdio: 'ignore' });
+  fs.cpSync(path.dirname(DIST), site, { recursive: true });
+  const srv = https.createServer({ key: fs.readFileSync(`${tmp}/k.pem`), cert: fs.readFileSync(`${tmp}/c.pem`) }, (req, res) => {
+    const rel = req.url.split('?')[0].replace(/^\/+/, '') || 'index.html', file = path.join(site, rel);
+    if (!file.startsWith(site) || !fs.existsSync(file)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' }); fs.createReadStream(file).pipe(res);
+  });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const browser = await chromium.launch({ proxy: { server: 'http://127.0.0.1:9', bypass: '*' }, args: ['--ignore-certificate-errors', `--host-resolver-rules=MAP play.footagent.workers.dev 127.0.0.1:${srv.address().port}`] });
+  try {
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+    await ctx.route(/cloudflareinsights|fonts\.g/, r => r.abort());
+    const page = await ctx.newPage(); const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto('https://play.footagent.workers.dev/');
+    await page.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 20000 });
+    await page.click('#startNew'); await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    // nouvelle version publiée : page marquée, cache du service worker renouvelé (comme le fait le build)
+    fs.writeFileSync(path.join(site, 'index.html'), fs.readFileSync(path.join(site, 'index.html'), 'utf8').replace('</body>', '<div id="v2marker"></div></body>'));
+    fs.writeFileSync(path.join(site, 'sw.js'), fs.readFileSync(path.join(site, 'sw.js'), 'utf8').replace(/const CACHE = '([^']+)'/, "const CACHE = '$1-v2'"));
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // retour au premier plan
+    await page.waitForSelector('#updateBanner', { timeout: 20000 });
+    await Promise.all([page.waitForNavigation({ timeout: 20000 }), page.click('#updateBanner button')]);
+    await page.waitForSelector('#startContinue', { timeout: 20000 });
+    assert.ok(await page.$('#v2marker'), 'nouvelle version chargée');
+    assert.deepEqual(errors, [], 'aucune erreur JavaScript');
+  } finally { await browser.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
+});

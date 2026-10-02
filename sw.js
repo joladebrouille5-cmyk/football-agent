@@ -14,7 +14,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const isPage = req.mode === 'navigate' || req.url.endsWith('.html');
   if (isPage) {
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })
+    // V8.28 : sans le cache HTTP du navigateur, pour toujours recevoir la dernière version publiée
+    e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => { if (res.ok && !res.redirected) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; })
       .catch(() => caches.match(req).then(r => r || caches.match('football-agent-8-2-20.html'))));
     return;
   }
