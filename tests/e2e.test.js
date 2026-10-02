@@ -310,7 +310,10 @@ test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, av
     await page.evaluate(() => { G.pendingEvent = null; closeModal(); const id = G.agent.portfolio[0], p = G.players[id]; p.club = 'psg'; G.clubs.psg.squad.push(id); navigate('dashboard'); });
     assert.match(await page.innerText('#content'), /Prochains matchs[\s\S]*Paris Saint-Germain/i, 'calendrier au tableau de bord');
     await page.click('#fabStep'); await page.click('#stepWeek');
-    await page.click('#fabAdvance');
+    // appui pile sur l'icône du gros bouton : le clic ne doit pas être perdu
+    const ico = await (await page.$('#fabAdvance svg')).boundingBox();
+    await page.mouse.click(ico.x + ico.width / 2, ico.y + ico.height / 2);
+    assert.match(await page.textContent('#topbarDate'), /Sem\. 2/, 'appui sur l\'icône pris en compte');
     const recap = await page.innerText('#modalRoot');
     assert.match(recap, /Bilan de la semaine[\s\S]*Classement[\s\S]*Paris Saint-Germain[\s\S]*\d+e · \d+ pts/i);
     // match en direct depuis le bilan : le score final est le vrai résultat
@@ -328,7 +331,8 @@ test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, av
     // avancer jusqu'à la saison prochaine (arrêt possible sur une décision)
     await page.evaluate(() => { G.pendingEvent = null; closeModal(); });
     await page.click('#fabStep'); await page.click('text=Début de la saison prochaine');
-    assert.match(await page.innerText('#modalRoot'), /Bilan de la période/i);
+    // pas à pas avec la progression affichée : on attend le bilan de la période
+    await page.waitForFunction(() => /Bilan de la période/i.test(document.getElementById('modalRoot').innerText), null, { timeout: 240000 });
     const st = await page.evaluate(() => ({ abs: G.date.absMonth, pending: !!G.pendingEvent, week: currentWeek(G) }));
     assert.ok(st.pending || st.abs === 12, 'arrivé en août suivant, ou arrêté sur une décision');
     assert.equal(st.week, 0);
