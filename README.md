@@ -20,6 +20,12 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   mois (finances, mercato) comme « mois suivant ». Les sélections jouent en semaine 1, la Ligue des Champions en semaine 2,
   les coupes en semaine 3 (`runMonthComp`, une seule fois par mois) ; l'intersaison passe d'un coup.
 - **Avancer jusqu'à…** (même petit bouton) : prochain match de vos joueurs, prochain mercato, saison suivante.
+- **8.18, plus léger et plus vivant** : 9 pages (Messages = conversations + négociations, Finances dans l'Agence,
+  Clubs dans le Monde, nouvelle page Carrière : objectifs, ennemi juré, hauts faits, classement, Panthéon) ; actualités
+  « Mon agence » par défaut ; Marché « Recommandés pour vous » ; parts de clubs débloquées au rang « Agent international ».
+  Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
+  (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
+  histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
 - **Calendrier** de vos joueurs (tableau de bord et fiche joueur) et **match en direct** à revivre minute par minute.
 - **Mode clair / sombre / auto** et page **Comment jouer** (menu Plus).
 - **Langues** : français (par défaut), anglais et espagnol (Paramètres → Langue). Le jeu est écrit en français ;
