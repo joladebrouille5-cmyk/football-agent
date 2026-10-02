@@ -7,13 +7,14 @@ Chaque joueur fictif a un visage, gardé en image (en mémoire et dans IndexedDB
 
 - **Banque** : `photos.webp`, planche de visages fictifs générés par IA (lots de 40, prompts écrits pour Football Agent), une case de 128 px par visage, 12 cases par ligne. Les visages ressemblant à un vrai footballeur, les doublons et les ratés (lunettes…) ont été écartés.
 - **Origines** : `PHOTO_FACES` (dans le jeu) donne, dans l'ordre de la planche, la ou les origines de chaque visage (`waf`, `naf`, `neu`, `seu`, `bal`, `mea`, `eas`, `lat`, `mix` — les mêmes que `NAT_ORIGINS`). Un joueur reçoit un visage de son origine (ou de l'origine principale de sa nationalité).
-- **Déterministe** : identifiant du joueur → toujours le même visage. Plusieurs joueurs du monde partagent un visage ; chaque nouveau lot réduit les répétitions.
+- **Fixé et sauvegardé** : à sa première apparition, un joueur reçoit un visage (`p.face`, gardé dans la sauvegarde) qui le suit d'un club à l'autre et ne change plus quand la banque grandit.
+- **Pas de doublon dans un club** : les coéquipiers encore sans visage sont servis ensemble, par identifiant, en sautant les visages déjà pris dans l'effectif (tant que leur groupe d'origine en a assez). Des joueurs de clubs différents peuvent partager un visage ; chaque nouveau lot réduit ces répétitions.
 - **Repli** : si la planche ne se charge pas, la 2D prend le relais.
 
 ### Ajouter un lot
 1. Découper chaque case de la planche reçue en carré centré sur le visage (128 px), écarter les ressemblances et les doublons.
 2. Ajouter les cases à la suite dans `photos.webp` (WebP qualité ~82) et leurs origines à la suite dans `PHOTO_FACES`, dans le même ordre.
-3. Mettre le nombre de visages dans le `?v=` de `PHOTO_SHEET` et changer `CACHE` dans `sw.js` ; la clé `ph1:` des portraits peut rester (l'index d'un visage existant ne change pas). Les joueurs de l'origine concernée peuvent changer de visage une fois (le choix dépend de la taille du groupe).
+3. Mettre le nombre de visages dans le `?v=` de `PHOTO_SHEET` et changer `CACHE` dans `sw.js` ; la clé `ph1:` des portraits peut rester (l'index d'un visage existant ne change pas).
 
 ## 2D
 

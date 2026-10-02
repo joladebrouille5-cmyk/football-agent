@@ -103,6 +103,11 @@ test('Portraits photo puis 2D : visage photo selon l\'origine, identique après 
     assert.ok(face.ok, 'visage de la bonne origine'); assert.ok(face.n >= 100);
     // le même identifiant donne toujours le même visage
     assert.equal(await page.evaluate(id => photoFaceIndex(G.players[id]) === photoFaceIndex(Object.assign({}, G.players[id])), pid), true);
+    // dans un club, deux coéquipiers n'ont jamais le même visage ; le visage est gardé dans la sauvegarde
+    const clubs = await page.evaluate(() => { let dups = 0, n = 0; for (const c of Object.values(G.clubs)) { const f = c.squad.map(id => photoFaceIndex(G.players[id])); dups += f.length - new Set(f).size; n++; } return { dups, n }; });
+    assert.ok(clubs.n > 100); assert.equal(clubs.dups, 0, 'aucun visage en double dans un même club');
+    const kept = await page.evaluate(() => { const c = Object.values(G.clubs)[3], id = c.squad[0], face = G.players[id].face; saveGame(); const g = deserializeState(serializeState(G)); return g.players[id].face === face && Number.isInteger(face); });
+    assert.ok(kept, 'visage sauvegardé');
     // l'image est vraiment décodable et non vide
     const size = await page.evaluate(src => new Promise(r => { const i = new Image(); i.onload = () => r([i.naturalWidth, i.naturalHeight]); i.onerror = () => r([0, 0]); i.src = src; }), img.slice(5, -2));
     assert.ok(size[0] >= 96 && size[1] >= 96, 'image de portrait valide');

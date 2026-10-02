@@ -6591,6 +6591,7 @@ const PLAYER_SAVE_FIELDS = [
   'untouchable', // V8.11 : intransférable (choix du propriétaire du club)
   'caps', 'intlGoals', // V8.13 : sélections et buts en équipe nationale
   'milestones', 'story', // V8.18 : jalons de carrière fêtés et histoire du joueur avec l'agence
+  'face', // V8.21 : visage photo attribué (index dans la banque de photos)
 ];
 // Compaction de la sauvegarde : au-delà de l'aplatissement du joueur en tableau positionnel (PLAYER_SAVE_FIELDS),
 // les tableaux 'career' et 'trophies' sont eux aussi des tableaux d'objets répétés ~5000 fois (un par joueur actif) :
@@ -6958,11 +6959,34 @@ const PHOTO_POOLS = {};
 PHOTO_FACES.forEach((tags, i) => tags.forEach(t => (PHOTO_POOLS[t] = PHOTO_POOLS[t] || []).push(i)));
 function photoHash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
 // visage d'un joueur : son origine (ou, à défaut, l'origine principale de sa nationalité), puis un tirage stable
-function photoFaceIndex(p) {
+function photoPool(p) {
   let origin = p.origin;
   if (!origin || !PHOTO_POOLS[origin]) { const w = NAT_ORIGINS[p.nat] || {}; origin = Object.keys(w).sort((a, b) => w[b] - w[a])[0]; }
-  const pool = PHOTO_POOLS[origin] || PHOTO_FACES.map((_, i) => i);
-  return pool[photoHash(String(p.id)) % pool.length];
+  return PHOTO_POOLS[origin] || PHOTO_FACES.map((_, i) => i);
+}
+function photoBaseIndex(p) { const pool = photoPool(p); return pool[photoHash(String(p.id)) % pool.length]; }
+const hasPhotoFace = q => Number.isInteger(q.face) && q.face >= 0 && q.face < PHOTO_FACES.length;
+// Le visage est fixé une fois pour toutes (p.face, sauvegardé) : il suit le joueur d'un club à l'autre et ne change
+// plus quand la banque de photos grandit. Dans un club, deux coéquipiers ne reçoivent jamais le même visage tant que
+// leur groupe d'origine en a assez : les joueurs encore sans visage du club sont servis ensemble, par identifiant,
+// en sautant les visages déjà pris (résultat identique d'une partie à l'autre).
+function photoFaceIndex(p) {
+  if (hasPhotoFace(p)) return p.face;
+  const live = typeof G !== 'undefined' && G && G.players && G.players[p.id] === p;
+  if (!live) return photoBaseIndex(p);
+  const club = p.club && G.clubs && G.clubs[p.club];
+  if (club && Array.isArray(club.squad) && club.squad.includes(p.id)) {
+    const used = new Set(), todo = [];
+    for (const id of club.squad) { const q = G.players[id]; if (!q) continue; if (hasPhotoFace(q)) used.add(q.face); else todo.push(q); }
+    todo.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    for (const q of todo) {
+      const pool = photoPool(q); let k = photoHash(String(q.id)) % pool.length;
+      for (let n = 0; n < pool.length && used.has(pool[k]); n++) k = (k + 1) % pool.length;
+      q.face = pool[k]; used.add(q.face);
+    }
+  }
+  if (!hasPhotoFace(p)) p.face = photoBaseIndex(p);
+  return p.face;
 }
 // moteur « photo » : même interface que le module 2D (portraitsSupported, loadAssets, renderPortrait)
 const photoEngine = {
@@ -6973,7 +6997,7 @@ const photoEngine = {
     return this.sheet;
   },
   async renderPortrait(p, size) {
-    const img = await this.loadAssets(), i = photoFaceIndex(p), out = Math.min(size, PHOTO_TILE);
+    const img = await this.loadAssets(), i = Number.isInteger(p.face) ? p.face : photoFaceIndex(p), out = Math.min(size, PHOTO_TILE);
     const c = document.createElement('canvas'); c.width = c.height = out;
     const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
     g.drawImage(img, (i % PHOTO_COLS) * PHOTO_TILE, Math.floor(i / PHOTO_COLS) * PHOTO_TILE, PHOTO_TILE, PHOTO_TILE, 0, 0, out, out);
@@ -7051,7 +7075,7 @@ function hydratePortraits() {
     const mode = portraitMode(), key = mode === 'photo' ? `ph1:${photoFaceIndex(p)}@${size}` : `v3-2d:${p.id}@${p.age}@${size}`; el.dataset.pkey = key;
     const url = portraits.mem.get(key);
     if (url) { applyPortrait(key, url); return; }
-    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, mode, p: { id: p.id, nat: p.nat, age: p.age, origin: p.origin || null } }); }
+    if (!portraits.queued.has(key)) { portraits.queued.add(key); portraits.queue.push({ key, size, mode, p: { id: p.id, nat: p.nat, age: p.age, origin: p.origin || null, face: mode === 'photo' ? photoFaceIndex(p) : null } }); }
   });
   pumpPortraits();
 }
