@@ -7,7 +7,20 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const DIST = path.join(__dirname, '..', 'dist', 'football-agent.html');
+const DIST = path.join(__dirname, '..', 'dist', 'index.html');
+// V8.26 : la page est servie avec les en-têtes du site (dist/_headers), dont la politique de sécurité du contenu
+function siteHeaders() {
+  const f = path.join(path.dirname(DIST), '_headers');
+  const out = {};
+  if (!fs.existsSync(f)) return out;
+  let cur = null;
+  for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+    if (/^\S/.test(line) && !line.startsWith('#')) cur = line.trim() === '/*' ? out : null;
+    else if (cur && /^\s+\S/.test(line)) { const i = line.indexOf(':'); cur[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim(); }
+  }
+  return out;
+}
+const TYPES = { '.webp': 'image/webp', '.js': 'text/javascript', '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
 async function withRelease(fn, html, extra) {
   const root = path.dirname(DIST);
@@ -15,14 +28,16 @@ async function withRelease(fn, html, extra) {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
     const file = path.join(root, rel);
     if (extra && extra[rel] !== undefined) { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end(extra[rel]); }
-    if (rel && file.startsWith(root) && fs.existsSync(file) && fs.statSync(file).isFile()) { res.writeHead(200, { 'content-type': rel.endsWith('.webp') ? 'image/webp' : 'text/javascript' }); return fs.createReadStream(file).pipe(res); }
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html || fs.readFileSync(DIST));
+    const hdr = siteHeaders();
+    if (rel && rel !== 'index.html' && file.startsWith(root) && fs.existsSync(file) && fs.statSync(file).isFile()) { res.writeHead(200, { ...hdr, 'content-type': TYPES[path.extname(rel)] || 'application/octet-stream' }); return fs.createReadStream(file).pipe(res); }
+    res.writeHead(200, { ...hdr, 'content-type': 'text/html; charset=utf-8' }); res.end(html || fs.readFileSync(DIST));
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
   const browser = await chromium.launch();
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (/Content Security Policy/i.test(m.text())) errors.push('CSP : ' + m.text()); });
   try { await page.goto(`http://127.0.0.1:${srv.address().port}/`); await fn(page); }
   finally { await browser.close(); srv.close(); }
   assert.deepEqual(errors, [], 'aucune erreur JavaScript');
@@ -101,4 +116,24 @@ test('Version protégée : une copie modifiée de la page (sonde, puis lecture d
       assert.match(await page.textContent('#integrityChip'), /modifiée/i, label + ' : la copie se sait modifiée');
     }, html, { 'orig.txt': origJs });
   }
+});
+
+test('V8.26 : dist/ est un site complet (accueil, manifeste, service worker, confidentialité, en-têtes)', { skip: !fs.existsSync(DIST) && 'dist absent : npm run build' }, async () => {
+  const dir = path.dirname(DIST);
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.start_url, './', "l'application installée démarre sur la page d'accueil");
+  for (const ic of manifest.icons) assert.ok(fs.existsSync(path.join(dir, ic.src)), 'icône ' + ic.src);
+  const sw = fs.readFileSync(path.join(dir, 'sw.js'), 'utf8');
+  new Function(sw); // syntaxe valide
+  assert.doesNotMatch(sw, /football-agent-8-2-20/, "le service worker ne vise plus l'ancien nom du fichier");
+  const core = JSON.parse(sw.match(/const CORE = (\[.*\]);/)[1]);
+  for (const f of core) if (f !== './') assert.ok(fs.existsSync(path.join(dir, f)), 'fichier mis en cache présent : ' + f);
+  assert.match(sw, /const CACHE = 'football-agent-[a-z0-9]+';/, 'cache renouvelé à chaque version publiée');
+  const page = fs.readFileSync(DIST, 'utf8');
+  for (const ref of [...page.matchAll(/<link[^>]+href="([^"]+)"/g)].map(m => m[1]).filter(h => !/^https?:/.test(h)))
+    assert.ok(fs.existsSync(path.join(dir, ref)), 'fichier référencé par la page présent : ' + ref);
+  assert.ok(fs.existsSync(path.join(dir, 'confidentialite.html')), 'page Mentions et confidentialité');
+  assert.match(siteHeaders()['content-security-policy'] || '', /default-src 'self'/, 'politique de sécurité du contenu');
+  assert.match(fs.readFileSync(path.join(dir, '_redirects'), 'utf8'), /football-agent-8-2-20\.html\s+\/\s+301/, 'ancienne adresse redirigée');
+  assert.ok(!fs.readdirSync(dir).some(f => /football-agent-8-2-20|\.src\.js$/.test(f)), 'aucun code source lisible publié');
 });
