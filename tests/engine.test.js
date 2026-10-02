@@ -829,11 +829,16 @@ test('V8.22 : choisir soi-même un club — fiche de chaque club, démarchage de
   for (const ic of top) assert.equal(E.clubInterestScore(s, p, ic.club).score, ic.score);
   // démarchage d'un club à portée hors du top 4 : la porte n'est plus fermée d'office
   const topIds = new Set(top.map(x => x.club.id));
-  const other = fits.find(f => !topIds.has(f.club.id) && f.interest !== null && f.interest > 15);
+  const other = fits.find(f => !topIds.has(f.club.id) && f.interest !== null && f.interest > 15 && !f.blocked);
   assert.ok(other, 'un autre club à portée existe');
   s.date.absMonth += Math.max(0, E.monthsUntilNextMercato(s) - 1); // le mois qui précède le mercato
   const r = E.pitchPlayerToClub(s, p.id, other.club.id);
   assert.ok(r.ok || /décline|budget|déjà/.test(r.reason), 'réponse du club, pas un refus de principe : ' + r.reason);
+  // V8.24 : un club qui refuse le profil ne peut pas être démarché (sinon la règle de niveau se contournait)
+  const refuses = fits.find(f => f.interest !== null && f.interest > 15 && f.blocked && /en-deçà/.test(f.blocked));
+  if (refuses) { p.lastPitchAt = null; p.pitchLog = {}; assert.match(E.pitchPlayerToClub(s, p.id, refuses.club.id).reason, /en-deçà/); }
+  // et la liste « Clubs intéressés » n'en contient aucun
+  for (const ic of top) assert.ok(E.evaluateClubTransferAcceptance(s, ic.club, p, { fee: E.estimateTransferFee(p, ic.club, s) }).ok);
   // un club hors de portée reste fermé
   const far = fits.find(f => f.interest === null);
   p.lastPitchAt = null;
@@ -867,10 +872,51 @@ test('V8.23 : joueurs libres et jeunes jugés sur leur niveau, intérêt du club
   s.date.absMonth += Math.max(0, E.monthsUntilNextMercato(s) - 1);
   p.lastTransferMonth = s.date.absMonth - 1;
   assert.equal(E.pitchStatus(s, p, high ? high.club.id : fits[0].club.id).ok, false);
-  // prêt vers un club choisi : club à portée accepté, club hors de portée refusé
-  p.lastTransferMonth = null;
-  const ok = fits.find(f => f.interest !== null && f.interest > 15 && E.evaluateLoanTarget(s, p, f.club).ok);
+  // V8.24 : un titulaire (dans le onze le plus fort de son club, plus de 21 ans) ne se prête pas
+  const sq = club.squad.map(id => s.players[id]).sort((a, b) => b.ovr - a.ovr);
+  const starter = sq.find(x => x.age > 21);
+  assert.match(E.loanReleaseCheck(s, starter).reason, /titulaires/);
+  // prêt vers un club choisi : club à portée accepté, club hors de portée refusé (remplaçant de plus de 21 ans)
+  const sub = sq.slice(11).find(x => x.age > 21) || sq[sq.length - 1];
+  sub.agentId = 'player'; s.agent.portfolio.push(sub.id);
+  const ok = Object.values(s.clubs).find(c => c.id !== sub.club && E.evaluateLoanTarget(s, sub, c).ok);
   assert.ok(ok, 'un club accepte le prêt');
-  const far = Object.values(s.clubs).find(c => c.id !== p.club && E.clubInterestScore(s, p, c) === null && c.budget > 1e6);
-  assert.equal(E.evaluateLoanTarget(s, p, far).ok, false);
+  const far = Object.values(s.clubs).find(c => c.id !== sub.club && E.clubInterestScore(s, sub, c) === null && c.budget > 1e6);
+  assert.equal(E.evaluateLoanTarget(s, sub, far).ok, false);
+});
+
+test('V8.24 : chasse aux tricheries — clause de revente, salaires gonflés, offres, prêts de titulaires', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  const p = s.players[club.squad.find(id => s.players[id].age >= 22 && s.players[id].age <= 28)];
+  p.agentId = 'player'; s.agent.portfolio.push(p.id);
+  const buyer = Object.values(s.clubs).find(c => c.id !== p.club && c.tier === 3);
+  // clause de revente de l'agent sur son propre client : rien avant un an, 5 % au plus ensuite
+  p.sellOnClause = { holderId: 'player', pct: 30, since: s.date.absMonth };
+  let before = s.agent.careerStats.totalCommissions;
+  const rate = 0.12;
+  E.executeTransfer(s, p, buyer, 10e6, [], { silent: true });
+  const first = s.agent.careerStats.totalCommissions - before;
+  assert.ok(first < 10e6 * 0.2, 'pas de clause de revente avant un an : ' + first);
+  p.sellOnClause = { holderId: 'player', pct: 30, since: s.date.absMonth - 13 };
+  p.lastTransferMonth = null;
+  before = s.agent.careerStats.totalCommissions;
+  E.executeTransfer(s, p, Object.values(s.clubs).find(c => c.id !== p.club && c.tier === 3), 10e6, [], { silent: true });
+  const second = s.agent.careerStats.totalCommissions - before;
+  assert.ok(second <= first + 10e6 * 0.05 + 1, 'clause plafonnée à 5 % : ' + (second - first));
+  // un nouveau club ne reprend pas un salaire gonflé au-delà de son plafond
+  p.lastTransferMonth = null; p.lastPermanentMove = null;
+  p.wage = 3 * E.clubWage(p.value, s.clubs[p.club]);
+  const target = Object.values(s.clubs).find(c => c.id !== p.club && c.tier === s.clubs[p.club].tier);
+  const g = E.evaluateNegotiationGate(s, p, { targetClubId: target.id, salary: p.wage, years: 3, roleProm: 'rotation', commissionPct: 10, signingBonus: 0, fee: E.estimateTransferFee(p, target, s) });
+  assert.equal(g.ok, false); assert.match(g.reason, /trop élevé/);
+  // une offre de club ne dépasse pas le plafond du club acheteur
+  p.lastTransferMonth = null; p.lastPermanentMove = null; s.incomingOffers = [];
+  const r = E.createIncomingOffer(s, p, target, 1e6, p.wage * 1.45);
+  assert.ok(r.ok); assert.ok(r.offer.wage < p.wage, 'salaire offert plafonné');
+  // un titulaire ne se prête pas
+  const top = s.clubs[p.club].squad.map(id => s.players[id]).filter(x => x.age > 21).sort((a, b) => b.ovr - a.ovr)[0];
+  top.agentId = 'player'; s.agent.portfolio.push(top.id);
+  const dest = Object.values(s.clubs).find(c => c.id !== top.club && c.tier <= s.clubs[top.club].tier);
+  assert.match(E.executeLoan(s, top.id, dest.id, 6, []).reason, /titulaires/);
 });
