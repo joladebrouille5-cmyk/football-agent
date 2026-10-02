@@ -75,13 +75,15 @@ for (const f of ['icon-192.png', 'icon-512.png']) fs.copyFileSync(path.join(ROOT
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 manifest.id = './'; manifest.start_url = './';
 fs.writeFileSync(path.join(DIR, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
-const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+// la page d'accueil est mise en cache sous « ./ » : les hébergeurs redirigent /index.html vers /, et une réponse
+// redirigée ne peut pas servir une page hors connexion
+const CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 let sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const swParts = [/^const CACHE = .*$/m, /^const CORE = .*$/m, /caches\.match\('football-agent-8-2-20\.html'\)/];
 for (const re of swParts) if (!re.test(sw)) throw new Error('sw.js : motif introuvable ' + re);
 sw = sw.replace(swParts[0], `const CACHE = 'football-agent-${fp}';`)
   .replace(swParts[1], `const CORE = ${JSON.stringify(CORE)};`)
-  .replace(swParts[2], "caches.match('index.html')");
+  .replace(swParts[2], "caches.match('./')");
 fs.writeFileSync(path.join(DIR, 'sw.js'), sw);
 for (const f of fs.readdirSync(path.join(ROOT, 'site'))) fs.copyFileSync(path.join(ROOT, 'site', f), path.join(DIR, f));
 for (const f of CORE) if (f !== './' && !fs.existsSync(path.join(DIR, f))) throw new Error('fichier du site manquant : ' + f);

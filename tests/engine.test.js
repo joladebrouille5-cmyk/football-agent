@@ -849,7 +849,9 @@ test('V8.23 : joueurs libres et jeunes jugés sur leur niveau, intérêt du club
   const s = newGame();
   const big = Object.values(s.clubs).filter(c => c.tier === 5);
   // un libre trop juste n'entre plus dans un grand club
+  // (âge fixé à 26 ans : un moins de 23 ans est jugé aussi sur son potentiel, et une pépite libre peut légitimement passer)
   const weak = s.freeAgents.map(id => s.players[id]).find(p => p.ovr <= 62);
+  weak.age = 26;
   weak.agentId = 'player'; s.agent.portfolio.push(weak.id);
   for (const c of big) assert.match(E.evaluateClubTransferAcceptance(s, c, weak, { fee: 0 }).reason, /en-deçà/);
   // un jeune : jugé à mi-chemin entre niveau et potentiel — une vraie pépite passe, un jeune moyen non
