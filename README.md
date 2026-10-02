@@ -26,6 +26,7 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
   (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
   histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
+- **8.20** : la page de démarrage s'affiche à chaque lancement (bouton « Continuer », « Menu principal » dans Plus et Réglages) ; nationalités triées selon la langue ; chaque scénario a un objectif suivi, une échéance et une fin (victoire au Panthéon, mode difficile débloqué) ; Amiens, Zéro et Brésil refondus ; 8 nouveaux scénarios (héritier, pépite, chute, dernier jour du mercato, filière africaine, ennemi juré, président malgré lui, carrière express).
 - **8.19** : page de démarrage (reprendre, nouvelle carrière, scénario avec difficulté, langue) ; la fenêtre de message
   dit qui écrit (client, directeur sportif, club, presse, fédération, réseau, marque, agent rival — `EVENT_FROM`) et de
   qui on parle ; plus d'onglet Conversations (les échanges restent dans l'histoire du joueur et sur la carte de

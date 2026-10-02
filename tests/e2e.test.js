@@ -32,12 +32,18 @@ async function withGame(viewport, fn, settings, opts = {}) {
   try {
     await page.goto(`http://127.0.0.1:${srv.address().port}/`);
     // V8.19 : page de démarrage — « Nouvelle carrière » mène au formulaire (sauf test de la page elle-même)
-    if (!opts.home) { await page.waitForTimeout(150); const start = await page.$('#startNew'); if (start) await start.click(); }
+    if (!opts.home) { await page.waitForTimeout(150); const start = await page.$('#startContinue') || await page.$('#startNew'); if (start) await start.click(); }
     await fn(page);
   } finally {
     await browser.close(); srv.close();
   }
   assert.deepEqual(errors, [], 'aucune erreur JavaScript');
+}
+
+// V8.20 : la page de démarrage s'affiche à chaque lancement ; « Continuer » reprend la partie en cours
+async function resume(page) {
+  await page.waitForFunction(() => document.querySelector('#startContinue') || document.querySelector('#startNew') || document.querySelector('#fabAdvance'), null, { timeout: 20000 });
+  const c = await page.$('#startContinue'); if (c) await c.click();
 }
 
 async function advanceMonth(page) {
@@ -65,7 +71,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'pas de débordement horizontal');
       await page.waitForTimeout(500); // la sauvegarde compressée est asynchrone
       const before = await page.evaluate(() => serializeState(G));
-      await page.reload(); await page.waitForTimeout(800);
+      await page.reload(); await resume(page); await page.waitForTimeout(800);
       assert.equal(await page.evaluate(() => serializeState(G)), before);
       // novembre : hors mercato, la recherche de transfert l'annonce d'emblée, sans bouton « Accepter » voué à l'échec (V8.5)
       await page.evaluate(id => { G.players[id].lastTransferMonth = -99; openTransferSearch(id); }, sid);
@@ -97,7 +103,7 @@ test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, dé
     const size = await page.evaluate(src => new Promise(r => { const i = new Image(); i.onload = () => r([i.naturalWidth, i.naturalHeight]); i.onerror = () => r([0, 0]); i.src = src; }), img.slice(5, -2));
     assert.ok(size[0] >= 96 && size[1] >= 96, 'image de portrait valide');
     await page.waitForTimeout(800); // écriture du cache
-    await page.reload(); await page.waitForTimeout(500);
+    await page.reload(); await resume(page); await page.waitForTimeout(500);
     await page.evaluate(id => openPlayerDetail(id, 'market'), pid);
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img, 'même visage après rechargement');
@@ -135,7 +141,7 @@ test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouv
     await advanceMonth(page);
     assert.equal(await page.evaluate(() => saveGame()), true, 'écriture réussie grâce au repli');
     const before = await page.evaluate(() => serializeState(G));
-    await page.reload(); await page.waitForTimeout(800);
+    await page.reload(); await resume(page); await page.waitForTimeout(800);
     assert.equal(await page.evaluate(() => serializeState(G)), before, 'partie identique après rechargement');
     assert.equal(await page.$$eval('.save-warning, .banner-warning', els => els.length), 0);
   }, { portraits: 'simple' });
@@ -152,7 +158,7 @@ test('Partie en cours sans les championnats V8.9 : au rechargement, les 26 class
       G.freeAgents = (G.freeAgents || []).filter(id => G.players[id]);
       await saveGame();
     });
-    await page.reload(); await page.waitForTimeout(1500);
+    await page.reload(); await resume(page); await page.waitForTimeout(1500);
     await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'BSA'; navigate('world'); });
     assert.equal(await page.$$eval('.league-picker option', o => o.length), 26, '26 championnats dans la liste (Ligue 3 comprise)');
     assert.equal(await page.$$eval('.tbl tbody tr', r => r.length), 20, 'classement du Brésil affiché');
@@ -177,7 +183,7 @@ test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'
     await page.click('text=Formation');
     await page.click('text=+1.0M€');
     await page.evaluate(() => saveGame()); // attendre la fin de la sauvegarde (compressée dans un Worker) avant de recharger
-    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
+    await page.reload(); await resume(page); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     const st = await page.evaluate(() => ({ pct: stakePct(G, 'amiens'), pol: G.clubs.amiens.ownerPolicy, injected: G.agent.stakes.amiens.injected }));
     assert.ok(st.pct > 51, 'l\'apport fait monter la part (augmentation de capital)');
     assert.equal(st.pol.strategy, 'formation');
@@ -206,7 +212,7 @@ test('V8.11 : propriétaire — rachat des parts d\'un rival, augmentation de ca
     await page.evaluate(id => openPlayerDetail(id, 'world'), pid);
     await page.click('text=Rendre intransférable');
     await page.evaluate(() => saveGame()); // attendre la fin de la sauvegarde (compressée dans un Worker) avant de recharger
-    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
+    await page.reload(); await resume(page); await page.waitForFunction(() => typeof G !== 'undefined' && G && G.clubs && G.clubs.amiens && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     assert.equal(await page.evaluate(id => G.players[id].untouchable, pid), true, 'intransférable conservé au rechargement');
     await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'L2'; navigate('world'); });
     assert.match(await page.textContent('#content'), /3e = barrage/);
@@ -229,7 +235,7 @@ test('V8.12 : trois parties, mode clair, page d\'aide', async () => {
     await page.click('text=Lancer ma carrière');
     await page.evaluate(() => saveGame());
     await page.evaluate(() => openSettingsModal());
-    await Promise.all([page.waitForNavigation(), page.click('text=Charger')]);
+    await Promise.all([page.waitForNavigation(), page.click('text=Charger')]); await resume(page);
     await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance')); await page.waitForTimeout(800);
     const back = await page.evaluate(() => ({ slot: activeSlot, agency: G.agent.agency, month: calMonth(G), light: document.body.classList.contains('theme-light') }));
     assert.deepEqual(back, { slot: 1, agency: 'Agence A', month: 9, light: true }, 'partie 1 retrouvée intacte');
@@ -260,7 +266,7 @@ test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au 
     txt = await page.innerText('#app');
     assert.match(txt, /Panel[\s\S]*Mis jugadores/);
     assert.doesNotMatch(txt, /Tableau de bord|Mes joueurs/);
-    await page.reload();
+    await page.reload(); await resume(page);
     // attendre que le jeu soit réaffiché (un délai fixe ne suffit pas toujours sur la machine de CI)
     await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance'), null, { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(300);
@@ -330,7 +336,7 @@ test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, av
     await page.evaluate(() => continueFromRecap());
     // rechargement en plein mois : le bilan du mois garde le début du mois
     await page.evaluate(() => saveGame());
-    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance'), null, { timeout: 15000 });
+    await page.reload(); await resume(page); await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance'), null, { timeout: 15000 });
     assert.equal(await page.evaluate(() => !!G.monthSnap && G.monthSnap.abs === G.date.absMonth), true, 'début du mois conservé');
     // avancer jusqu'à la saison prochaine (arrêt possible sur une décision)
     await page.evaluate(() => { G.pendingEvent = null; closeModal(); });
@@ -346,7 +352,8 @@ test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, av
 
 test('V8.18 : pages regroupées, cérémonie, dernier jour du mercato, scénario, Panthéon, parts verrouillées', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
-    await page.click('.scn-card[data-scn="zero"]');
+    await page.evaluate(() => { ui.obStep = 'scenarios'; renderOnboarding(); });
+    await page.click('.start-btn[data-scn="zero"]');
     await page.click('text=Lancer ma carrière');
     assert.equal(await page.evaluate(() => G.scenario), 'zero');
     assert.ok(await page.evaluate(() => G.agent.cash) < 100000, 'scénario Sans un sou');
@@ -387,7 +394,7 @@ test('V8.19 : page de démarrage (langue, scénarios), expéditeur des messages,
     await page.click('#startScenario');
     assert.match(await page.innerText('#app'), /Choisissez un scénario[\s\S]*Sans un sou[\s\S]*Relancer Amiens[\s\S]*Aventure au Brésil/i);
     await page.click('.start-btn[data-scn="amiens"]');
-    assert.equal(await page.evaluate(() => document.querySelector('.scn-card.sel').dataset.scn), 'amiens');
+    assert.equal(await page.evaluate(() => document.getElementById('scnSummary').dataset.scn), 'amiens');
     await page.click('text=Lancer ma carrière');
     assert.equal(await page.evaluate(() => G.scenario), 'amiens');
     assert.ok(await page.evaluate(() => G.agent.loan && G.agent.loan.left > 1e6), 'rachat à crédit');
@@ -410,6 +417,53 @@ test('V8.19 : page de démarrage (langue, scénarios), expéditeur des messages,
     assert.match(reply, /Olympique Lyonnais apprécie/, 'la réponse parle du club qui a écrit');
     await page.evaluate(() => { closeModal(); const id = G.agent.portfolio[0]; G.pendingEvent = { id: 'temps_jeu', playerId: id, rivalId: null, text: 'Je veux jouer plus.', choiceLabels: ['OK'] }; showEventModal(); });
     assert.match(await page.innerText('.chat-modal'), /Votre client ·/i);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' }, { home: true });
+});
+
+test('V8.20 : page de démarrage à chaque lancement, menu principal, nouvelle carrière dans un emplacement libre, scénario réussi', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#startNew'); await page.fill('#obAgency', 'Agence Une'); await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); return saveGame(); });
+    // rechargement : la page de démarrage s'affiche, avec « Continuer »
+    await page.reload(); await page.waitForSelector('#startContinue');
+    assert.match(await page.innerText('#startContinue'), /Continuer[\s\S]*Agence Une/i);
+    await page.click('#startContinue');
+    assert.ok(await page.$('#fabAdvance'));
+    // menu principal depuis « Plus »
+    await page.evaluate(() => openMoreSheet()); await page.click('#menuMain');
+    await page.waitForSelector('#startContinue');
+    // scénarios : 11 au total, « Dernier jour du mercato » dans un nouvel emplacement
+    await page.click('#startScenario');
+    assert.equal(await page.$$eval('.start-btn[data-scn]', b => b.length), 11);
+    await page.click('.start-btn[data-scn="deadline"]');
+    await page.fill('#obAgency', 'Agence Deux'); await page.click('text=Lancer ma carrière');
+    await page.waitForFunction(() => typeof G !== 'undefined' && G && G.scenario === 'deadline' && document.querySelector('#fabAdvance'), null, { timeout: 30000 });
+    const st = await page.evaluate(() => ({ slot: activeSlot, month: calMonth(G), step: settings.step, first: readSlotIndex().meta[1] && readSlotIndex().meta[1].agency }));
+    assert.equal(st.month, 1); assert.equal(st.step, 'week'); assert.equal(st.first, 'Agence Une', 'la première partie est gardée'); assert.ok(st.slot !== 1);
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); navigate('dashboard'); });
+    assert.match(await page.innerText('#content'), /Dernier jour du mercato[\s\S]*Placer vos clients/i);
+    // réussite : les clients sont placés, puis une semaine passe
+    await page.evaluate(() => { for (const id of G.scenarioState.clients) { const p = G.players[id], c = G.clubs.amiens; p.club = c.id; c.squad.push(id); } G.pendingEvent = null; renderPage(); });
+    await page.click('#fabAdvance');
+    // le bilan de la semaine ou un événement peuvent s'ouvrir avant la fin du scénario : on les ferme jusqu'à la fenêtre de réussite
+    let won = false;
+    for (let i = 0; i < 100 && !won; i++) {
+      await page.waitForTimeout(200);
+      won = await page.evaluate(() => {
+        const txt = document.getElementById('modalRoot').innerText;
+        if (readScenarioWins().deadline && /Scénario réussi/i.test(txt) && !/Bilan/i.test(txt)) return true;
+        if (/Bilan/i.test(txt)) continueFromRecap();
+        else if (G.pendingEvent && document.querySelector('.chat-reply-btn')) { handleResolveEventModal(0); closeModal(); renderPage(); }
+        return false;
+      });
+    }
+    assert.ok(won, 'la fenêtre « Scénario réussi » apparaît');
+    assert.ok(await page.evaluate(() => readScenarioWins().deadline && readScenarioWins().deadline.won));
+    // le mode difficile est débloqué sur la page de démarrage
+    await page.evaluate(() => goStartMenu()); await page.click('#startScenario');
+    assert.ok(await page.$('.scn-hard[data-hard="deadline"]'));
+    assert.match(await page.innerText('#app'), /Réussi/i);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' }, { home: true });
 });
