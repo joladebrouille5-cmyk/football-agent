@@ -552,3 +552,32 @@ test('V8.23 : prêt vers un club choisi, boutons en attente hors mercato', async
     assert.match(await page.innerText('.club-pick-wait'), /Mercato fermé/i);
   }, { portraits: 'simple' });
 });
+
+test('V8.27 : crédits, œuf de Pâques (nom du créateur ou blason) et accueil du créateur', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#startCredits');
+    assert.match(await page.innerText('.modal'), /Une création de\s+Florian Deconinck/);
+    for (let i = 0; i < 5; i++) await page.click('#creditsName');
+    assert.match(await page.innerText('.modal'), /Œuf de Pâques[\s\S]*trouvé le secret/i);
+    await page.click('.modal .btn-primary');
+    assert.ok(await page.$eval('#startCrest', e => e.classList.contains('golden')), 'blason doré une fois le secret trouvé');
+    // traduit en anglais
+    await page.click('.start-langs [data-lang="en"]');
+    await page.click('#startCredits');
+    assert.match(await page.innerText('.modal'), /A creation by\s+Florian Deconinck/);
+    await page.click('.modal .modal-close');
+    await page.click('.start-langs [data-lang="fr"]');
+    // un agent au nom du créateur est accueilli, et le haut fait suit la partie
+    await page.click('#startNew');
+    await page.fill('#obName', 'florian deconinck');
+    await page.click('#obLaunch');
+    await page.waitForFunction(() => /Florian Deconinck en personne/.test((document.getElementById('toastRoot') || {}).textContent || ''), null, { timeout: 5000 });
+    assert.ok(await page.evaluate(() => G.news.some(n => /ouvre sa propre agence/.test(n.text))));
+    assert.ok(await page.evaluate(() => { checkAchievements(G); return G.achievements.unlocked.includes('easter_egg') && G.agent.cash >= 0; }));
+  }, { portraits: 'simple' }, { home: true });
+  // le blason de l'accueil (7 touches rapides) révèle aussi le secret
+  await withGame({ width: 1280, height: 900 }, async page => {
+    for (let i = 0; i < 7; i++) await page.click('#startCrest');
+    assert.match(await page.innerText('.modal'), /trouvé le secret/);
+  }, { portraits: 'simple' }, { home: true });
+});
