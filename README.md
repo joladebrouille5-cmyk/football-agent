@@ -8,6 +8,8 @@ navigateur (format compressé) ; l'export/import `.json` se fait depuis le menu 
 
 **Publier (site)** : toujours la version protégée. `npm install` puis `npm run build` produit `dist/`, le **site complet** : `index.html` (le jeu protégé), `manifest.webmanifest`, `sw.js` (hors connexion), icônes, `portraits/`, `confidentialite.html`, `_headers` (sécurité) et `_redirects`. Le fichier source lisible reste dans le dépôt privé.
 
+**En ligne : https://play.footagent.workers.dev** (projet Cloudflare « play », voir `wrangler.jsonc`).
+
 **Héberger sur Cloudflare Pages** (gratuit, dépôt privé accepté, mise en ligne automatique à chaque fusion sur `main`) : Workers & Pages → Create → Pages → *Connect to Git* → `football-agent` ; *Framework preset* : None ; *Build command* : `npm run build` ; *Build output directory* : `dist` ; variable d'environnement `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` = `1`. Node 22 est fixé par `.node-version`. Netlify fonctionne de la même façon (mêmes `_headers` et `_redirects`).
 
 Les portraits des joueurs (photo ou 2D, au choix dans « Paramètres ») viennent du dossier `portraits/` : servez le dossier entier (GitHub Pages ou un petit
