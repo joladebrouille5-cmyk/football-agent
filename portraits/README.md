@@ -13,7 +13,7 @@ Chaque joueur fictif a un visage, gardé en image (en mémoire et dans IndexedDB
 ### Ajouter un lot
 1. Découper chaque case de la planche reçue en carré centré sur le visage (128 px), écarter les ressemblances et les doublons.
 2. Ajouter les cases à la suite dans `photos.webp` (WebP qualité ~82) et leurs origines à la suite dans `PHOTO_FACES`, dans le même ordre.
-3. Changer `CACHE` dans `sw.js` ; la clé `ph1:` des portraits peut rester (l'index d'un visage existant ne change pas).
+3. Mettre le nombre de visages dans le `?v=` de `PHOTO_SHEET` et changer `CACHE` dans `sw.js` ; la clé `ph1:` des portraits peut rester (l'index d'un visage existant ne change pas). Les joueurs de l'origine concernée peuvent changer de visage une fois (le choix dépend de la taille du groupe).
 
 ## 2D
 
