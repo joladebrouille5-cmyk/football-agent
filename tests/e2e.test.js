@@ -6,7 +6,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const { GAME_FILE } = require('./load-engine');
+const { GAME_FILE: SOURCE_FILE } = require('./load-engine');
+// V8.25 : GAME_FILE=dist/football-agent.html pour tester la version publiée (obfusquée) avec les mêmes parcours
+const GAME_FILE = process.env.GAME_FILE ? require('path').resolve(process.env.GAME_FILE) : SOURCE_FILE;
 
 async function withGame(viewport, fn, settings, opts = {}) {
   const html = fs.readFileSync(GAME_FILE);

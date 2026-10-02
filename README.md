@@ -6,6 +6,8 @@ Football Agent - jeu de gestion et carrière d'agent de football
 Ouvrir `football-agent-8-2-20.html` dans un navigateur récent. La partie est sauvegardée automatiquement dans le
 navigateur (format compressé) ; l'export/import `.json` se fait depuis le menu « Sauvegarde ».
 
+**Publier** : toujours la version protégée — `npm install` puis `npm run build`, et publier `dist/` (page + `portraits/`). Le fichier source lisible reste dans le dépôt privé.
+
 Les portraits des joueurs (photo ou 2D, au choix dans « Paramètres ») viennent du dossier `portraits/` : servez le dossier entier (GitHub Pages ou un petit
 serveur local, par exemple `npx serve .`) pour les voir ; en ouvrant le fichier seul, le jeu garde des silhouettes.
 Détails et licences : [portraits/README.md](portraits/README.md).
@@ -26,6 +28,7 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
   (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
   histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
+- **8.25** : protection. Sauvegardes signées (une sauvegarde ou un fichier exporté modifié à la main est détecté : « Partie modifiée », plus de Panthéon ni de records). Version publiée protégée (`npm run build` → `dist/`) : code obfusqué et enfermé (l'état de la partie est inaccessible depuis la console), protection contre le débogueur et contre le reformatage, empreinte du code (une copie modifiée de la page se sait modifiée et ses sauvegardes sont refusées par le vrai jeu). Testé par `npm run test:release` (partie jouée par l'interface + attaques : console, sauvegarde modifiée, signature retirée, copie modifiée avec sonde, lecture du code usurpée).
 - **8.24** (audit 8.23 + chasse aux tricheries) : la liste « Clubs intéressés », la recherche de clubs et le démarchage respectent le niveau exigé par le club ; prêt : tri qui tient compte des refus ; clause libératoire activée par un club qui veut vraiment le joueur. Triches corrigées, trouvées par un joueur automatique sur 10 saisons (`tools/cheat-bot.js`) : clause de revente de l'agent sur son propre client (rien avant un an, 5 % au plus), salaire gonflé repris par un nouveau club, offres de club qui faisaient grimper le salaire, prêt d'un titulaire en boucle.
 - **8.23** (audit 8.22) : un joueur libre ou un jeune est jugé sur son niveau par le club acheteur (un libre noté 57 ne signe plus au PSG ; un jeune passe s'il est une vraie pépite) ; l'intérêt du club pèse dans la négociation ; hors mercato, le choix du club se prépare sans négocier ; pas de démarchage juste après un transfert ; choix du club aussi pour les prêts. À savoir : depuis la 8.21, chaque joueur garde son visage photo pour toujours (les joueurs affichés avant la 8.21 en ont changé une fois).
 - **8.22** : choisir soi-même le club d'un client : liste de tous les clubs avec temps de jeu, indemnité estimée face au budget, intérêt du club, pays rêvé, pas en avant ou en arrière, avis du club et du client ; recherche, filtre par pays, tris ; négociation ou démarchage (« Proposer ») de n'importe quel club à portée, directement depuis la liste.
