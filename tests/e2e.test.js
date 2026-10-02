@@ -446,9 +446,19 @@ test('V8.20 : page de démarrage à chaque lancement, menu principal, nouvelle c
     // réussite : les clients sont placés, puis une semaine passe
     await page.evaluate(() => { for (const id of G.scenarioState.clients) { const p = G.players[id], c = G.clubs.amiens; p.club = c.id; c.squad.push(id); } G.pendingEvent = null; renderPage(); });
     await page.click('#fabAdvance');
-    await page.waitForTimeout(100);
-    await page.evaluate(() => { if (/Bilan/i.test(document.getElementById('modalRoot').innerText)) continueFromRecap(); });
-    await page.waitForFunction(() => /Scénario réussi/i.test(document.getElementById('modalRoot').innerText), null, { timeout: 10000 });
+    // le bilan de la semaine ou un événement peuvent s'ouvrir avant la fin du scénario : on les ferme jusqu'à la fenêtre de réussite
+    let won = false;
+    for (let i = 0; i < 100 && !won; i++) {
+      await page.waitForTimeout(200);
+      won = await page.evaluate(() => {
+        const txt = document.getElementById('modalRoot').innerText;
+        if (readScenarioWins().deadline && /Scénario réussi/i.test(txt) && !/Bilan/i.test(txt)) return true;
+        if (/Bilan/i.test(txt)) continueFromRecap();
+        else if (G.pendingEvent && document.querySelector('.chat-reply-btn')) { handleResolveEventModal(0); closeModal(); renderPage(); }
+        return false;
+      });
+    }
+    assert.ok(won, 'la fenêtre « Scénario réussi » apparaît');
     assert.ok(await page.evaluate(() => readScenarioWins().deadline && readScenarioWins().deadline.won));
     // le mode difficile est débloqué sur la page de démarrage
     await page.evaluate(() => goStartMenu()); await page.click('#startScenario');
