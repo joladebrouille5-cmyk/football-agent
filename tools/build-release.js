@@ -79,12 +79,15 @@ for (const f of ['photos.webp', 'faces2d.js']) fs.copyFileSync(path.join(ROOT, '
 // connexion ; son cache change à chaque version publiée pour que les joueurs reçoivent la mise à jour), page
 // « Mentions et confidentialité », en-têtes de sécurité et redirections des anciennes adresses.
 for (const f of ['icon-192.png', 'icon-512.png']) fs.copyFileSync(path.join(ROOT, f), path.join(DIR, f));
+// polices hébergées avec le jeu (V8.29) : plus de Google Fonts
+fs.mkdirSync(path.join(DIR, 'fonts'), { recursive: true });
+for (const f of fs.readdirSync(path.join(ROOT, 'fonts'))) fs.copyFileSync(path.join(ROOT, 'fonts', f), path.join(DIR, 'fonts', f));
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 manifest.id = './'; manifest.start_url = './';
 fs.writeFileSync(path.join(DIR, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
 // la page d'accueil est mise en cache sous « ./ » : les hébergeurs redirigent /index.html vers /, et une réponse
 // redirigée ne peut pas servir une page hors connexion
-const CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'fonts/inter-latin.woff2', 'fonts/oswald-latin.woff2'];
 let sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const swParts = [/^const CACHE = .*$/m, /^const CORE = .*$/m, /caches\.match\('football-agent-8-2-20\.html'\)/];
 for (const re of swParts) if (!re.test(sw)) throw new Error('sw.js : motif introuvable ' + re);

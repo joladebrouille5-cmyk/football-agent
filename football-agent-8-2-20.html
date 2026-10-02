@@ -2,19 +2,36 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Football Agent — Jeu de gestion d'agent de football</title>
 <meta name="theme-color" content="#05080a">
+<meta name="description" content="Jeu gratuit de gestion de carrière d'agent de football : signez des pépites, négociez transferts et contrats, bâtissez l'agence la plus puissante du monde. Sur navigateur et mobile.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Football Agent">
+<meta property="og:title" content="Football Agent — deviens le plus grand agent du football">
+<meta property="og:description" content="Signez des pépites, négociez les transferts et bâtissez l'agence la plus puissante du monde. Jeu gratuit, sur navigateur et mobile.">
+<meta property="og:url" content="https://play.footagent.workers.dev/">
+<meta property="og:image" content="https://play.footagent.workers.dev/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Football Agent">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="./fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="./fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* Polices hébergées avec le jeu (V8.29) : Inter et Oswald, licence SIL OFL (fonts/LICENSE-*.txt). Plus aucun appel à
+   Google Fonts (adresse IP des joueurs) et polices disponibles hors connexion. */
+@font-face{font-family:'Inter'; font-style:normal; font-display:swap; font-weight:100 900; src:url(./fonts/inter-latin-ext.woff2) format('woff2'); unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+@font-face{font-family:'Inter'; font-style:normal; font-display:swap; font-weight:100 900; src:url(./fonts/inter-latin.woff2) format('woff2'); unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Oswald'; font-style:normal; font-display:swap; font-weight:100 900; src:url(./fonts/oswald-latin-ext.woff2) format('woff2'); unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+@font-face{font-family:'Oswald'; font-style:normal; font-display:swap; font-weight:100 900; src:url(./fonts/oswald-latin.woff2) format('woff2'); unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+
 /* ============================================================
    FOOTBALL AGENT — direction artistique « Nuit de match » (V8.3)
    Un stade sous les projecteurs : fond vert-nuit presque noir strié comme
@@ -63,6 +80,9 @@ h1,h2,h3,h4{margin:0 0 4px; font-family:var(--font-display); font-weight:600; le
 p{margin:0 0 8px; color:var(--ink-dim); line-height:1.55;}
 a{color:inherit;}
 button{font-family:inherit;}
+/* V8.29 : le zoom est autorisé (accessibilité) ; des champs en 16 px évitent le zoom automatique d'iOS à la saisie */
+@media (max-width:899px){ input, select, textarea{ font-size:16px; } }
+[role="button"]:focus-visible, button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 ::selection{background:var(--accent); color:var(--accent-ink);}
 .num{font-family:var(--font-display); font-weight:600; letter-spacing:.3px; font-variant-numeric:tabular-nums;}
 ::-webkit-scrollbar{width:8px;height:8px;}
@@ -2498,6 +2518,16 @@ function executeTransfer(state, player, buyerClub, fee, news, opts = {}) {
     news.push({ text: `Transfert : ${player.name} rejoint ${buyerClub.name} (${sellerClub ? fmtMoneyShort(fee) : 'libre'}).`, tag: 'transfert', playerId: player.id, breaking: true });
   }
 }
+function clubGoalkeepers(state, club) { return club ? club.squad.filter(id => state.players[id] && state.players[id].posLine === 'GK').length : 0; }
+// V8.29 (audit 8.28) : filet de sécurité — un club resté sans gardien (ventes de clients, retraites…) en promeut un
+function ensureGoalkeepers(state) {
+  for (const club of Object.values(state.clubs)) {
+    if (clubGoalkeepers(state, club) > 0) continue;
+    const p = generatePlayer(state, { club, forcedPos: 'GK', ageMin: 18, ageMax: 30 });
+    p.contractUntil = seasonStartYear(state) + 1 + randInt(1, 3);
+    state.players[p.id] = p; club.squad.push(p.id);
+  }
+}
 function weakestLine(state, club) {
   // V8.3 (audit P0-5) : les gardiens étaient exclus de ce calcul, donc jamais recrutés par l'IA
   const gkCount = club.squad.filter(id => state.players[id] && state.players[id].posLine === 'GK').length;
@@ -2522,7 +2552,8 @@ function runAIClubTransfers(state, news, isMercato) {
       .map(id => state.players[id])
       // V8.10 : un club à 18 joueurs ou moins ne vend plus (des effectifs tombaient à 16 en cours de saison)
       .filter(p => p && !p.retired && p.club !== buyer.id && p.posLine === line && p.agentId !== 'player' && p.value <= buyer.budget
-        && !p.untouchable && !(p.club && state.clubs[p.club] && state.clubs[p.club].squad.length <= 18));
+        && !p.untouchable && !(p.club && state.clubs[p.club] && state.clubs[p.club].squad.length <= 18)
+        && !(p.posLine === 'GK' && p.club && clubGoalkeepers(state, state.clubs[p.club]) <= 2)); // V8.29 : garde 2 gardiens
     if (!candidates.length) continue;
     // le niveau reste le critère dominant, mais à niveau proche, un club recrute un peu plus volontiers un joueur
     // culturellement familier à son championnat (comme le ferait un vrai recruteur)
@@ -2624,7 +2655,7 @@ function updateContractsAndListings(state, news) {
     const affordable = club ? (p.wage * 12 <= (club.wageBudget || tierWageBudget(club.tier)) * 1.4) : true;
     const renewChance = clamp(0.3 + (rep / 100) * 0.35, 0.15, 0.8) * ageFactor * (affordable ? 1 : 0.35);
     // plancher d'effectif : un club ne se vide pas de ses joueurs faute de prolongations
-    const mustKeep = club && club.squad.length <= MIN_SQUAD_AFTER_RELEASE;
+    const mustKeep = club && (club.squad.length <= MIN_SQUAD_AFTER_RELEASE || (p.posLine === 'GK' && clubGoalkeepers(state, club) <= 2));
     // un joueur déclaré intransférable par le propriétaire du club est toujours prolongé (le club tient à le garder)
     if (mustKeep || p.untouchable || Math.random() < renewChance) {
       p.contractUntil = endingNow + randInt(1, 3);
@@ -6367,6 +6398,7 @@ function advanceMonth(state, opts = {}) {
   nemesisTaunt(state, news); // V8.18
   runAIClubSquadManagement(state, news, isMercato);
   runAIClubTransfers(state, news, isMercato);
+  ensureGoalkeepers(state);
   maybeGenerateRumor(state, news, isMercato);
   maybeGenerateReferral(state, news);
   runAIClubFreeAgentSignings(state, news, isMercato);
@@ -7192,7 +7224,7 @@ const photoEngine = {
     return { url: url.startsWith('data:image/webp') ? url : c.toDataURL('image/png') };
   },
 };
-const PORTRAIT_MODULES = { '2d': './portraits/faces2d.js' };
+const PORTRAIT_MODULES = { '2d': './portraits/faces2d.js?v=2' }; // V8.29 : changer le numéro si faces2d.js change
 const portraits = { engines: { photo: { load: null, off: false, why: '' }, '2d': { load: null, off: false, why: '' } }, mem: new Map(), queue: [], queued: new Set(), busy: false, db: null };
 function portraitBucket(px) { return px <= 48 ? 96 : px <= 96 ? 192 : 256; }
 // style réellement utilisé : celui choisi, ou la 2D quand les photos sont impossibles ; null = silhouettes
@@ -7335,7 +7367,7 @@ function playerRowHTML(p, opts) {
   opts = opts || {};
   const club = p.club ? G.clubs[p.club] : null;
   const returnTo = opts.returnTo || ui.page;
-  return `<div class="list-row" onclick="openPlayerDetail('${p.id}','${returnTo}')">
+  return `<div role="button" tabindex="0" class="list-row" onclick="openPlayerDetail('${p.id}','${returnTo}')">
     ${portraitHTML(p.id, 40)}
     <div>
       <div class="name">${esc(p.name)} <span class="flag">${flagFor(p.nat)}</span></div>
@@ -7362,7 +7394,7 @@ function playerCardHTML(p, opts) {
   const statCols = isGK
     ? [[s.apps || 0, 'MJ'], [s.cs || 0, 'CS'], [s.saves || 0, 'ARR']]
     : [[s.apps || 0, 'MJ'], [s.goals || 0, 'B'], [s.assists || 0, 'PD']];
-  return `<div class="player-card ${tier}" onclick="openPlayerDetail('${p.id}','${returnTo}')">
+  return `<div role="button" tabindex="0" class="player-card ${tier}" onclick="openPlayerDetail('${p.id}','${returnTo}')">
     <div class="player-card-top">
       <div><div class="player-card-ovr">${p.ovr}</div><div class="player-card-pos">${esc(p.pos)}</div></div>
       <span class="player-card-flag">${flagFor(p.nat)}</span>
@@ -7493,6 +7525,11 @@ function downloadRawCorruptSave() {
 }
 
 /* ---------- Amorçage ---------- */
+// V8.29 : un élément cliquable qui n'est pas un vrai bouton répond aussi à Entrée et Espace (clavier, lecteur d'écran)
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if ((e.key === 'Enter' || e.key === ' ') && el && el.getAttribute && el.getAttribute('role') === 'button' && el.tagName !== 'BUTTON') { e.preventDefault(); el.click(); }
+});
 async function boot() {
   window.addEventListener('pagehide', flushPendingSaveOnUnload);
   activeSlot = clamp(Math.round(readSlotIndex().active || 1), 1, SAVE_SLOTS);
@@ -7577,7 +7614,7 @@ function startHomeHTML() {
   const wins = readScenarioWins();
   const cur = G ? `<button class="start-btn primary" id="startContinue" onclick="continueGame()"><b>▶ Continuer</b><span>${esc(G.agent.agency)} · ${settings.step === 'week' && !isOffSeasonMonth(G) ? `Sem. ${currentWeek(G) + 1} · ` : ''}${MONTH_NAMES[calMonth(G)]} ${calYear(G)}${G.scenarioState ? ` · ${esc((SCENARIOS.find(x => x.id === G.scenarioState.id) || {}).label || '')}` : ''}</span></button>` : '';
   return `<div class="onboard"><div class="onboard-card">
-    <div class="onboard-crest${easterEggFound() ? ' golden' : ''}" id="startCrest" onclick="tapEasterEgg(7)">⚽</div>
+    <div role="button" tabindex="0" class="onboard-crest${easterEggFound() ? ' golden' : ''}" id="startCrest" onclick="tapEasterEgg(7)">⚽</div>
     <div class="onboard-kicker">Football Agent</div>
     <div class="onboard-title">${step === 'scenarios' ? 'Choisissez un scénario' : 'Bienvenue, agent'}</div>
     <div class="start-langs">${Object.entries(I18N_LANGS).map(([k, l]) => `<button class="tab-btn ${(settings.lang || 'fr') === k ? 'active' : ''}" onclick="setStartLang('${k}')" data-lang="${k}">${flags[k] || ''} ${l}</button>`).join('')}</div>
@@ -7612,7 +7649,7 @@ function renderOnboarding() {
     <div class="field"><label>Nationalité</label><select id="obNat">${[...ONBOARD_NATIONS].sort((a, b) => { const t = n => (typeof i18nIndex !== 'undefined' && i18nIndex ? i18nText(n) : n); return t(a).localeCompare(t(b), i18nLang || 'fr'); }).map(n => `<option ${n === 'France' ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="field"><label>Spécialité</label>
       <div class="spec-grid" id="specGrid">
-        ${SPECIALTIES.map((s, i) => `<div class="spec-card ${i === 0 ? 'sel' : ''}" data-spec="${s.id}" onclick="selectSpec('${s.id}')"><b>${s.label}</b><span>${s.desc}</span></div>`).join('')}
+        ${SPECIALTIES.map((s, i) => `<div role="button" tabindex="0" class="spec-card ${i === 0 ? 'sel' : ''}" data-spec="${s.id}" onclick="selectSpec('${s.id}')"><b>${s.label}</b><span>${s.desc}</span></div>`).join('')}
       </div>
     </div>
     <div class="field"><label>Scénario</label>
@@ -7698,7 +7735,7 @@ function openCredits() {
       <div class="onboard-crest${easterEggFound() ? ' golden' : ''}" style="margin:0 auto 12px">⚽</div>
       <div class="small">Football Agent</div>
       <p class="small" style="margin:10px 0 0">Une création de</p>
-      <div class="credits-name" id="creditsName" onclick="tapEasterEgg(5)">${CREATOR_NAME}</div>
+      <div role="button" tabindex="0" class="credits-name" id="creditsName" onclick="tapEasterEgg(5)">${CREATOR_NAME}</div>
       <div class="credits-role">Idée, conception et tests</div>
       <p class="small">Tous les joueurs, agents et visages du jeu sont entièrement fictifs.</p>
       <p class="small">Merci à tous les testeurs !</p>
@@ -7725,9 +7762,9 @@ function renderApp() {
   document.getElementById('app').innerHTML = `
     <nav class="sidenav" id="sidenav">
       <div class="sidenav-brand"><div class="crest">${esc(playerInitials(G.agent.agency))}</div><div style="min-width:0"><b>${esc(G.agent.agency)}</b><span>${esc(G.agent.name)} · ${flagFor(G.agent.nationality)}</span></div></div>
-      ${NAV_ITEMS.map(n => `<div class="nav-item" data-nav="${n.id}" onclick="navigate('${n.id}')"><span class="ico">${icon(n.ico)}</span>${n.label}</div>`).join('')}
+      ${NAV_ITEMS.map(n => `<div role="button" tabindex="0" class="nav-item" data-nav="${n.id}" onclick="navigate('${n.id}')"><span class="ico">${icon(n.ico)}</span>${n.label}</div>`).join('')}
       <div class="sep"></div>
-      <div class="nav-item" onclick="openSettingsModal()"><span class="ico">${icon('gear')}</span>Paramètres</div>
+      <div role="button" tabindex="0" class="nav-item" onclick="openSettingsModal()"><span class="ico">${icon('gear')}</span>Paramètres</div>
     </nav>
     <header class="topbar">
       <div class="topbar-brand">${esc(G.agent.agency)}</div>
@@ -7778,10 +7815,10 @@ function renderCareerPage() {
 function openMoreSheet() {
   renderModal(`
     <div class="modal-head"><h3>Plus</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
-    ${MORE_ITEMS.map(it => `<div class="nav-item" style="padding:14px 12px" onclick="closeModal(); navigate('${it.id}')"><span class="ico">${icon(it.ico)}</span>${it.label}</div>`).join('')}
+    ${MORE_ITEMS.map(it => `<div role="button" tabindex="0" class="nav-item" style="padding:14px 12px" onclick="closeModal(); navigate('${it.id}')"><span class="ico">${icon(it.ico)}</span>${it.label}</div>`).join('')}
     <div class="sep"></div>
-    <div class="nav-item" style="padding:14px 12px" onclick="closeModal(); openSettingsModal()"><span class="ico">${icon('gear')}</span>Paramètres</div>
-    <div class="nav-item" style="padding:14px 12px" id="menuMain" onclick="goStartMenu()"><span class="ico">${icon('home')}</span>Menu principal</div>
+    <div role="button" tabindex="0" class="nav-item" style="padding:14px 12px" onclick="closeModal(); openSettingsModal()"><span class="ico">${icon('gear')}</span>Paramètres</div>
+    <div role="button" tabindex="0" class="nav-item" style="padding:14px 12px" id="menuMain" onclick="goStartMenu()"><span class="ico">${icon('home')}</span>Menu principal</div>
   `);
 }
 
@@ -7847,7 +7884,7 @@ function openRivalDetail(id) {
     <div class="row-between small"><span>Votre relation</span><b style="color:${mood[1]}">${mood[0]} (${rv})</b></div>
     ${meterHTML(rv, 100, mood[1])}
     <div class="card-title" style="margin-top:12px">Ses meilleurs joueurs</div>
-    ${players.length ? players.slice(0, 4).map(p => `<div class="row-between small" style="padding:4px 0;cursor:pointer" onclick="closeModal();openPlayerDetail('${p.id}','ranking')"><span>${flagFor(p.nat)} ${esc(p.name)} <span style="color:var(--ink-faint)">${p.ovr}</span></span><span class="num">${fmtMoneyShort(p.value)}</span></div>`).join('') : '<p class="small">Portefeuille vide pour l\u2019instant.</p>'}
+    ${players.length ? players.slice(0, 4).map(p => `<div role="button" tabindex="0" class="row-between small" style="padding:4px 0;cursor:pointer" onclick="closeModal();openPlayerDetail('${p.id}','ranking')"><span>${flagFor(p.nat)} ${esc(p.name)} <span style="color:var(--ink-faint)">${p.ovr}</span></span><span class="num">${fmtMoneyShort(p.value)}</span></div>`).join('') : '<p class="small">Portefeuille vide pour l\u2019instant.</p>'}
     <div class="card-title" style="margin-top:12px">Votre histoire commune</div>
     ${(ra.rivalryLog || []).length ? ra.rivalryLog.slice().reverse().map(e => `<div class="small" style="padding:3px 0">${esc(e.text)} — ${e.season}</div>`).join('') : '<p class="small">Aucun accrochage pour l\u2019instant.</p>'}
   `);
@@ -8140,7 +8177,7 @@ function nemesisCardHTML() {
   const r = nemesisOf(G);
   if (!r) return `<div class="card"><div class="card-title">😈 Ennemi juré</div><p class="small" style="margin:0">Pas encore d'ennemi juré. Prenez des clients aux autres agents, ou laissez-les vous en prendre : une vraie rivalité finit toujours par naître.</p></div>`;
   const list = agentRankingList(G), myRank = list.findIndex(x => x.mine) + 1, hisRank = list.findIndex(x => x.id === r.id) + 1;
-  return `<div class="card nemesis-card" style="cursor:pointer" onclick="openRivalDetail('${r.id}')"><div class="card-title">😈 Ennemi juré</div>
+  return `<div role="button" tabindex="0" class="card nemesis-card" style="cursor:pointer" onclick="openRivalDetail('${r.id}')"><div class="card-title">😈 Ennemi juré</div>
     <div class="row-between"><b style="font-size:17px">${esc(r.name)}</b><span class="small">${ordinal(hisRank)} au classement · vous ${ordinal(myRank)}</span></div>
     <div class="small" style="margin:6px 0 2px">Rivalité</div>${meterHTML(r.rivalry || 0, 100, 'var(--red)')}
     <div class="small" style="margin-top:4px">${r.portfolio.length} joueurs · réputation ${Math.round(r.reputation)}</div>
@@ -8446,7 +8483,7 @@ function renderPlayerDetail() {
     ${(interestedClubs.length || (isMine && !p.retired)) ? `<div class="card"><div class="card-title">Clubs intéressés</div>
       ${interestedClubs.length ? '' : '<p class="small">Aucun club ne s\'est encore manifesté.</p>'}
       ${interestedClubs.map(ic => `
-        <div class="list-row" style="cursor:pointer" onclick="openClubDetail('${ic.club.id}','playerdetail')">
+        <div role="button" tabindex="0" class="list-row" style="cursor:pointer" onclick="openClubDetail('${ic.club.id}','playerdetail')">
           ${clubBadgeHTML(ic.club, 'sm')}
           <div><div class="name">${esc(ic.club.name)}</div><div class="sub">${esc(ic.reasons[0])}</div></div>
           <div class="right small" style="font-weight:700;color:${ic.score >= 55 ? 'var(--emerald)' : (ic.score >= 35 ? 'var(--gold)' : 'var(--ink-dim)')}">${ic.score >= 55 ? 'Très intéressé' : (ic.score >= 35 ? 'Intéressé' : `À l'écoute`)}
@@ -8495,11 +8532,11 @@ function renderScouting() {
   const tier = SCOUT_BUDGET_TIERS.find(t => t.id === ui.scoutTier) || SCOUT_BUDGET_TIERS[1];
   return `<div class="page-title">Scouting</div>
     <div class="card"><div class="card-title">Budget de la mission</div>
-      <div class="region-grid">${SCOUT_BUDGET_TIERS.map(t => `<div class="region-card ${t.id === ui.scoutTier ? 'active' : ''}" onclick="setScoutTier('${t.id}')"><b class="num">${fmtMoneyShort(t.cost)}</b><div class="small">${t.label}</div></div>`).join('')}</div>
+      <div class="region-grid">${SCOUT_BUDGET_TIERS.map(t => `<div role="button" tabindex="0" class="region-card ${t.id === ui.scoutTier ? 'active' : ''}" onclick="setScoutTier('${t.id}')"><b class="num">${fmtMoneyShort(t.cost)}</b><div class="small">${t.label}</div></div>`).join('')}</div>
       <p class="small" style="margin-top:8px">${tier.playersMin}–${tier.playersMax} profils repérés${tier.accuracyBonus > 0 ? ', rapport plus précis dès réception' : (tier.accuracyBonus < 0 ? ', rapport plus flou (fourchette large)' : '')}.</p>
     </div>
     <div class="card"><div class="card-title">Envoyer un recruteur</div>
-      ${CONTINENTS.map(ct => `<div class="region-continent">${ct}</div><div class="region-grid">${SCOUT_REGIONS.filter(r => (NAT_CONTINENT[r.id] || 'Europe') === ct).sort((a, b) => a.label.localeCompare(b.label, 'fr')).map(r => `<div class="region-card" onclick="handleStartScout('${r.id}')"><span class="flag">${flagFor(r.nats[0])}</span>${r.label}</div>`).join('')}</div>`).join('')}
+      ${CONTINENTS.map(ct => `<div class="region-continent">${ct}</div><div class="region-grid">${SCOUT_REGIONS.filter(r => (NAT_CONTINENT[r.id] || 'Europe') === ct).sort((a, b) => a.label.localeCompare(b.label, 'fr')).map(r => `<div role="button" tabindex="0" class="region-card" onclick="handleStartScout('${r.id}')"><span class="flag">${flagFor(r.nats[0])}</span>${r.label}</div>`).join('')}</div>`).join('')}
       ${G.scenarioState && ['bresil', 'afrique'].includes(G.scenarioState.id) ? `<p class="small" style="margin-top:10px;color:var(--gold-soft)">Scénario : missions deux fois moins chères ${G.scenarioState.id === 'bresil' ? 'dans les Amériques' : 'en Afrique'}.</p>` : ''}
       <p class="small" style="margin-top:10px">Coût : ${fmtMoneyShort(tier.cost)} pour cette mission. La précision du rapport dépend de votre réputation, de votre spécialité et de vos recruteurs.</p>
     </div>
@@ -8514,8 +8551,8 @@ function scoutResultCardHTML(m) {
     const p = G.players[r.playerId];
     if (!p) return '';
     return `<div class="list-row" style="align-items:flex-start">
-      <div class="ovr" style="cursor:pointer" onclick="openPlayerDetail('${p.id}','scouting')">${flagFor(p.nat)}</div>
-      <div style="cursor:pointer" onclick="openPlayerDetail('${p.id}','scouting')"><div class="name">${esc(p.name)}${r.rarity === 'gem' ? ' <span class="rarity gem">💎 Exceptionnelle</span>' : r.rarity === 'rare' ? ' <span class="rarity rare">⭐ Rare</span>' : ''}</div><div class="sub"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${p.age} ans</div></div>
+      <div role="button" tabindex="0" class="ovr" style="cursor:pointer" onclick="openPlayerDetail('${p.id}','scouting')">${flagFor(p.nat)}</div>
+      <div role="button" tabindex="0" style="cursor:pointer" onclick="openPlayerDetail('${p.id}','scouting')"><div class="name">${esc(p.name)}${r.rarity === 'gem' ? ' <span class="rarity gem">💎 Exceptionnelle</span>' : r.rarity === 'rare' ? ' <span class="rarity rare">⭐ Rare</span>' : ''}</div><div class="sub"><span class="pos-tag ${p.posLine}">${p.pos}</span> ${p.age} ans</div></div>
       <div class="right">
         <div class="small">Potentiel estimé</div><b class="num">${r.shownRange[0]}–${r.shownRange[1]}</b>
         <div><button class="btn btn-sm" style="margin-top:6px" onclick="handleDeepenScouting('${p.id}')">${icon('search',14)} Observer + (${fmtMoneyShort(DEEP_SCOUT_COST)})</button></div>
@@ -8549,7 +8586,7 @@ function renderClubs() {
   const clubs = league.clubIds.map(id => G.clubs[id]).sort((a, b) => b.tier - a.tier || a.name.localeCompare(b.name));
   return `<div class="page-title">Clubs</div>
     ${leaguePickerHTML()}
-    <div class="card">${clubs.map(c => `<div class="list-row" onclick="openClubDetail('${c.id}','clubs')">${clubBadgeHTML(c)}<div><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.city)}</div></div><div class="right small">${'★'.repeat(c.tier)}</div></div>`).join('')}</div>
+    <div class="card">${clubs.map(c => `<div role="button" tabindex="0" class="list-row" onclick="openClubDetail('${c.id}','clubs')">${clubBadgeHTML(c)}<div><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.city)}</div></div><div class="right small">${'★'.repeat(c.tier)}</div></div>`).join('')}</div>
   `;
 }
 function setClubTab(id) { ui.clubTab = id; renderPage(); }
@@ -8655,7 +8692,7 @@ function openMatchDetail(leagueId, idx) {
   const f = lg && lg.fixtures[idx];
   if (!f || !f.played) return;
   const home = G.clubs[f.home], away = G.clubs[f.away];
-  const scorerLine = s => `<div class="small" style="cursor:pointer" onclick="closeModal();openPlayerDetail('${s.id}','world')">⚽ ${esc(s.name)}${s.assistName ? ` <span class="small">(passe : ${esc(s.assistName)})</span>` : ''} <span class="num">${s.min}'</span></div>`;
+  const scorerLine = s => `<div role="button" tabindex="0" class="small" style="cursor:pointer" onclick="closeModal();openPlayerDetail('${s.id}','world')">⚽ ${esc(s.name)}${s.assistName ? ` <span class="small">(passe : ${esc(s.assistName)})</span>` : ''} <span class="num">${s.min}'</span></div>`;
   const cardsHTML = [
     ...(f.cardsY || []).map(c => `<div class="small">🟨 ${esc(c.name)}</div>`),
     ...(f.cardsR || []).map(c => `<div class="small">🟥 ${esc(c.name)}</div>`),
@@ -8673,7 +8710,7 @@ function openMatchDetail(leagueId, idx) {
       <div><div class="card-title">Buteurs ${esc(away.short)}</div>${(f.scorersAway || []).map(scorerLine).join('') || '<div class="small">—</div>'}</div>
     </div>
     ${cardsHTML ? `<div class="sep"></div><div class="card-title">Cartons</div>${cardsHTML}` : ''}
-    ${f.motm ? `<div class="sep"></div><div class="card-title">Homme du match</div><div class="small" style="cursor:pointer" onclick="closeModal();openPlayerDetail('${f.motm.id}','world')">⭐ ${esc(f.motm.name)} — note ${f.motm.rating}</div>` : ''}
+    ${f.motm ? `<div class="sep"></div><div class="card-title">Homme du match</div><div role="button" tabindex="0" class="small" style="cursor:pointer" onclick="closeModal();openPlayerDetail('${f.motm.id}','world')">⭐ ${esc(f.motm.name)} — note ${f.motm.rating}</div>` : ''}
   `);
 }
 
@@ -8772,7 +8809,7 @@ function renderNegotiationsHub() {
         <div class="right small">${MONTH_NAMES[SEASON_MONTH_ORDER[o.visibleFrom % 12]]}</div>
       </div>`).join('')}</div>` : ''}
     <div class="card"><div class="card-title">Contrats à renouveler</div>
-      ${expiring.length ? expiring.map(p => `<div class="list-row" onclick="openNegotiation('${p.id}','renew')">${clubBadgeHTML(p.club ? G.clubs[p.club] : null, 'sm')}<div><div class="name">${esc(p.name)}</div><div class="sub">Fin de contrat : ${p.contractUntil}</div></div><div class="right"><button class="btn btn-sm">Négocier</button></div></div>`).join('') : '<p class="small">Rien à renouveler pour l\u2019instant.</p>'}
+      ${expiring.length ? expiring.map(p => `<div role="button" tabindex="0" class="list-row" onclick="openNegotiation('${p.id}','renew')">${clubBadgeHTML(p.club ? G.clubs[p.club] : null, 'sm')}<div><div class="name">${esc(p.name)}</div><div class="sub">Fin de contrat : ${p.contractUntil}</div></div><div class="right"><button class="btn btn-sm">Négocier</button></div></div>`).join('') : '<p class="small">Rien à renouveler pour l\u2019instant.</p>'}
     </div>
     ${nothing ? emptyStateHTML('chat', 'Aucune négociation en cours.', 'Elles apparaîtront ici dès qu\u2019une offre arrive ou qu\u2019un contrat approche de son terme.') : ''}
     ${missedOffersHTML() /* historique en bas de page (V8.6) : ce qui reste à faire passe avant */}
@@ -9223,7 +9260,7 @@ function renderPhone() {
   return `<div class="page-title">${icon('chat',18)} Téléphone</div>
     ${contacts.length ? contacts.map(c => `
       <div class="card">
-        <div class="row-between" style="cursor:pointer" onclick="openPlayerDetail('${c.p.id}','dashboard')">
+        <div role="button" tabindex="0" class="row-between" style="cursor:pointer" onclick="openPlayerDetail('${c.p.id}','dashboard')">
           <div class="card-title" style="margin:0">${flagFor(c.p.nat)} ${esc(c.p.name)}</div>
           <span class="small">${c.msgs.length} message${c.msgs.length > 1 ? 's' : ''}</span>
         </div>
@@ -9443,7 +9480,7 @@ function stakesCardHTML() {
   const list = stakesPortfolio(G);
   const total = list.reduce((t, x) => t + x.value, 0);
   return `<div class="card"><div class="card-title">${icon('bank',15)} Parts de clubs</div>
-    ${list.length ? list.map(x => `<div class="list-row" onclick="openClubDetail('${x.club.id}','agency')">
+    ${list.length ? list.map(x => `<div role="button" tabindex="0" class="list-row" onclick="openClubDetail('${x.club.id}','agency')">
         <div style="display:flex;gap:10px;align-items:center">${clubBadgeHTML(x.club, 'sm')}<div><div class="name">${esc(x.club.name)}${x.owner ? ' 👑' : ''}</div>
           <div class="sub">${fmtPct(x.pct)}${x.owner ? ` · propriétaire${x.club.fanMood !== undefined ? ` · supporters ${x.club.fanMood}/100` : ''}` : ''} · dividendes reçus ${fmtMoneyShort(x.divs)}</div></div></div>
         <div class="right"><b class="num">${fmtMoneyShort(x.value)}</b></div></div>`).join('')
@@ -9613,7 +9650,7 @@ function renderNations() {
   const next = nextIntlTournaments(G);
   return `<div class="card"><div class="card-title">Prochain grand tournoi</div>
       <p style="margin:0">${next.length ? `Juin : <b>${next.map(esc).join('</b> et <b>')}</b>.` : 'Aucun cette année.'} Les trêves internationales ont lieu en septembre, octobre, novembre et mars.</p></div>
-    ${mine.length ? `<div class="card"><div class="card-title">Vos internationaux</div>${mine.map(p => `<div class="row-between small" style="padding:4px 0;cursor:pointer" onclick="openPlayerDetail('${p.id}','world')"><span>${flagFor(p.nat)} ${esc(p.name)}${(squads[p.nat] || []).includes(p) ? ' · <b style="color:var(--accent)">sélectionné</b>' : ''}</span><span class="num">${p.caps} sél. · ${p.intlGoals || 0} but${(p.intlGoals || 0) > 1 ? 's' : ''}</span></div>`).join('')}</div>` : ''}
+    ${mine.length ? `<div class="card"><div class="card-title">Vos internationaux</div>${mine.map(p => `<div role="button" tabindex="0" class="row-between small" style="padding:4px 0;cursor:pointer" onclick="openPlayerDetail('${p.id}','world')"><span>${flagFor(p.nat)} ${esc(p.name)}${(squads[p.nat] || []).includes(p) ? ' · <b style="color:var(--accent)">sélectionné</b>' : ''}</span><span class="num">${p.caps} sél. · ${p.intlGoals || 0} but${(p.intlGoals || 0) > 1 ? 's' : ''}</span></div>`).join('')}</div>` : ''}
     ${hist[0] ? intlTournamentHTML(hist[0]) : ''}
     ${hist.length > 1 ? `<div class="card"><div class="card-title">Palmarès</div>${hist.slice(1).map(r => `<div class="row-between small" style="padding:3px 0"><span>${esc(r.name)} ${r.year}</span><span>${flagFor(r.winner)} ${esc(natName(r.winner))}</span></div>`).join('')}</div>` : ''}
     <div class="card"><div class="card-title">Classement des sélections</div>
@@ -9707,14 +9744,14 @@ function renderStandings() {
 function leagueReputationRankingHTML() {
   const ranked = [...LEAGUES].map(l => G.leagues[l.id]).filter(Boolean).sort((a, b) => (b.reputation || 0) - (a.reputation || 0));
   return `<div class="card"><div class="card-title">Réputation des championnats</div>
-    ${ranked.map((lg, i) => `<div class="row-between small" style="padding:5px 0;cursor:pointer" onclick="setClubTab('${lg.id}')"><span>${i + 1}. ${esc(lg.name)}</span><b class="num">${Math.round(lg.reputation || 0)}</b></div>`).join('')}
+    ${ranked.map((lg, i) => `<div role="button" tabindex="0" class="row-between small" style="padding:5px 0;cursor:pointer" onclick="setClubTab('${lg.id}')"><span>${i + 1}. ${esc(lg.name)}</span><b class="num">${Math.round(lg.reputation || 0)}</b></div>`).join('')}
   </div>`;
 }
 function leagueTopScorersHTML(league) {
   const players = league.clubIds.flatMap(cid => (G.clubs[cid] ? G.clubs[cid].squad : []).map(pid => G.players[pid]).filter(Boolean));
   const scorers = players.filter(p => p.pos !== 'GK' && (p.seasonStats.goals || 0) > 0).sort((a, b) => (b.seasonStats.goals || 0) - (a.seasonStats.goals || 0)).slice(0, 5);
   const assisters = players.filter(p => (p.seasonStats.assists || 0) > 0).sort((a, b) => (b.seasonStats.assists || 0) - (a.seasonStats.assists || 0)).slice(0, 5);
-  const row = (p, val) => `<div class="row-between small" style="padding:5px 0;cursor:pointer" onclick="openPlayerDetail('${p.id}','world')"><span>${esc(p.name)}</span><b class="num">${val}</b></div>`;
+  const row = (p, val) => `<div role="button" tabindex="0" class="row-between small" style="padding:5px 0;cursor:pointer" onclick="openPlayerDetail('${p.id}','world')"><span>${esc(p.name)}</span><b class="num">${val}</b></div>`;
   return `<div class="grid-2">
     <div class="card"><div class="card-title">Buteurs</div>${scorers.length ? scorers.map(p => row(p, p.seasonStats.goals)).join('') : '<p class="small">—</p>'}</div>
     <div class="card"><div class="card-title">Passeurs</div>${assisters.length ? assisters.map(p => row(p, p.seasonStats.assists)).join('') : '<p class="small">—</p>'}</div>
@@ -10171,7 +10208,7 @@ function recapPlayersHTML(before, seasonSummary, weekly) {
     if (injuredNow && !b.injured) bits.push(`<span style="color:var(--red)">blessé</span>`);
     if (p.club !== b.club) bits.push(`<span style="color:var(--gold-soft)">nouveau club : ${esc(p.club && G.clubs[p.club] ? G.clubs[p.club].name : 'libre')}</span>`);
     const ratingCol = rating == null ? '' : rating >= 7.2 ? 'var(--emerald)' : rating < 5.8 ? 'var(--red)' : '';
-    rows.push(`<div class="recap-player" style="cursor:pointer" onclick="closeModal();openPlayerDetail('${id}','dashboard')">
+    rows.push(`<div role="button" tabindex="0" class="recap-player" style="cursor:pointer" onclick="closeModal();openPlayerDetail('${id}','dashboard')">
       <div class="row-between"><b>${esc(p.name)}</b><span>${recapDelta(p.ovr - b.ovr, v => v + ' OVR')} ${recapDelta(p.value - b.value, fmtMoneyShort)}</span></div>
       <div class="small" ${ratingCol ? `style="color:${ratingCol}"` : ''}>${bits.length ? bits.map(b => `<span>${b}</span>`).join(' · ') : (newSeason ? 'Nouvelle saison' : weekly ? 'N\u2019a pas joué cette semaine' : 'N\u2019a pas joué ce mois-ci')}</div>
     </div>`);
@@ -10230,7 +10267,7 @@ function seasonReportHTML(summary) {
       : `<span style="color:var(--red-soft)">▼${r.ovrAfter} (${delta})</span>`;
     const titleNote = (e && e.titles && e.titles.length) ? `<div class="small" style="color:var(--gold-soft);margin-top:2px">${icon('trophy',12)} ${e.titles.map(esc).join(', ')}</div>` : '';
     const retiredNote = r.retired ? `<div class="small" style="color:var(--ink-faint);margin-top:2px">Prend sa retraite à l'issue de cette saison.</div>` : '';
-    return `<div class="list-row" onclick="closeModal();openPlayerDetail('${r.playerId}','dashboard')">
+    return `<div role="button" tabindex="0" class="list-row" onclick="closeModal();openPlayerDetail('${r.playerId}','dashboard')">
       ${portraitHTML(r.playerId, 34)}
       <div><div class="name">${esc(r.name)}${standout && r.playerId === standout.playerId ? ' ' + icon('star', 13) : ''}</div>
       <div class="sub">${club ? esc(club.short) : 'Libre'} · ${statLine}</div>${titleNote}${retiredNote}</div>
