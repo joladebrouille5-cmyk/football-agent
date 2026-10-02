@@ -1,0 +1,10 @@
+// Hébergement Cloudflare (Workers + fichiers statiques) — V8.26
+// Cloudflare lance `npm run build` (produit dist/) puis `npx wrangler deploy`, qui publie dist/ tel quel.
+// Les fichiers dist/_headers (sécurité) et dist/_redirects (anciennes adresses) sont pris en compte.
+{
+  "name": "football-agent",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
