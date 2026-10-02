@@ -1,6 +1,6 @@
 ---
 name: portraits
-description: Football Agent — travailler sur les portraits des joueurs (2D facesjs, 3D MakeHuman/three.js), les origines et noms des joueurs, ou ajouter une nationalité ou un championnat. À utiliser avant de modifier portraits/, NAME_POOLS, NAT_ORIGINS, LEAGUES ou CLUB_RAW.
+description: Football Agent — travailler sur les portraits des joueurs (photos photoréalistes portraits/photos.webp, 2D facesjs), les origines et noms des joueurs, ou ajouter une nationalité ou un championnat. À utiliser avant de modifier portraits/, NAME_POOLS, NAT_ORIGINS, LEAGUES ou CLUB_RAW.
 ---
 
 # Portraits, nationalités et championnats — Football Agent
@@ -16,7 +16,7 @@ description: Football Agent — travailler sur les portraits des joueurs (2D fac
   - Grammaire : `inCountry` (« au Japon », « aux États-Unis ») et `ofCountry` (« loin du Japon ») — `NAT_GENDER` pour tout nouveau pays masculin ou pluriel.
   - Économie et affinités : `LEAGUE_WEALTH` (richesse d'un championnat, ex. Arabie saoudite ×3,5), `LEAGUE_ATTRACTION` (attrait d'un championnat pour les autres nationalités), `DREAM_PRESTIGE`.
   - Portraits dans l'interface : `portraitHTML`, `hydratePortraits`, `pumpPortraits` (clé de cache `v3:` / `v3-2d:` — à incrémenter si le rendu change).
-- `portraits/` : modules chargés à la demande. `src/genome.js` (identité du visage, commun 2D/3D), `src/portraits.src.js` (3D), `src/faces2d.src.js` (2D), `src/build_assets.py` et `src/build_extras.py` (données MakeHuman).
+- `portraits/` : `photos.webp` (banque de visages photo, origines dans `PHOTO_FACES` du jeu, choix par `photoFaceIndex`), `faces2d.js` (module 2D chargé à la demande), `src/genome.js` (identité du visage 2D), `src/faces2d.src.js` (source 2D).
 
 ## Règles
 - Joueurs **100 % fictifs** : jamais de nom de footballeur célèbre dans les réservoirs (un prénom + un nom courants du pays), et `FAMOUS_PLAYERS` en filet de sécurité.
@@ -38,13 +38,11 @@ description: Football Agent — travailler sur les portraits des joueurs (2D fac
 4. `npm test` (dont « partie commencée avant les nouveaux championnats ») et une saison simulée : effectifs ≥ 15, pas de contrat expiré.
 
 ## Contrôler les visages
-- Planche de 48 joueurs : `NODE_PATH=$(npm root -g) node tools/portrait-sheet.js 2d` (ou `3d 128 planche.png`). Regarder : cadrage (menton entier), peau cohérente avec le pays, variété des têtes, cheveux, barbes, artefacts.
+- Planche 2D de 48 joueurs : `NODE_PATH=$(npm root -g) node tools/portrait-sheet.js 2d`. Photos : regarder `portraits/photos.webp` (et l'ajout d'un lot dans `portraits/README.md`). Regarder : cadrage (menton entier), peau cohérente avec le pays, variété, aucune ressemblance avec un vrai joueur.
 - Reconstruire les modules (dépendances dans un dossier temporaire) :
-  `npm install --no-save three facesjs esbuild` puis
-  `npx esbuild portraits/src/portraits.src.js --bundle --format=esm --minify --platform=browser --outfile=portraits/portraits.js` et
+  `npm install --no-save facesjs esbuild` puis
   `npx esbuild portraits/src/faces2d.src.js --bundle --format=esm --minify --platform=browser --define:global=globalThis --outfile=portraits/faces2d.js`.
-- Données 3D : voir l'en-tête de `portraits/src/build_assets.py` et `build_extras.py`.
-- Tests : `npm test` puis `NODE_PATH=$(npm root -g) npm run test:e2e` (WebGL logiciel SwiftShader).
+- Tests : `npm test` puis `NODE_PATH=$(npm root -g) npm run test:e2e`.
 
-## Pistes non disponibles ici
-- Modèles d'IA d'images (Hugging Face) : bloqués par la politique réseau de l'environnement ; il faut autoriser `huggingface.co` pour générer une banque de portraits photoréalistes (licence OpenRAIL/Apache-2.0 uniquement).
+## Banque de photos
+- Les lots sont générés hors de l'environnement (prompt « grille 8 × 5 » avec une liste de 40 profils anonymes) puis découpés ici. Écarter toute ressemblance avec un vrai footballeur, les doublons et les visages ratés avant de les ajouter.

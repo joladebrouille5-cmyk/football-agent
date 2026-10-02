@@ -1,6 +1,6 @@
 // Génome d'un joueur : id + nationalité + âge -> traits du visage (sans dépendance).
-// Partagé par les portraits 3D (portraits.src.js) et 2D (faces2d.src.js) : un même joueur garde la même carnation,
-// les mêmes cheveux et la même barbe dans les deux styles.
+// Utilisé par les portraits 2D (faces2d.src.js) : un même joueur garde toujours la même carnation,
+// les mêmes cheveux et la même barbe, à chaque partie.
 
 // ---------- hasard déterministe ----------
 export function rng(seedStr) {

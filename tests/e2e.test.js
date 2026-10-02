@@ -20,11 +20,10 @@ async function withGame(viewport, fn, settings, opts = {}) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html);
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
-  // WebGL logiciel (SwiftShader) : les portraits 3D se dessinent aussi dans le navigateur de test
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort()); // le jeu doit fonctionner sans les polices
-  // réglages de départ (ex. portraits 2D : la 3D en WebGL logiciel occupe le processeur et rend les clics lents)
+  // réglages de départ (ex. portraits « Aucun » pour les parcours qui ne testent pas les visages)
   if (settings) await ctx.addInitScript(s => { if (!localStorage.getItem('football_agent_settings')) localStorage.setItem('football_agent_settings', s); }, JSON.stringify(settings));
   const page = await ctx.newPage();
   const errors = [];
@@ -91,7 +90,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
   });
 }
 
-test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, désactivable', async () => {
+test('Portraits photo puis 2D : visage photo selon l\'origine, identique après rechargement, désactivable', async () => {
   await withGame({ width: 1280, height: 900 }, async page => {
     await page.click('text=Lancer ma carrière');
     const pid = await page.evaluate(() => G.freeAgents[0]);
@@ -99,6 +98,11 @@ test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, dé
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 120000 });
     const img = await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage);
     assert.match(img, /^url\("data:image\/(webp|png);base64,/);
+    // le visage vient de la banque de photos, parmi ceux de l'origine du joueur
+    const face = await page.evaluate(id => { const p = G.players[id], i = photoFaceIndex(p); return { ok: PHOTO_FACES[i].includes(p.origin || Object.keys(NAT_ORIGINS[p.nat]).sort((a, b) => NAT_ORIGINS[p.nat][b] - NAT_ORIGINS[p.nat][a])[0]), n: PHOTO_FACES.length }; }, pid);
+    assert.ok(face.ok, 'visage de la bonne origine'); assert.ok(face.n >= 100);
+    // le même identifiant donne toujours le même visage
+    assert.equal(await page.evaluate(id => photoFaceIndex(G.players[id]) === photoFaceIndex(Object.assign({}, G.players[id])), pid), true);
     // l'image est vraiment décodable et non vide
     const size = await page.evaluate(src => new Promise(r => { const i = new Image(); i.onload = () => r([i.naturalWidth, i.naturalHeight]); i.onerror = () => r([0, 0]); i.src = src; }), img.slice(5, -2));
     assert.ok(size[0] >= 96 && size[1] >= 96, 'image de portrait valide');
@@ -107,13 +111,13 @@ test('Portraits 3D puis 2D : visage dessiné, identique après rechargement, dé
     await page.evaluate(id => openPlayerDetail(id, 'market'), pid);
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     assert.equal(await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage), img, 'même visage après rechargement');
-    // 3D impossible (ex. pas de WebGL) : la 2D prend le relais et les paramètres l'expliquent
-    await page.evaluate(() => { closeModal(); portraitEngineOff('3d', 'webgl'); openPlayerDetail(G.freeAgents[0], 'market'); });
+    // photos impossibles (planche non chargée) : la 2D prend le relais et les paramètres l'expliquent
+    await page.evaluate(() => { closeModal(); portraitEngineOff('photo', 'load'); openPlayerDetail(G.freeAgents[0], 'market'); });
     await page.waitForSelector('.pd-portrait .has-photo', { timeout: 30000 });
     const img2d = await page.$eval('.pd-portrait .player-card-portrait', el => el.style.backgroundImage);
     assert.match(img2d, /^url\("data:image\/svg\+xml;base64,/);
     await page.evaluate(() => { closeModal(); openSettingsModal(); });
-    assert.match(await page.textContent('.portrait-status'), /3D coupée.*WebGL/);
+    assert.match(await page.textContent('.portrait-status'), /Photos indisponibles/);
     // cadrage 2D : de y = 20 au plus haut jusqu'à y = 500 au moins (menton et haut des épaules compris)
     const vb = await page.evaluate(src => atob(src.split(',')[1]).match(/viewBox="([^"]+)"/)[1].split(' ').map(Number), img2d.slice(5, -2));
     assert.ok(vb[1] <= 20 && vb[1] + vb[3] >= 500 && vb[2] === vb[3], 'cadre 2D carré, visage entier : ' + vb);

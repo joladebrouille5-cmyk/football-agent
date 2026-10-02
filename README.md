@@ -6,7 +6,7 @@ Football Agent - jeu de gestion et carrière d'agent de football
 Ouvrir `football-agent-8-2-20.html` dans un navigateur récent. La partie est sauvegardée automatiquement dans le
 navigateur (format compressé) ; l'export/import `.json` se fait depuis le menu « Sauvegarde ».
 
-Les portraits des joueurs (3D ou 2D, au choix dans « Paramètres ») viennent du dossier `portraits/` : servez le dossier entier (GitHub Pages ou un petit
+Les portraits des joueurs (photo ou 2D, au choix dans « Paramètres ») viennent du dossier `portraits/` : servez le dossier entier (GitHub Pages ou un petit
 serveur local, par exemple `npx serve .`) pour les voir ; en ouvrant le fichier seul, le jeu garde des silhouettes.
 Détails et licences : [portraits/README.md](portraits/README.md).
 
@@ -26,6 +26,7 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
   (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
   histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
+- **8.21** : les visages 3D sont remplacés par une banque de 108 visages photoréalistes fictifs (`portraits/photos.webp`), choisis selon l'origine de chaque joueur ; la 2D et les silhouettes restent au choix.
 - **8.20** : la page de démarrage s'affiche à chaque lancement (bouton « Continuer », « Menu principal » dans Plus et Réglages) ; nationalités triées selon la langue ; chaque scénario a un objectif suivi, une échéance et une fin (victoire au Panthéon, mode difficile débloqué) ; Amiens, Zéro et Brésil refondus ; 8 nouveaux scénarios (héritier, pépite, chute, dernier jour du mercato, filière africaine, ennemi juré, président malgré lui, carrière express).
 - **8.19** : page de démarrage (reprendre, nouvelle carrière, scénario avec difficulté, langue) ; la fenêtre de message
   dit qui écrit (client, directeur sportif, club, presse, fédération, réseau, marque, agent rival — `EVENT_FROM`) et de
