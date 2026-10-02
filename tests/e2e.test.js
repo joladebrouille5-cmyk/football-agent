@@ -476,3 +476,49 @@ test('V8.20 : page de démarrage à chaque lancement, menu principal, nouvelle c
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' }, { home: true });
 });
+
+test('V8.22 : choisir soi-même un club — filtres, tri, négociation et démarchage depuis la liste', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    const pid = await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      const c = Object.values(G.clubs).find(c => c.league === 'L1' && c.tier === 2);
+      const id = c.squad.find(i => G.players[i].age >= 23); G.players[id].agentId = 'player'; G.agent.portfolio.push(id);
+      return id;
+    });
+    await page.evaluate(id => openPlayerDetail(id, 'myplayers'), pid);
+    await page.click('#openClubPicker');
+    await page.waitForSelector('.club-pick-row');
+    assert.match(await page.innerText('.modal'), /Choisir un club/i);
+    // recherche par nom, filtre par pays
+    await page.fill('#clubPickSearch', 'real');
+    const names = await page.$$eval('.club-pick-row .name', els => els.map(e => e.textContent));
+    assert.ok(names.length > 0 && names.every(n => /real/i.test(n)), names.join(', '));
+    await page.fill('#clubPickSearch', '');
+    await page.selectOption('#clubPickNat', 'ES');
+    const leagues = await page.$$eval('.club-pick-row', els => els.map(e => e.dataset.club));
+    assert.ok(leagues.length > 0 && await page.evaluate(ids => ids.every(id => ['LIGA', 'LIGA2'].includes(G.clubs[id].league) || (LEAGUES.find(l => l.id === G.clubs[id].league) || {}).nat === 'ES'), leagues));
+    // tri par prestige : réputations décroissantes
+    await page.click('.club-pick-sorts [data-sort="prestige"]');
+    const reps = await page.$$eval('.club-pick-row', els => els.map(e => e.dataset.club));
+    assert.ok(await page.evaluate(ids => ids.every((id, i) => !i || (G.clubs[ids[i - 1]].reputation + G.clubs[ids[i - 1]].tier * 10) >= (G.clubs[id].reputation + G.clubs[id].tier * 10)), reps));
+    // négocier : la négociation s'ouvre avec ce club ; « Changer » rouvre la liste et garde la négociation
+    const target = await page.$eval('.club-pick-row:has(.club-pick-neg)', e => e.dataset.club);
+    await page.click(`.club-pick-row[data-club="${target}"] .club-pick-neg`);
+    assert.equal(await page.evaluate(() => ui.negotiation.targetClubId), target);
+    await page.evaluate(() => { ui.negotiation.years = 4; });
+    await page.click('#negPickClub');
+    await page.waitForSelector('.club-pick-row');
+    const other = await page.$eval(`.club-pick-row:not([data-club="${target}"]):has(.club-pick-neg)`, e => e.dataset.club);
+    await page.click(`.club-pick-row[data-club="${other}"] .club-pick-neg`);
+    assert.deepEqual(await page.evaluate(() => [ui.negotiation.targetClubId, ui.negotiation.years]), [other, 4]);
+    assert.ok(await page.evaluate(() => ui.negotiation.fee > 0));
+    // démarchage le mois qui précède le mercato : un clic, une réponse, puis plus de bouton « Proposer »
+    await page.evaluate(id => { closeModal(); G.date.absMonth += Math.max(0, monthsUntilNextMercato(G) - 1); openClubPicker(id, 'detail'); }, pid);
+    await page.waitForSelector('.club-pick-pitch');
+    await page.click('.club-pick-pitch');
+    await page.waitForSelector('.club-pick-row');
+    assert.equal(await page.$$eval('.club-pick-pitch', els => els.length), 0, 'un seul démarchage par mois');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
