@@ -1,7 +1,7 @@
 // Football Agent — service worker (V8.12) : le jeu fonctionne hors connexion une fois ouvert depuis son site.
 // Le jeu (HTML) est servi « réseau d'abord » pour recevoir les mises à jour ; les fichiers lourds (portraits,
 // icônes) « cache d'abord ». Changer CACHE à chaque version qui modifie les portraits.
-const CACHE = 'football-agent-v8-15';
+const CACHE = 'football-agent-v8-17';
 const CORE = ['./', 'index.html', 'football-agent-8-2-20.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
