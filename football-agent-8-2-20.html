@@ -4776,7 +4776,8 @@ function nationSquads(state) {
   for (const p of Object.values(state.players)) if (!p.retired && p.club) (byNat[p.nat] = byNat[p.nat] || []).push(p);
   const squads = {};
   for (const [nat, list] of Object.entries(byNat)) {
-    if (list.length < INTL_MIN_PLAYERS) continue;
+    // pas de sélection sans gardien de cette nationalité (cas rare en début de partie pour un petit pays)
+    if (list.length < INTL_MIN_PLAYERS || !list.some(p => p.pos === 'GK')) continue;
     list.sort((a, b) => b.ovr - a.ovr);
     const gks = list.filter(p => p.pos === 'GK').slice(0, 3), out = list.filter(p => p.pos !== 'GK').slice(0, 23 - gks.length);
     squads[nat] = gks.concat(out);
