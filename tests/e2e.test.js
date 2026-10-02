@@ -79,8 +79,10 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       // un client lâché emporte son offre : plus d'action « Offre pour … » sur le tableau de bord (V8.6)
       await page.evaluate(id => {
         closeModal(); G.date.absMonth = 5; // janvier : mercato ouvert
+        // client installé depuis longtemps : l'offre ne dépend pas du club tiré (règle « il veut s'installer »)
+        G.players[id].lastPermanentMove = -99;
         const club = Object.values(G.clubs).find(c => c.id !== G.players[id].club);
-        createIncomingOffer(G, G.players[id], club, 100000, G.players[id].wage);
+        if (!createIncomingOffer(G, G.players[id], club, 100000, G.players[id].wage).ok) throw new Error('offre non créée');
         navigate('dashboard');
       }, sid);
       assert.match(await page.textContent('#content'), /Offre pour/);
