@@ -531,7 +531,7 @@ test('V8.23 : prêt vers un club choisi, boutons en attente hors mercato', async
     const pid = await page.evaluate(() => {
       G.pendingEvent = null; closeModal();
       const c = Object.values(G.clubs).find(c => c.league === 'L1' && c.tier === 3);
-      const id = c.squad.find(i => G.players[i].age >= 20 && G.players[i].age <= 24 && G.players[i].ovr >= 60); G.players[id].agentId = 'player'; G.agent.portfolio.push(id);
+      const id = c.squad.map(i => G.players[i]).filter(p => p.age <= 21).sort((a, b) => b.ovr - a.ovr)[0].id; G.players[id].agentId = 'player'; G.agent.portfolio.push(id); // V8.24 : un jeune (les titulaires ne se prêtent pas)
       return id;
     });
     // prêt : fenêtre de prêt → « Choisir moi-même un club » → prêt conclu
