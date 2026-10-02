@@ -694,3 +694,44 @@ test('V8.17 : à la semaine, sélections, Europe et coupes jouées dans le mois,
   const r = E.advanceWeek(s);
   assert.equal(r.monthEnd, true); assert.equal(E.calMonth(s), 7); assert.equal(E.currentWeek(s), 0);
 });
+
+test('V8.18 : jalons, offres de dernière minute, scénarios, histoire du joueur, ennemi juré, pépites rares', () => {
+  // scénarios de départ
+  const zero = E.createNewGame({ agentName: 'Z', agency: 'Z', nationality: 'FR', specialty: 'negociateur', scenario: 'zero' });
+  assert.ok(zero.agent.cash <= 20000 && zero.agent.reputation <= 2);
+  const am = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'negociateur', scenario: 'amiens', legacyBonus: 30000 });
+  assert.ok(am.agent.stakes.amiens.pct >= 51, 'propriétaire d\'Amiens');
+  const br = E.createNewGame({ agentName: 'B', agency: 'B', nationality: 'FR', specialty: 'negociateur', scenario: 'bresil' });
+  assert.equal(br.agent.nationality, 'BR'); assert.equal(br.players[br.agent.portfolio[0]].nat, 'BR');
+  const s = newGame();
+  assert.ok(s.meta.careerId);
+  const p = s.players[s.agent.portfolio[0]];
+  assert.ok(p.story.some(x => /Rejoint/.test(x.t)), 'histoire : signature');
+  // jalons : notés sans fanfare au premier passage, fêtés une fois ensuite
+  p.careerApps = 49; const news = [];
+  E.checkMilestones(s, news); assert.equal(news.length, 0);
+  p.careerApps = 50; E.checkMilestones(s, news); E.checkMilestones(s, news);
+  assert.equal(news.filter(n => n.milestone).length, 1, '50e match fêté une seule fois');
+  assert.ok(p.story.some(x => /50e match/.test(x.t)));
+  // dernier jour du mercato : août = dernier mois de la fenêtre d'été
+  assert.ok(E.isMercatoDeadline(s));
+  p.club = 'om'; s.clubs.om.squad.push(p.id); p.ovr = 78;
+  let got = 0;
+  for (let k = 0; k < 20 && !got; k++) { s.deadlineDone = null; s.incomingOffers = []; got = E.deadlineDayOffers(s, []); }
+  assert.ok(got > 0, 'offre de dernière minute');
+  const o = s.incomingOffers.find(x => x.lastMinute);
+  assert.ok(o && o.expires === s.date.absMonth, 'valable jusqu\'à la clôture');
+  assert.equal(E.deadlineDayOffers(s, []), 0, 'une seule vague par fenêtre');
+  // ennemi juré
+  assert.equal(E.nemesisOf(s), null);
+  s.rivalAgents[2].rivalry = 40;
+  assert.equal(E.nemesisOf(s).id, s.rivalAgents[2].id);
+  // sauvegarde : jalons et histoire gardés
+  const back = E.deserializeState(E.serializeState(s));
+  assert.deepEqual(back.players[p.id].milestones, p.milestones);
+  assert.equal(back.players[p.id].story.length, p.story.length);
+  // une saison : cérémonie (trophées et podium des agents) et pépites classées
+  playMonths(s, 12);
+  const sc = s.lastAwards || [];
+  assert.ok(sc.length >= 3 && sc.every(x => x.title && x.name));
+});

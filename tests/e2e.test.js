@@ -163,7 +163,8 @@ test('Partie en cours sans les championnats V8.9 : au rechargement, les 26 class
 test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'interface, gestion conservée au rechargement', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
     await page.click('text=Lancer ma carrière');
-    await page.evaluate(() => { G.agent.cash = 40e6; ui.worldTab = 'classements'; ui.clubTab = 'L3'; navigate('world'); });
+    // V8.18 : les parts de clubs se débloquent au rang « Agent international »
+    await page.evaluate(() => { G.agent.cash = 40e6; G.agent.careerTier = 3; ui.worldTab = 'classements'; ui.clubTab = 'L3'; navigate('world'); });
     assert.equal(await page.$$eval('.tbl tbody tr', r => r.length), 18, 'classement de Ligue 3');
     assert.match(await page.textContent('#content'), /ASC/);
     await page.evaluate(() => openClubDetail('amiens', 'world'));
@@ -188,7 +189,7 @@ test('V8.10 : Ligue 3 et parts de clubs — prise de contrôle d\'Amiens via l\'
 test('V8.11 : propriétaire — rachat des parts d\'un rival, augmentation de capital, joueur intransférable, barrages affichés', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
     await page.click('text=Lancer ma carrière');
-    await page.evaluate(() => { G.agent.cash = 60e6; G.rivalStakes = { amiens: { [G.rivalAgents[0].id]: 20 } }; openClubDetail('amiens', 'world'); });
+    await page.evaluate(() => { G.agent.cash = 60e6; G.agent.careerTier = 3; G.rivalStakes = { amiens: { [G.rivalAgents[0].id]: 20 } }; openClubDetail('amiens', 'world'); });
     assert.match(await page.textContent('#content'), /Agents rivaux actionnaires/);
     await page.click('text=Prendre le contrôle');
     let guard = await page.$('text=Dépenser quand même'); if (guard) await guard.click();
@@ -247,7 +248,7 @@ test('V8.13 : onglet Sélections — tournoi de l\'été, classement des sélect
 test('V8.14 : langues — anglais et espagnol, actualités traduites, retour au français', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
     await page.click('text=Lancer ma carrière');
-    await page.evaluate(() => { for (let i = 0; i < 2; i++) { G.pendingEvent = null; advanceMonth(G); } G.news.unshift({ text: 'Amiens SC monte en Ligue 2 !', tag: 'promotion', season: seasonLabel(G), month: calMonth(G) }); setSetting('lang', 'en'); closeModal(); navigate('news'); });
+    await page.evaluate(() => { for (let i = 0; i < 2; i++) { G.pendingEvent = null; advanceMonth(G); } G.news.unshift({ text: 'Amiens SC monte en Ligue 2 !', tag: 'promotion', season: seasonLabel(G), month: calMonth(G) }); setSetting('lang', 'en'); closeModal(); ui.newsFilter = 'all'; navigate('news'); });
     let txt = await page.innerText('#app');
     assert.match(txt, /Amiens SC go up to Ligue 2!/, 'actualité traduite');
     assert.match(txt, /Dashboard[\s\S]*My players/);
@@ -336,6 +337,39 @@ test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, av
     const st = await page.evaluate(() => ({ abs: G.date.absMonth, pending: !!G.pendingEvent, week: currentWeek(G) }));
     assert.ok(st.pending || st.abs === 12, 'arrivé en août suivant, ou arrêté sur une décision');
     assert.equal(st.week, 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
+
+test('V8.18 : pages regroupées, cérémonie, dernier jour du mercato, scénario, Panthéon, parts verrouillées', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('.scn-card[data-scn="zero"]');
+    await page.click('text=Lancer ma carrière');
+    assert.equal(await page.evaluate(() => G.scenario), 'zero');
+    assert.ok(await page.evaluate(() => G.agent.cash) < 100000, 'scénario Sans un sou');
+    // 9 pages ; les anciennes adresses mènent aux onglets
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.nav-item[data-nav]')].map(n => n.dataset.nav)), ['dashboard', 'myplayers', 'scouting', 'market', 'messages', 'news', 'world', 'agency', 'carriere']);
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); navigate('finances'); });
+    assert.equal(await page.evaluate(() => ui.page), 'agency');
+    assert.match(await page.innerText('#content'), /Impôt de la saison/i);
+    await page.evaluate(() => navigate('negotiations'));
+    assert.equal(await page.evaluate(() => ui.page), 'messages');
+    await page.evaluate(() => navigate('carriere'));
+    assert.match(await page.innerText('#content'), /Prochains objectifs[\s\S]*Ennemi juré[\s\S]*Hauts faits/i);
+    // parts de clubs verrouillées au début
+    await page.evaluate(() => openClubDetail('amiens', 'world'));
+    assert.match(await page.innerText('#content'), /débloqué au rang/);
+    // dernière semaine du mercato d'août, avec un client au club
+    await page.evaluate(() => { const id = G.agent.portfolio[0], p = G.players[id]; p.club = 'om'; G.clubs.om.squad.push(id); p.ovr = 80; setTimeStep('week'); navigate('dashboard'); });
+    for (let i = 0; i < 3; i++) { await page.click('#fabAdvance'); await page.evaluate(() => { if (document.querySelector('#modalRoot .modal-head')) continueFromRecap(); G.pendingEvent = null; renderPage(); }); }
+    assert.match(await page.innerText('#content'), /Dernière semaine du mercato/i);
+    assert.match(await page.textContent('#topbarDate'), /Dernière semaine/);
+    // fin de saison : cérémonie, puis entrée au Panthéon
+    await page.evaluate(() => { setTimeStep('month'); while (calMonth(G) !== 7) { G.pendingEvent = null; advanceMonth(G); } G.pendingEvent = null; renderPage(); });
+    await page.click('#fabAdvance');
+    await page.evaluate(() => continueFromRecap());
+    assert.match(await page.innerText('#modalRoot'), /Cérémonie de fin de saison[\s\S]*Ballon d'Or[\s\S]*Agent de l'année/i);
+    assert.equal(await page.evaluate(() => readPantheon().length), 1, 'carrière au Panthéon');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
