@@ -764,3 +764,49 @@ test('V8.19 : prêt d\'Amiens, ennemi juré déclaré, échanges gardés dans l\
     assert.ok(p.story.some(x => x.i === '💬' && /Je veux plus de temps de jeu/.test(x.t)));
   }
 });
+
+test('V8.20 : scénarios avec objectif — mise en place, réussite, échec, suivi des transferts, carrière express', () => {
+  const mk = (scenario, hard) => E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'negociateur', scenario, hard });
+  // chaque scénario (hors classique) a un objectif actif et un délai
+  for (const d of E.SCENARIOS.filter(x => x.id !== 'classique')) {
+    const s = mk(d.id);
+    assert.equal(s.scenarioState.id, d.id); assert.equal(s.scenarioState.status, 'active');
+    assert.ok(s.scenarioState.deadlineAbs > s.scenarioState.startAbs, d.id);
+    assert.ok(E.scenarioProgress(s).detail, d.id);
+  }
+  // Amiens : prêt raisonnable, effacé à la montée en Ligue 1
+  const am = mk('amiens');
+  assert.ok(am.agent.loan.left < 7e6 && am.agent.loan.left > 1e6);
+  am.clubs.amiens.league = 'L1';
+  const news = [];
+  E.scenarioCheck(am, news);
+  assert.equal(am.scenarioState.status, 'won'); assert.ok(!am.agent.loan, 'prêt effacé');
+  assert.ok(am.scenarioState.announce);
+  // mode difficile : un an de moins
+  assert.equal(mk('amiens', true).scenarioState.deadlineAbs, 48);
+  // Brésil : client au Brasileirão, transfert vers l'Europe compté
+  const br = mk('bresil');
+  const st = br.players[br.agent.portfolio[0]];
+  assert.equal(br.clubs[st.club].league, 'BSA');
+  E.scenarioOnTransfer(br, st, st.club, br.clubs.psg);
+  assert.equal(br.scenarioState.brToEurope, 1);
+  assert.equal(E.scoutMissionCost(br, 'AR', { cost: 25000 }), 12500, 'scouting moins cher en Amérique du Sud');
+  assert.equal(E.scoutMissionCost(br, 'FR', { cost: 25000 }), 25000);
+  // héritier : 8 clients trentenaires
+  const he = mk('heritier');
+  assert.ok(he.agent.portfolio.length >= 6 && he.agent.portfolio.every(id => he.players[id].age >= 30));
+  // dernier jour du mercato : départ en janvier, échec si le mois passe sans placer les clients
+  const dl = mk('deadline');
+  assert.equal(E.calMonth(dl), 1);
+  assert.equal(dl.scenarioState.clients.length, 3);
+  E.advanceMonth(dl);
+  assert.ok(['lost', 'won'].includes(dl.scenarioState.status));
+  // carrière express : terminée au délai, avec un score
+  const ex = mk('express');
+  ex.date.absMonth = ex.scenarioState.deadlineAbs;
+  E.scenarioCheck(ex, []);
+  assert.equal(ex.scenarioState.status, 'won'); assert.ok(ex.scenarioState.score > 0);
+  // sauvegarde
+  const back = E.deserializeState(E.serializeState(am));
+  assert.equal(back.scenarioState.status, 'won');
+});
