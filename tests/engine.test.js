@@ -735,3 +735,32 @@ test('V8.18 : jalons, offres de dernière minute, scénarios, histoire du joueur
   const sc = s.lastAwards || [];
   assert.ok(sc.length >= 3 && sc.every(x => x.title && x.name));
 });
+
+test('V8.19 : prêt d\'Amiens, ennemi juré déclaré, échanges gardés dans l\'histoire du joueur', () => {
+  const s = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'negociateur', scenario: 'amiens' });
+  const loan0 = s.agent.loan.left;
+  assert.ok(loan0 > 1e6 && s.agent.loan.clubId === 'amiens');
+  const cash0 = s.agent.cash;
+  playMonths(s, 2);
+  assert.ok(s.agent.loan.left <= loan0 - 2 * s.agent.loan.monthly, 'mensualités prélevées');
+  const left = s.agent.loan.left;
+  const paid = E.repayLoanFrom(s, 'amiens', 50000, [], 'les dividendes');
+  assert.equal(paid, 50000); assert.equal(s.agent.loan.left, left - 50000);
+  assert.equal(E.repayLoanFrom(s, 'psg', 50000, [], 'x'), 0, 'seul le club financé rembourse');
+  void cash0;
+  // ennemi juré déclaré dès la 1re saison, et qui le reste
+  const g = newGame();
+  playMonths(g, 4);
+  const n = E.nemesisOf(g);
+  assert.ok(n && g.nemesisId === n.id);
+  assert.ok((n.exchanges || []).length >= 1, 'premier échange avec le rival');
+  n.rivalry = 5;
+  assert.equal(E.nemesisOf(g).id, n.id, 'toujours ennemi juré');
+  // un échange avec un client reste dans son histoire
+  const p = g.players[g.agent.portfolio[0]];
+  if (p) {
+    g.pendingEvent = { id: 'temps_jeu', playerId: p.id, rivalId: null, text: 'Je veux plus de temps de jeu.', choiceLabels: ['a', 'b', 'c'] };
+    E.resolveEvent(g, 0);
+    assert.ok(p.story.some(x => x.i === '💬' && /Je veux plus de temps de jeu/.test(x.t)));
+  }
+});

@@ -8,7 +8,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 const { GAME_FILE } = require('./load-engine');
 
-async function withGame(viewport, fn, settings) {
+async function withGame(viewport, fn, settings, opts = {}) {
   const html = fs.readFileSync(GAME_FILE);
   const root = path.dirname(GAME_FILE);
   const TYPES = { '.js': 'text/javascript', '.json': 'application/json', '.gz': 'application/gzip', '.webp': 'image/webp' };
@@ -31,6 +31,8 @@ async function withGame(viewport, fn, settings) {
   page.on('pageerror', e => errors.push(e.message));
   try {
     await page.goto(`http://127.0.0.1:${srv.address().port}/`);
+    // V8.19 : page de démarrage — « Nouvelle carrière » mène au formulaire (sauf test de la page elle-même)
+    if (!opts.home) { await page.waitForTimeout(150); const start = await page.$('#startNew'); if (start) await start.click(); }
     await fn(page);
   } finally {
     await browser.close(); srv.close();
@@ -222,6 +224,7 @@ test('V8.12 : trois parties, mode clair, page d\'aide', async () => {
     await page.evaluate(() => openSettingsModal());
     await Promise.all([page.waitForNavigation(), page.click('text=Nouvelle partie ici')]);
     assert.match(await page.textContent('body'), /Reprendre une partie[\s\S]*Agence A/);
+    await page.click('#startNew');
     await page.fill('#obName', 'Bob'); await page.fill('#obAgency', 'Agence B');
     await page.click('text=Lancer ma carrière');
     await page.evaluate(() => saveGame());
@@ -372,4 +375,41 @@ test('V8.18 : pages regroupées, cérémonie, dernier jour du mercato, scénario
     assert.equal(await page.evaluate(() => readPantheon().length), 1, 'carrière au Panthéon');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
+});
+
+test('V8.19 : page de démarrage (langue, scénarios), expéditeur des messages, plus de Conversations, prêt d\'Amiens', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    // page de démarrage : langue, puis scénarios
+    assert.match(await page.innerText('#app'), /Bienvenue, agent[\s\S]*Nouvelle carrière[\s\S]*Jouer un scénario/i);
+    await page.click('[data-lang="en"]');
+    assert.match(await page.innerText('#app'), /Welcome, agent[\s\S]*New career/i);
+    await page.click('[data-lang="fr"]');
+    await page.click('#startScenario');
+    assert.match(await page.innerText('#app'), /Choisissez un scénario[\s\S]*Sans un sou[\s\S]*Relancer Amiens[\s\S]*Aventure au Brésil/i);
+    await page.click('.start-btn[data-scn="amiens"]');
+    assert.equal(await page.evaluate(() => document.querySelector('.scn-card.sel').dataset.scn), 'amiens');
+    await page.click('text=Lancer ma carrière');
+    assert.equal(await page.evaluate(() => G.scenario), 'amiens');
+    assert.ok(await page.evaluate(() => G.agent.loan && G.agent.loan.left > 1e6), 'rachat à crédit');
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); navigate('finances'); });
+    assert.match(await page.innerText('#content'), /Prêt du vendeur[\s\S]*Reste à rembourser/i);
+    // plus d'onglet Conversations ni de carte Téléphone
+    await page.evaluate(() => navigate('phone'));
+    assert.equal(await page.evaluate(() => ui.page), 'messages');
+    assert.doesNotMatch(await page.innerText('#content'), /Conversations/);
+    await page.evaluate(() => navigate('dashboard'));
+    assert.doesNotMatch(await page.innerText('#content'), /Téléphone/i);
+    // expéditeur : un directeur sportif écrit au sujet de votre client
+    await page.evaluate(() => { const id = G.agent.portfolio[0], p = G.players[id]; p.club = 'om'; G.clubs.om.squad.push(id);
+      G.pendingEvent = { id: 'dirigeant_contact', playerId: id, rivalId: null, fromClubId: 'ol', text: 'Le directeur sportif vous appelle.', choiceLabels: ['On en parle', 'Pas maintenant'] }; showEventModal(); });
+    const head = await page.innerText('.chat-modal');
+    assert.match(head, /Directeur sportif[\s\S]*Lyon[\s\S]*Au sujet de/i);
+    await page.click('.chat-reply-btn');
+    const reply = await page.innerText('.chat-modal');
+    assert.match(reply, /Directeur sportif/i, 'expéditeur gardé dans la réponse');
+    assert.match(reply, /Olympique Lyonnais apprécie/, 'la réponse parle du club qui a écrit');
+    await page.evaluate(() => { closeModal(); const id = G.agent.portfolio[0]; G.pendingEvent = { id: 'temps_jeu', playerId: id, rivalId: null, text: 'Je veux jouer plus.', choiceLabels: ['OK'] }; showEventModal(); });
+    assert.match(await page.innerText('.chat-modal'), /Votre client ·/i);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' }, { home: true });
 });
