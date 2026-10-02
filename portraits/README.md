@@ -1,50 +1,31 @@
-# Portraits des joueurs (3D ou 2D)
+# Portraits des joueurs (photo ou 2D)
 
-Chaque joueur fictif a un visage, dessiné dans le navigateur puis gardé en image. Le réglage « Portraits » du jeu choisit le style :
-**3D** (visage réaliste, WebGL), **2D** (dessin vectoriel, plus léger) ou **Aucun** (silhouettes). Les deux styles partagent le même
-génome (`src/genome.js`) : un joueur garde la même carnation, les mêmes cheveux et la même barbe en 3D comme en 2D.
-L'origine du joueur (fournie par le jeu) fixe à la fois son nom et son visage. Contrôle visuel : `tools/portrait-sheet.js`, procédures : `.claude/skills/portraits/SKILL.md`.
+Chaque joueur fictif a un visage, gardé en image (en mémoire et dans IndexedDB `football_agent_portraits`, jamais dans la sauvegarde). Le réglage « Portraits » du jeu choisit le style :
+**Photo** (visages photoréalistes, par défaut), **2D** (dessin vectoriel) ou **Aucun** (silhouettes). Procédures : `.claude/skills/portraits/SKILL.md`.
 
-- **Déterministe** : identifiant du joueur + nationalité + âge → toujours le même visage. Rien n'est ajouté à la sauvegarde.
-- **Vieillissement** : le même visage mûrit avec l'âge du joueur (morphologie, rides, cheveux gris, recul de la ligne des cheveux).
-- **Diversité** : 48 archétypes (forme du visage, mâchoire, menton, pommettes, nez, yeux, lèvres, front, sourcils), chacun varié en continu sur une quarantaine de réglages, avec une légère asymétrie. En 2D, les traits dessinés suivent ces archétypes et toutes les coupes masculines sont utilisées (dont afro, dreads, tresses et cheveux longs).
-- **Origines crédibles** : chaque nationalité du jeu est un mélange explicite de profils de population (Afrique de l'Ouest, Maghreb, Europe du Nord, Europe du Sud, Asie de l'Est, métis afro-européens, métis latino-américains), chacun avec une plage de carnation stricte. Un Sénégalais a toujours la peau foncée, un Marocain la peau mate. Contrôlé par `tests/portraits.test.js`.
-- **Poids** : environ 1 Mo au premier chargement (module 150 Ko compressé + données), ensuite en cache.
-- **Cache** : chaque portrait est dessiné une fois, puis gardé en mémoire et dans IndexedDB (`football_agent_portraits`).
-- **Repli** : sans WebGL ou sur un appareil trop lent, la 3D passe d'elle-même en 2D ; si aucun module ne se charge, ou avec le réglage « Aucun », le jeu garde les silhouettes.
-- **Poids de la 2D** : environ 110 Ko compressés, sans données supplémentaires.
+## Photo
 
-## Fichiers
+- **Banque** : `photos.webp`, planche de visages fictifs générés par IA (lots de 40, prompts écrits pour Football Agent), une case de 128 px par visage, 12 cases par ligne. Les visages ressemblant à un vrai footballeur, les doublons et les ratés (lunettes…) ont été écartés.
+- **Origines** : `PHOTO_FACES` (dans le jeu) donne, dans l'ordre de la planche, la ou les origines de chaque visage (`waf`, `naf`, `neu`, `seu`, `bal`, `mea`, `eas`, `lat`, `mix` — les mêmes que `NAT_ORIGINS`). Un joueur reçoit un visage de son origine (ou de l'origine principale de sa nationalité).
+- **Déterministe** : identifiant du joueur → toujours le même visage. Plusieurs joueurs du monde partagent un visage ; chaque nouveau lot réduit les répétitions.
+- **Repli** : si la planche ne se charge pas, la 2D prend le relais.
 
-| Fichier | Rôle |
-|---|---|
-| `portraits.js` | Module 3D prêt à l'emploi (three.js inclus, minifié). Chargé par le jeu à la demande. |
-| `faces2d.js` | Module 2D prêt à l'emploi (facesjs inclus, minifié). |
-| `heads.json` | Maillage tête-cou-épaules et cibles morphologiques (compressés en gzip, encodés en base64), repères anatomiques, ajustement des yeux ; champ `extra` : coordonnées de texture et sourcils. |
-| `skin-detail.webp` | Grain de peau photographique (3 origines × 2 âges), en niveaux de gris. |
-| `brows.webp` | Textures des 12 sourcils. |
-| `src/genome.js` | Génome commun : id + nationalité + âge → traits du visage (table `NAT_PROFILES` des origines). |
-| `src/portraits.src.js` | Source lisible du module 3D. |
-| `src/faces2d.src.js` | Source lisible du module 2D. |
-| `src/build_assets.py` | Fabrique `heads.bin` / `heads.json` à partir des fichiers MakeHuman. |
-| `src/build_extras.py` | Ajoute le grain de peau et les sourcils MakeHuman (voir l'en-tête du script). |
+### Ajouter un lot
+1. Découper chaque case de la planche reçue en carré centré sur le visage (128 px), écarter les ressemblances et les doublons.
+2. Ajouter les cases à la suite dans `photos.webp` (WebP qualité ~82) et leurs origines à la suite dans `PHOTO_FACES`, dans le même ordre.
+3. Changer `CACHE` dans `sw.js` ; la clé `ph1:` des portraits peut rester (l'index d'un visage existant ne change pas).
 
-## Reconstruire
+## 2D
+
+- Module `faces2d.js` (facesjs inclus, minifié, ~110 Ko compressés), source `src/faces2d.src.js`.
+- `src/genome.js` : id + nationalité + âge → traits du visage (table `NAT_PROFILES` des origines). Le même visage mûrit avec l'âge.
 
 ```sh
-# données (fichiers MakeHuman dans ./mh, voir build_assets.py)
-python3 portraits/src/build_assets.py && gzip -9 assets/heads.bin
-# puis intégrer assets/heads.bin.gz en base64 dans le champ « bin » de heads.json
-# module
-npm install --no-save three facesjs esbuild
-npx esbuild portraits/src/portraits.src.js --bundle --format=esm --minify --platform=browser --outfile=portraits/portraits.js
+npm install --no-save facesjs esbuild
 npx esbuild portraits/src/faces2d.src.js --bundle --format=esm --minify --platform=browser --define:global=globalThis --outfile=portraits/faces2d.js
 ```
 
 ## Licences
 
-- Maillage de base, cibles morphologiques et yeux : **MakeHuman**, publiés sous **CC0 1.0** (domaine public) — https://github.com/makehumancommunity/makehuman
-- Textures de peau (grain) et sourcils : ressources système de **MakeHuman 1.1**, placées dans le **domaine public (CC0)** en 2020 (filigrane « Public domain – makehuman.org »), reprises depuis le paquet npm `makehuman-data-v1` (seuls les fichiers de ressources, pas le code du paquet).
-- **three.js** : licence MIT — https://github.com/mrdoob/three.js
 - **facesjs** (dessins 2D) : licence Apache-2.0 — https://github.com/zengm-games/facesjs
-- Teinte de peau, barbe, cheveux, maillot et éclairage : procéduraux, écrits pour Football Agent.
+- Photos : images générées pour le projet ; personnes entièrement fictives.
