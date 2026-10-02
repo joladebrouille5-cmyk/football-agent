@@ -20,7 +20,7 @@ function siteHeaders() {
   }
   return out;
 }
-const TYPES = { '.webp': 'image/webp', '.js': 'text/javascript', '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.js': 'text/javascript', '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
 async function withRelease(fn, html, extra) {
   const root = path.dirname(DIST);

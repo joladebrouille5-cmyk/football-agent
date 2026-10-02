@@ -922,3 +922,46 @@ test('V8.24 : chasse aux tricheries — clause de revente, salaires gonflés, of
   const dest = Object.values(s.clubs).find(c => c.id !== top.club && c.tier <= s.clubs[top.club].tier);
   assert.match(E.executeLoan(s, top.id, dest.id, 6, []).reason, /titulaires/);
 });
+
+test('V8.29 : personnel et spécialités utiles, économie, gardiens, petits championnats', () => {
+  // personnel : chaque poste a un effet mesurable, un salaire, et 5 personnes au plus
+  const s = newGame(); s.agent.cash = 50e6; s.agent.officeLevel = 5;
+  const base = E.agentPerks(s);
+  for (let i = 0; i < 4; i++) for (const t of E.STAFF_TYPES) assert.ok(E.hireStaff(s, t.id).ok, t.id); // 20 postes au plus
+  const pk = E.agentPerks(s);
+  assert.ok(pk.negoScore > base.negoScore && pk.offerFeeMult > base.offerFeeMult, 'négociateurs');
+  assert.ok(pk.scoutCostMult < 1 && pk.scoutExtra >= 2, 'recruteurs');
+  assert.ok(pk.tipChance > 0.4, 'analystes');
+  assert.ok(pk.poachMult < 0.5, 'avocats');
+  assert.ok(pk.repMult > 1.3 && pk.sponsorMult > 1.4, 'communicants');
+  assert.equal(E.staffMonthlyCost(s), 4 * E.STAFF_TYPES.reduce((a, t) => a + t.salary, 0), 'vrais salaires');
+  { const g = newGame(); g.agent.cash = 1e7; g.agent.officeLevel = 5; g.agent.staff.scouts = 5; assert.equal(E.hireStaff(g, 'scouts').ok, false, 'pas plus de 5 par poste'); }
+  assert.ok(E.fireStaff(s, 'scouts').ok && s.agent.staff.scouts === 3);
+  // les analystes signalent une pépite, qui devient réceptive pendant 3 mois
+  let tip = null; for (let i = 0; i < 30 && !tip; i++) tip = E.analystTips(s, []);
+  assert.ok(tip && tip.referralUntil === s.date.absMonth + 3 && tip.pot >= 80 && !tip.agentId);
+  // spécialités : des effets différents et visibles
+  const spec = id => { const g = E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: id }); return E.agentPerks(g); };
+  assert.ok(spec('detecteur').scoutCostMult < 1 && spec('detecteur').tipChance > 0);
+  assert.ok(spec('reseau').offerChanceMult > 1 && spec('reseau').pitchBonus > 0);
+  assert.ok(spec('business').rentMult < 1 && spec('business').sponsorMult > 1);
+  assert.ok(spec('mediatique').repMult > 1 && spec('mediatique').poachMult < 1);
+  for (const sp of E.SPECIALTIES) assert.ok(sp.perks.length >= 3, 'effets affichés : ' + sp.id);
+  // économie : commission plafonnée à 15 %, dégressive au-delà de 20 M€ ; impôt à 70 % au-delà de 30 M€
+  assert.ok(E.agentCommissionRate(s) <= 0.15);
+  const r = E.agentCommissionRate(s);
+  assert.equal(E.transferCommission(s, 10e6), Math.round(10e6 * r));
+  assert.ok(E.transferCommission(s, 100e6) < 100e6 * r * 0.6, 'gros transfert : commission réduite');
+  assert.equal(E.seasonTaxOn(40e6) - E.seasonTaxOn(30e6), 7e6);
+  // gardiens : un club sans gardien en promeut un
+  const club = Object.values(s.clubs)[0];
+  for (const id of [...club.squad]) if (s.players[id].posLine === 'GK') { club.squad = club.squad.filter(x => x !== id); s.players[id].club = null; }
+  assert.equal(E.clubGoalkeepers(s, club), 0);
+  E.ensureGoalkeepers(s);
+  assert.equal(E.clubGoalkeepers(s, club), 1);
+  // petits championnats : 50 au total, plus modestes que les grands
+  assert.equal(Object.keys(s.leagues).length, 50);
+  const avg = id => { const ps = s.leagues[id].clubIds.flatMap(c => s.clubs[c].squad.map(x => s.players[x].ovr)); return ps.reduce((a, b) => a + b, 0) / ps.length; };
+  assert.ok(avg('CPL') < avg('LMX') && avg('LMX') < avg('PL'));
+  for (const id of ['ALLS', 'BOT', 'LMX', 'KL1', 'CPL']) assert.ok(s.leagues[id].clubIds.length >= 8 && s.cups && Object.values(s.cups).some(c => c.name), id);
+});

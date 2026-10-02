@@ -160,7 +160,7 @@ test('Sauvegarde trop grosse pour localStorage : repli IndexedDB, partie retrouv
   }, { portraits: 'simple' });
 });
 
-test('Partie en cours sans les championnats V8.9 : au rechargement, les 26 classements sont visibles', async () => {
+test('Partie en cours sans les championnats V8.9 : au rechargement, tous les classements sont visibles (50 en V8.29)', async () => {
   await withGame({ width: 390, height: 844 }, async page => {
     await page.click('text=Lancer ma carrière');
     // partie « ancienne » en novembre : sans les championnats ajoutés en V8.9
@@ -173,7 +173,7 @@ test('Partie en cours sans les championnats V8.9 : au rechargement, les 26 class
     });
     await page.reload(); await resume(page); await page.waitForTimeout(1500);
     await page.evaluate(() => { ui.worldTab = 'classements'; ui.clubTab = 'BSA'; navigate('world'); });
-    assert.equal(await page.$$eval('.league-picker option', o => o.length), 26, '26 championnats dans la liste (Ligue 3 comprise)');
+    assert.equal(await page.$$eval('.league-picker option', o => o.length), 50, '50 championnats dans la liste (Ligue 3 et petits championnats V8.29 compris)');
     assert.equal(await page.$$eval('.tbl tbody tr', r => r.length), 20, 'classement du Brésil affiché');
     assert.match(await page.textContent('#content'), /Arrivé en cours de saison/);
     assert.match(await page.evaluate(() => G.news[0].text), /nouveaux championnats rejoignent la partie/);
