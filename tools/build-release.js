@@ -61,6 +61,13 @@ let page = html.slice(0, a) + '<script>' + finalJs + '</script>' + html.slice(b 
 page = page.replace(/<!--[\s\S]*?-->/g, '');                         // commentaires HTML
 page = page.replace(/<style>([\s\S]*?)<\/style>/g, (m, css) =>          // CSS : commentaires et blancs
   '<style>' + css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '\n').replace(/[ \t]{2,}/g, ' ') + '</style>');
+// Statistiques de visites (Cloudflare Web Analytics, sans cookie) : chargées seulement sur le vrai site, jamais en
+// local, dans les tests ni dans la visionneuse. Placé après le script du jeu (qui vérifie être le dernier script au
+// moment où il s'exécute) et ajouté au document plus tard, donc sans effet sur l'empreinte du code.
+const ANALYTICS = { host: 'play.footagent.workers.dev', token: 'b8a4006bc4034d66af91424523fbaff4' };
+const beacon = `<script>(function(){try{if(location.hostname!==${JSON.stringify(ANALYTICS.host)})return;var s=document.createElement('script');s.defer=true;s.src='https://static.cloudflareinsights.com/beacon.min.js';s.setAttribute('data-cf-beacon',${JSON.stringify(JSON.stringify({ token: ANALYTICS.token }))});document.body.appendChild(s);}catch(e){}})();</script>`;
+if (page.split('</body>').length !== 2) throw new Error('</body> introuvable (ou en double)');
+page = page.replace('</body>', beacon + '</body>');
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, page);
 // fichiers chargés à côté de la page (portraits) : copiés pour que la version publiée soit complète

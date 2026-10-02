@@ -136,4 +136,10 @@ test('V8.26 : dist/ est un site complet (accueil, manifeste, service worker, con
   assert.match(siteHeaders()['content-security-policy'] || '', /default-src 'self'/, 'politique de sécurité du contenu');
   assert.match(fs.readFileSync(path.join(dir, '_redirects'), 'utf8'), /football-agent-8-2-20\.html\s+\/\s+301/, 'ancienne adresse redirigée');
   assert.ok(!fs.readdirSync(dir).some(f => /football-agent-8-2-20|\.src\.js$/.test(f)), 'aucun code source lisible publié');
+  // statistiques de visites : seulement sur le vrai site, placées après le script du jeu, autorisées par la CSP
+  const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  assert.match(scripts[scripts.length - 1], /location\.hostname!=="play\.footagent\.workers\.dev"/, 'compteur limité au vrai site');
+  assert.ok(scripts[scripts.length - 2].length > 100000, 'le script du jeu précède le compteur');
+  assert.match(siteHeaders()['content-security-policy'], /script-src[^;]*https:\/\/static\.cloudflareinsights\.com/, 'CSP : script du compteur');
+  assert.match(siteHeaders()['content-security-policy'], /connect-src[^;]*https:\/\/cloudflareinsights\.com/, 'CSP : envoi des statistiques');
 });
