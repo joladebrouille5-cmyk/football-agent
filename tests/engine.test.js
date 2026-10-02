@@ -646,3 +646,41 @@ test('V8.15 : avancer par semaine — 4 semaines valent un mois', () => {
   const back = E.deserializeState(E.serializeState(s));
   assert.equal(E.currentWeek(back), E.currentWeek(s), 'semaine sauvegardée');
 });
+
+test('V8.17 : à la semaine, sélections, Europe et coupes jouées dans le mois, une seule fois ; intersaison d\'un coup', () => {
+  const s = newGame();
+  playMonths(s, 13); // septembre de la 2e saison (la Ligue des Champions commence la 2e saison) : coupes, groupes, trêve
+  assert.equal(E.calMonth(s), 9);
+  const client = s.players[s.agent.portfolio[0]];
+  if (!client.club) { client.club = 'psg'; s.clubs.psg.squad.push(client.id); }
+  client.ovr = Math.max(client.ovr, 88); client.injuredUntil = 0; client.suspendedMatches = 0; // titulaire
+  const cupRounds = () => Object.values(s.cups).reduce((n, c) => n + c.history.length, 0);
+  const euroPlayed = () => s.europe.fixtures ? s.europe.fixtures.filter(f => f.played).length : 0;
+  const caps = () => Object.values(s.players).reduce((n, p) => n + (p.caps || 0), 0);
+  const c0 = cupRounds(), e0 = euroPlayed(), k0 = caps();
+  E.advanceWeek(s); // semaine 1 : sélections
+  assert.ok(caps() > k0, 'trêve internationale en semaine 1');
+  assert.equal(cupRounds(), c0); assert.equal(euroPlayed(), e0);
+  E.advanceWeek(s); // semaine 2 : Ligue des Champions
+  const e1 = euroPlayed();
+  assert.ok(e1 > e0, 'Ligue des Champions en semaine 2');
+  assert.equal(cupRounds(), c0);
+  E.advanceWeek(s); // semaine 3 : coupes
+  const c1 = cupRounds();
+  assert.ok(c1 > c0, 'coupes en semaine 3');
+  const k1 = caps();
+  E.advanceWeek(s); // semaine 4 : fin du mois, rien n'est rejoué
+  assert.equal(E.calMonth(s), 10);
+  assert.equal(euroPlayed(), e1, 'Europe pas rejouée'); assert.equal(cupRounds(), c1, 'coupes pas rejouées'); assert.equal(caps(), k1, 'sélections pas rejouées');
+  // notes de vos joueurs gardées sur leurs matchs de championnat
+  const lg = s.leagues[s.clubs[client.club].league];
+  const withRating = lg.fixtures.filter(f => f.played && f.rt && f.rt[client.id]);
+  assert.equal(withRating.length > 0, (client.seasonStats.apps || 0) > 0, 'note du client sur la feuille de match quand il a joué');
+  assert.ok(withRating.every(f => f.rt[client.id] >= 3 && f.rt[client.id] <= 10));
+  // intersaison : juin puis juillet passent chacun d'un coup
+  while (E.calMonth(s) !== 6) { if (s.pendingEvent) E.resolveEvent(s, 0); E.advanceMonth(s); }
+  assert.ok(E.isOffSeasonMonth(s));
+  if (s.pendingEvent) E.resolveEvent(s, 0);
+  const r = E.advanceWeek(s);
+  assert.equal(r.monthEnd, true); assert.equal(E.calMonth(s), 7); assert.equal(E.currentWeek(s), 0);
+});

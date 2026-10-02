@@ -271,7 +271,7 @@ test('V8.15 : avancer par semaine depuis le bouton', async () => {
     await page.click('text=Lancer ma carrière');
     // le message de la semaine s'efface après 2,6 s : on le relève au passage plutôt que de dépendre de la vitesse de la machine
     await page.evaluate(() => { G.pendingEvent = null; closeModal(); renderPage(); window.__toasts = []; const t = toast; toast = m => { window.__toasts.push(m); t(m); }; });
-    await page.click('#fabStep');
+    await page.click('#fabStep'); await page.click('#stepWeek');
     assert.match(await page.textContent('#fabAdvance'), /semaine suivante/i);
     assert.match(await page.textContent('#topbarDate'), /Sem\. 1/);
     // un client sous contrat au PSG, pour voir les matchs de son club dans le bilan
@@ -299,7 +299,39 @@ test('V8.15 : avancer par semaine depuis le bouton', async () => {
     assert.match(await page.textContent('#modalRoot'), /Bilan du mois/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
     await page.evaluate(() => { closeModal(); G.pendingEvent = null; renderPage(); });
-    await page.click('#fabStep');
+    await page.click('#fabStep'); await page.click('#stepMonth');
     assert.match(await page.textContent('#fabAdvance'), /mois suivant/i);
+  }, { portraits: 'simple' });
+});
+
+test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, avancer jusqu\'à…', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); const id = G.agent.portfolio[0], p = G.players[id]; p.club = 'psg'; G.clubs.psg.squad.push(id); navigate('dashboard'); });
+    assert.match(await page.innerText('#content'), /Prochains matchs[\s\S]*Paris Saint-Germain/i, 'calendrier au tableau de bord');
+    await page.click('#fabStep'); await page.click('#stepWeek');
+    await page.click('#fabAdvance');
+    const recap = await page.innerText('#modalRoot');
+    assert.match(recap, /Bilan de la semaine[\s\S]*Classement[\s\S]*Paris Saint-Germain[\s\S]*\d+e · \d+ pts/i);
+    // match en direct depuis le bilan : le score final est le vrai résultat
+    await page.click('#modalRoot button[aria-label="Revivre le match"]');
+    await page.click('#liveSkip');
+    const live = await page.evaluate(() => { const f = clubRecent(G, 'psg', 1)[0].f; return { shown: document.getElementById('liveH').textContent + '-' + document.getElementById('liveA').textContent, real: f.scoreHome + '-' + f.scoreAway, end: document.getElementById('liveMin').textContent }; });
+    assert.equal(live.shown, live.real); assert.equal(live.end, 'Terminé');
+    await page.click('#modalRoot >> text=Retour au bilan');
+    assert.match(await page.innerText('#modalRoot'), /Bilan de la semaine/i, 'retour au bilan après le match');
+    await page.evaluate(() => continueFromRecap());
+    // rechargement en plein mois : le bilan du mois garde le début du mois
+    await page.evaluate(() => saveGame());
+    await page.reload(); await page.waitForFunction(() => typeof G !== 'undefined' && G && document.querySelector('#fabAdvance'), null, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => !!G.monthSnap && G.monthSnap.abs === G.date.absMonth), true, 'début du mois conservé');
+    // avancer jusqu'à la saison prochaine (arrêt possible sur une décision)
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); });
+    await page.click('#fabStep'); await page.click('text=Début de la saison prochaine');
+    assert.match(await page.innerText('#modalRoot'), /Bilan de la période/i);
+    const st = await page.evaluate(() => ({ abs: G.date.absMonth, pending: !!G.pendingEvent, week: currentWeek(G) }));
+    assert.ok(st.pending || st.abs === 12, 'arrivé en août suivant, ou arrêté sur une décision');
+    assert.equal(st.week, 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });

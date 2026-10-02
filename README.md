@@ -17,7 +17,10 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   hors connexion (`manifest.webmanifest`, `sw.js`, icônes). Dans la visionneuse claude.ai, seul le raccourci est possible.
 - **Avancer par semaine ou par mois** : petit bouton à droite du gros bouton (ou Paramètres → Avancer le temps).
   Par semaine, chaque appui joue les journées de championnat de la semaine (`advanceWeek`) ; la 4e semaine boucle le
-  mois (coupes, Europe, finances, mercato) comme « mois suivant ».
+  mois (finances, mercato) comme « mois suivant ». Les sélections jouent en semaine 1, la Ligue des Champions en semaine 2,
+  les coupes en semaine 3 (`runMonthComp`, une seule fois par mois) ; l'intersaison passe d'un coup.
+- **Avancer jusqu'à…** (même petit bouton) : prochain match de vos joueurs, prochain mercato, saison suivante.
+- **Calendrier** de vos joueurs (tableau de bord et fiche joueur) et **match en direct** à revivre minute par minute.
 - **Mode clair / sombre / auto** et page **Comment jouer** (menu Plus).
 - **Langues** : français (par défaut), anglais et espagnol (Paramètres → Langue). Le jeu est écrit en français ;
   à l'affichage, chaque texte est traduit grâce au dictionnaire `I18N_ROWS` ([français, anglais, espagnol], avec des
