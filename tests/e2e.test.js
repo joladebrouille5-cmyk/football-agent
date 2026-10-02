@@ -315,7 +315,7 @@ test('V8.17 : classement au bilan de la semaine, match en direct, calendrier, av
     await page.mouse.click(ico.x + ico.width / 2, ico.y + ico.height / 2);
     assert.match(await page.textContent('#topbarDate'), /Sem\. 2/, 'appui sur l\'icône pris en compte');
     const recap = await page.innerText('#modalRoot');
-    assert.match(recap, /Bilan de la semaine[\s\S]*Classement[\s\S]*Paris Saint-Germain[\s\S]*\d+e · \d+ pts/i);
+    assert.match(recap, /Bilan de la semaine[\s\S]*Classement[\s\S]*Paris Saint-Germain[\s\S]*\d+(er|e) · \d+ pts/i); // « 1er », « 2e »…
     // match en direct depuis le bilan : le score final est le vrai résultat
     await page.click('#modalRoot button[aria-label="Revivre le match"]');
     await page.click('#liveSkip');
