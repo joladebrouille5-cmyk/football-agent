@@ -810,3 +810,32 @@ test('V8.20 : scénarios avec objectif — mise en place, réussite, échec, sui
   const back = E.deserializeState(E.serializeState(am));
   assert.equal(back.scenarioState.status, 'won');
 });
+
+test('V8.22 : choisir soi-même un club — fiche de chaque club, démarchage de n\'importe quel club à portée', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 2);
+  const p = s.players[club.squad.find(id => s.players[id].age >= 23)];
+  p.agentId = 'player'; s.agent.portfolio.push(p.id);
+  const fits = Object.values(s.clubs).filter(c => c.id !== p.club).map(c => E.clubFitForPlayer(s, p, c));
+  assert.ok(fits.length > 300);
+  for (const f of fits) {
+    assert.ok(f.outlook >= 0 && f.outlook <= 1 && f.fee > 0 && f.level >= 0 && f.level <= 3);
+    if (f.interest === null) assert.equal(f.level, 0);
+  }
+  // un club bien trop modeste refuse un joueur formé ; la raison est donnée
+  assert.ok(fits.some(f => f.blocked));
+  // les quatre plus intéressés restent ceux de la liste « Clubs intéressés »
+  const top = E.computeInterestedClubs(s, p);
+  for (const ic of top) assert.equal(E.clubInterestScore(s, p, ic.club).score, ic.score);
+  // démarchage d'un club à portée hors du top 4 : la porte n'est plus fermée d'office
+  const topIds = new Set(top.map(x => x.club.id));
+  const other = fits.find(f => !topIds.has(f.club.id) && f.interest !== null && f.interest > 15);
+  assert.ok(other, 'un autre club à portée existe');
+  s.date.absMonth += Math.max(0, E.monthsUntilNextMercato(s) - 1); // le mois qui précède le mercato
+  const r = E.pitchPlayerToClub(s, p.id, other.club.id);
+  assert.ok(r.ok || /décline|budget|déjà/.test(r.reason), 'réponse du club, pas un refus de principe : ' + r.reason);
+  // un club hors de portée reste fermé
+  const far = fits.find(f => f.interest === null);
+  p.lastPitchAt = null;
+  assert.match(E.pitchPlayerToClub(s, p.id, far.club.id).reason, /pas l'intention/);
+});
