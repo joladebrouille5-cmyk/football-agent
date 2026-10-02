@@ -839,3 +839,38 @@ test('V8.22 : choisir soi-même un club — fiche de chaque club, démarchage de
   p.lastPitchAt = null;
   assert.match(E.pitchPlayerToClub(s, p.id, far.club.id).reason, /pas l'intention/);
 });
+
+test('V8.23 : joueurs libres et jeunes jugés sur leur niveau, intérêt du club, démarchage et prêts vers un club choisi', () => {
+  const s = newGame();
+  const big = Object.values(s.clubs).filter(c => c.tier === 5);
+  // un libre trop juste n'entre plus dans un grand club
+  const weak = s.freeAgents.map(id => s.players[id]).find(p => p.ovr <= 62);
+  weak.agentId = 'player'; s.agent.portfolio.push(weak.id);
+  for (const c of big) assert.match(E.evaluateClubTransferAcceptance(s, c, weak, { fee: 0 }).reason, /en-deçà/);
+  // un jeune : jugé à mi-chemin entre niveau et potentiel — une vraie pépite passe, un jeune moyen non
+  const y = Object.values(s.players).find(p => p.club && p.age < 21 && s.clubs[p.club].tier <= 2);
+  y.ovr = 66; y.pot = 70;
+  assert.equal(E.evaluateClubTransferAcceptance(s, big[0], y, { fee: 0 }).ok, false);
+  y.pot = 94;
+  assert.equal(E.evaluateClubTransferAcceptance(s, big[0], y, { fee: 0 }).ok, true);
+  // l'intérêt du club pèse dans la négociation
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 2);
+  const p = s.players[club.squad.find(id => s.players[id].age >= 23 && s.players[id].ovr >= 62)];
+  p.agentId = 'player'; s.agent.portfolio.push(p.id);
+  const fits = Object.values(s.clubs).filter(c => c.id !== p.club).map(c => E.clubFitForPlayer(s, p, c)).filter(f => !f.blocked);
+  const low = fits.find(f => f.level === 0), high = fits.find(f => f.level === 3) || fits.find(f => f.level === 2);
+  const offer = c => ({ targetClubId: c.id, salary: p.wage, years: 3, roleProm: 'rotation', commissionPct: 10, signingBonus: 0, fee: 0 });
+  if (low) assert.ok(E.evaluateOffer(s, p, offer(low.club)).reactions.some(r => /ne cherchait pas/.test(r)));
+  if (low && high) assert.ok(E.evaluateOffer(s, p, offer(high.club)).score > E.evaluateOffer(s, p, offer(low.club)).score - 30);
+  // démarchage impossible juste après un transfert
+  p.lastTransferMonth = s.date.absMonth;
+  s.date.absMonth += Math.max(0, E.monthsUntilNextMercato(s) - 1);
+  p.lastTransferMonth = s.date.absMonth - 1;
+  assert.equal(E.pitchStatus(s, p, high ? high.club.id : fits[0].club.id).ok, false);
+  // prêt vers un club choisi : club à portée accepté, club hors de portée refusé
+  p.lastTransferMonth = null;
+  const ok = fits.find(f => f.interest !== null && f.interest > 15 && E.evaluateLoanTarget(s, p, f.club).ok);
+  assert.ok(ok, 'un club accepte le prêt');
+  const far = Object.values(s.clubs).find(c => c.id !== p.club && E.clubInterestScore(s, p, c) === null && c.budget > 1e6);
+  assert.equal(E.evaluateLoanTarget(s, p, far).ok, false);
+});

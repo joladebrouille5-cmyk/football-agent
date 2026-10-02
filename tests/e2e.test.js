@@ -522,3 +522,29 @@ test('V8.22 : choisir soi-même un club — filtres, tri, négociation et démar
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
+
+test('V8.23 : prêt vers un club choisi, boutons en attente hors mercato', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    const pid = await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      const c = Object.values(G.clubs).find(c => c.league === 'L1' && c.tier === 3);
+      const id = c.squad.find(i => G.players[i].age >= 20 && G.players[i].age <= 24 && G.players[i].ovr >= 60); G.players[id].agentId = 'player'; G.agent.portfolio.push(id);
+      return id;
+    });
+    // prêt : fenêtre de prêt → « Choisir moi-même un club » → prêt conclu
+    await page.evaluate(id => openLoanSearch(id), pid);
+    await page.click('#loanPickClub');
+    await page.waitForSelector('.club-pick-loan');
+    assert.match(await page.innerText('.modal'), /pour un prêt/i);
+    const dest = await page.$eval('.club-pick-row:has(.club-pick-loan)', e => e.dataset.club);
+    await page.click(`.club-pick-row[data-club="${dest}"] .club-pick-loan`);
+    assert.deepEqual(await page.evaluate(id => [G.players[id].club, !!G.players[id].parentClub], pid), [dest, true]);
+    // hors mercato : on prépare, on ne négocie pas
+    await page.evaluate(id => { const p = G.players[id]; G.clubs[p.club].squad = G.clubs[p.club].squad.filter(x => x !== id); G.clubs[p.parentClub].squad.push(id); p.club = p.parentClub; p.parentClub = null; p.lastTransferMonth = null; G.date.absMonth += 3; openClubPicker(id, 'detail'); }, pid);
+    await page.waitForSelector('.club-pick-row');
+    assert.equal(await page.$$eval('.club-pick-neg', els => els.length), 0);
+    assert.ok(await page.$$eval('.club-pick-wait', els => els.length) > 0);
+    assert.match(await page.innerText('.club-pick-wait'), /Mercato fermé/i);
+  }, { portraits: 'simple' });
+});
