@@ -965,3 +965,27 @@ test('V8.29 : personnel et spécialités utiles, économie, gardiens, petits cha
   assert.ok(avg('CPL') < avg('LMX') && avg('LMX') < avg('PL'));
   for (const id of ['ALLS', 'BOT', 'LMX', 'KL1', 'CPL']) assert.ok(s.leagues[id].clubIds.length >= 8 && s.cups && Object.values(s.cups).some(c => c.name), id);
 });
+
+test('V8.30 : réalisme — joueurs du pays dans les petits championnats, étrangers de la même région, intérêt des grands clubs mérité', () => {
+  const s = newGame();
+  // Sénégal : très majoritairement sénégalais, et aucun joueur venu d'un autre continent (hors exception rarissime)
+  const sn = s.leagues.SNL.clubIds.flatMap(c => s.clubs[c].squad.map(id => s.players[id]));
+  assert.ok(sn.filter(p => p.nat === 'SN').length / sn.length > 0.8);
+  assert.ok(sn.filter(p => E.NAT_CONTINENT[p.nat] !== 'Afrique').length <= 2, 'pas d’Européens au Sénégal');
+  // partie existante : un Européen au Sénégal reçoit une nationalité africaine, un client garde la sienne
+  const club = s.clubs[s.leagues.SNL.clubIds[0]];
+  const a = s.players[club.squad[0]], b = s.players[club.squad[1]];
+  a.nat = 'SE'; a.agentId = null; b.nat = 'NO'; b.agentId = 'player';
+  s.natFix830 = false;
+  E.fixRegionalNationalities(s);
+  assert.equal(E.NAT_CONTINENT[a.nat], 'Afrique'); assert.equal(b.nat, 'NO');
+  assert.equal(E.fixRegionalNationalities(s), 0, 'une seule fois');
+  // un jeune sans vécu ne suscite pas l'intérêt d'un club plus huppé que son niveau
+  const p = Object.values(s.players).find(x => x.club && x.age <= 20 && E.idealTierForOvr(x.ovr) <= s.clubs[x.club].tier && s.clubs[x.club].tier <= 3);
+  p.seasonStats.apps = 0; p.career = []; p.caps = 0;
+  assert.equal(E.playerVisibility(s, p), 0);
+  for (const it of E.computeInterestedClubs(s, p)) assert.ok(it.club.tier <= s.clubs[p.club].tier, 'pas de club plus huppé : ' + it.club.name);
+  // ...mais un joueur qui brille (notes, sélection) attire les recruteurs
+  p.seasonStats.apps = 15; p.seasonStats.ratingSum = 15 * 7.2; p.caps = 3;
+  assert.ok(E.playerVisibility(s, p) >= 0.5);
+});
