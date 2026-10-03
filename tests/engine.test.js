@@ -160,7 +160,10 @@ test('8.4 : la négociation garde une part d\'échec (contre-offre à risque)', 
   let tries = 0, fails = 0;
   for (const p of Object.values(s.players).filter(x => x.club).slice(0, 250)) {
     p.agentId = 'player';
-    const c = Object.values(s.clubs).find(c => c.id !== p.club && Math.abs(c.tier - s.clubs[p.club].tier) <= 1 && c.budget > p.value * 2);
+    // V8.32 : négociation à trois — on vise un club réellement intéressé (un club pris au hasard qui ne cherchait pas
+    // ce profil refuse le plus souvent, comme en vrai)
+    const ic = E.computeInterestedClubs(s, p).find(x => x.club.budget > p.value * 2);
+    const c = ic && ic.club;
     if (c) {
       const offer = { salary: p.wage, years: 2, roleProm: 'titulaire', commissionPct: 12, targetClubId: c.id, fee: E.estimateTransferFee(p, c, s) };
       if (E.evaluateNegotiationGate(s, p, offer).ok) {
@@ -736,7 +739,7 @@ test('V8.18 : jalons, offres de dernière minute, scénarios, histoire du joueur
   assert.ok(sc.length >= 3 && sc.every(x => x.title && x.name));
 });
 
-test('V8.19 : prêt d\'Amiens, ennemi juré déclaré, échanges gardés dans l\'histoire du joueur', () => {
+test('V8.19 : prêt d\'Amiens, ennemi juré déclaré, histoire du joueur sans discussions', () => {
   const s = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'negociateur', scenario: 'amiens' });
   const loan0 = s.agent.loan.left;
   assert.ok(loan0 > 1e6 && s.agent.loan.clubId === 'amiens');
@@ -756,12 +759,12 @@ test('V8.19 : prêt d\'Amiens, ennemi juré déclaré, échanges gardés dans l\
   assert.ok((n.exchanges || []).length >= 1, 'premier échange avec le rival');
   n.rivalry = 5;
   assert.equal(E.nemesisOf(g).id, n.id, 'toujours ennemi juré');
-  // un échange avec un client reste dans son histoire
+  // V8.32 : les discussions ne polluent plus l'histoire du joueur
   const p = g.players[g.agent.portfolio[0]];
   if (p) {
     g.pendingEvent = { id: 'temps_jeu', playerId: p.id, rivalId: null, text: 'Je veux plus de temps de jeu.', choiceLabels: ['a', 'b', 'c'] };
     E.resolveEvent(g, 0);
-    assert.ok(p.story.some(x => x.i === '💬' && /Je veux plus de temps de jeu/.test(x.t)));
+    assert.ok(!(p.story || []).some(x => x.i === '💬'), 'aucune discussion dans son histoire');
   }
 });
 
@@ -1008,4 +1011,41 @@ test('V8.31 : la confiance du client bouge (moral, transferts, prolongations) et
   p.agentTrust = 90; const a = E.evaluateOffer(s, p, offer).score;
   p.agentTrust = 10; const b = E.evaluateOffer(s, p, offer).score;
   assert.ok(a > b, `score ${a} > ${b}`);
+});
+
+test('V8.32 : vraie négociation à plusieurs — joueur, club payeur et club vendeur doivent tous dire oui', () => {
+  const s = newGame();
+  const players = Object.values(s.players).filter(p => p.club && p.value > 2e6 && p.age < 29);
+  let checked = 0, compromises = 0;
+  for (const p of players.slice(0, 60)) {
+    const ic = E.computeInterestedClubs(s, p).find(x => x.club.budget > p.value * 2 && x.club.id !== p.club);
+    if (!ic) continue;
+    const c = ic.club;
+    const ask = E.askingFee(s, p);
+    assert.ok(ask > 0, 'le club vendeur fixe un prix');
+    const base = { targetClubId: c.id, salary: E.playerWageWish(s, p, c), years: 3, roleProm: 'rotation', commissionPct: 10, signingBonus: 0, sellOnPct: 0, fee: ask };
+    const parties = E.negotiationParties(s, p, base);
+    assert.deepEqual(parties.map(x => x.id).sort(), ['club', 'player', 'seller'], 'trois parties dans un transfert');
+    // une indemnité au rabais braque le vendeur, un salaire au rabais braque le joueur
+    const lowFee = E.negotiationParties(s, p, { ...base, fee: Math.round(ask * 0.5) }).find(x => x.id === 'seller');
+    assert.ok(lowFee.score < parties.find(x => x.id === 'seller').score);
+    const lowWage = E.negotiationParties(s, p, { ...base, salary: Math.round(base.salary * 0.6) }).find(x => x.id === 'player');
+    assert.ok(lowWage.score <= parties.find(x => x.id === 'player').score, 'moins payé, le joueur n’est jamais plus partant'); // bornes 0-100 : égalité possible (veto, enthousiasme)
+    if (lowWage.score < 55) assert.match(E.partyDemand(s, p, base, lowWage), /au moins/);
+    // l'accord n'existe que si tout le monde accepte
+    const ev = E.evaluateOffer(s, p, base);
+    assert.equal(ev.accept, ev.parties.every(x => x.accept));
+    // un compromis proposé satisfait toutes les parties
+    const co = E.generateCounterOffer(s, p, { ...base, fee: Math.round(ask * 0.85), salary: Math.round(base.salary * 0.9) });
+    if (co) { compromises++; assert.ok(co.ev.parties.every(x => x.score >= 55)); }
+    checked++;
+    if (checked >= 15) break;
+  }
+  assert.ok(checked >= 5, 'assez de transferts testés');
+  assert.ok(compromises >= 1, 'des compromis existent');
+  // prolongation : deux parties (le joueur et son club), pas de vendeur
+  const q = players[0];
+  const ren = E.negotiationParties(s, q, { targetClubId: q.club, salary: q.wage, years: 3, roleProm: 'rotation', commissionPct: 10, signingBonus: 0, fee: 0 });
+  assert.deepEqual(ren.map(x => x.id).sort(), ['club', 'player']);
+  assert.ok(E.NEG_MAX_ROUNDS >= 3);
 });
