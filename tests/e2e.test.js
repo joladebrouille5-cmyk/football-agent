@@ -607,3 +607,28 @@ test('V8.33 : guide du jeu à la première carrière, puis à la demande', async
     assert.match(await page.innerText('.guide'), /You are a players' agent/);
   }, { portraits: 'simple', lang: 'en' }, { home: true, guide: true });
 });
+
+test('V8.37 : récapitulatif des nouveautés après une mise à jour, une seule fois', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.waitForSelector('.whatsnew', { timeout: 10000 });
+    const txt = await page.innerText('.whatsnew');
+    assert.match(txt, /Version 8\.37/i);
+    assert.match(txt, /Version 8\.36/i);
+    assert.doesNotMatch(txt, /Version 8\.35/i, 'seulement ce qui est nouveau depuis la dernière visite');
+    await page.click('#whatsNewOk');
+    assert.equal(await page.evaluate(() => settings.seenVersion), await page.evaluate(() => GAME_VERSION));
+    await page.reload();
+    await page.waitForSelector('#startNew');
+    await page.waitForTimeout(300);
+    assert.equal(await page.$('.whatsnew'), null, 'pas de nouvel affichage tant que la version ne change pas');
+    // toujours consultable depuis les Paramètres
+    await page.evaluate(() => openSettingsModal());
+    await page.click('text=Nouveautés');
+    assert.match(await page.innerText('.whatsnew'), /Version 8\.32/i);
+  }, { portraits: 'simple', guideSeen: true, seenVersion: '8.35' }, { home: true });
+  // premier lancement : rien (le guide accueille le joueur)
+  await withGame({ width: 1280, height: 900 }, async page => {
+    await page.waitForSelector('#startNew'); await page.waitForTimeout(300);
+    assert.equal(await page.$('.whatsnew'), null);
+  }, { portraits: 'simple' }, { home: true });
+});

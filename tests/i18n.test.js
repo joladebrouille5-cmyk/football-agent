@@ -24,3 +24,14 @@ test('V8.14 : dictionnaire français / anglais / espagnol complet et cohérent',
   for (const key of ['Passer au mois suivant', 'Tableau de bord', 'Mes joueurs', 'Paramètres', '{} monte en {} !', 'Coupe du monde'])
     assert.ok(seen.has(key) || rows.some(r => r[0].includes(key)), 'texte clé traduit : ' + key);
 });
+
+test('V8.37 : chaque version publiée a son entrée « Nouveautés », traduite', () => {
+  const ver = html.match(/const GAME_VERSION = '([^']+)'/)[1];
+  const first = html.match(/const CHANGELOG = \[\s*\{ v: '([^']+)'/)[1];
+  assert.equal(first, ver, 'la première entrée de CHANGELOG correspond à GAME_VERSION');
+  const block = html.slice(html.indexOf('const CHANGELOG = ['), html.indexOf('];', html.indexOf('const CHANGELOG = [')));
+  const fr = new Set(rows.map(r => r[0].replace(/[’‘]/g, "'")));
+  for (const m of block.matchAll(/items: \[([^\]]*)\]/g))
+    for (const it of m[1].match(/'((?:[^'\\]|\\.)*)'/g).map(x => x.slice(1, -1).replace(/[’‘]/g, "'")))
+      assert.ok(fr.has(it), 'nouveauté traduite : ' + it);
+});
