@@ -15,7 +15,14 @@ self.addEventListener('fetch', e => {
   const isPage = req.mode === 'navigate' || req.url.endsWith('.html');
   if (isPage) {
     // V8.28 : sans le cache HTTP du navigateur, pour toujours recevoir la dernière version publiée
-    e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => { if (res.ok && !res.redirected) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; })
+    // V8.36 : l'hébergeur redirige « page.html » vers « page » (et « index.html » vers « / ») ; une réponse
+    // redirigée ne peut pas servir une navigation (page blanche « impossible d'ouvrir ») : on renvoie la redirection
+    // au navigateur, qui redemande la bonne adresse.
+    e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => {
+      if (res.redirected) return req.mode === 'navigate' ? Response.redirect(res.url, 302) : res;
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+      return res;
+    })
       .catch(() => caches.match(req).then(r => r || caches.match('football-agent-8-2-20.html'))));
     return;
   }

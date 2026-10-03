@@ -182,3 +182,44 @@ test('V8.28 : l\'application installée reçoit les mises à jour (bandeau, rech
     assert.deepEqual(errors, [], 'aucune erreur JavaScript');
   } finally { await browser.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
 });
+
+// V8.36 : comme Cloudflare, le serveur redirige « page.html » vers « page » et « index.html » vers « / ». Le service
+// worker ne doit pas casser ces redirections : « Mentions et confidentialité » s'ouvre, l'ancienne adresse aussi.
+test('V8.36 : la page Mentions et confidentialité s\'ouvre sur le site (redirections de l\'hébergeur)', { skip: !fs.existsSync(DIST) && 'dist absent : npm run build' }, async () => {
+  const https = require('https'), os = require('os'), { execSync } = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-legal-')), site = path.dirname(DIST);
+  execSync(`openssl req -x509 -newkey rsa:2048 -nodes -keyout "${tmp}/k.pem" -out "${tmp}/c.pem" -days 1 -subj /CN=play.footagent.workers.dev`, { stdio: 'ignore' });
+  const srv = https.createServer({ key: fs.readFileSync(`${tmp}/k.pem`), cert: fs.readFileSync(`${tmp}/c.pem`) }, (req, res) => {
+    const url = req.url.split('?')[0];
+    if (url === '/index.html') { res.writeHead(307, { location: '/' }); return res.end(); }
+    if (url.endsWith('.html')) { res.writeHead(307, { location: url.slice(0, -5) }); return res.end(); }
+    let rel = url.replace(/^\/+/, '') || 'index.html';
+    if (!path.extname(rel) && fs.existsSync(path.join(site, rel + '.html'))) rel += '.html';
+    const file = path.join(site, rel);
+    if (!file.startsWith(site) || !fs.existsSync(file)) { res.writeHead(404); return res.end('introuvable'); }
+    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' }); fs.createReadStream(file).pipe(res);
+  });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const browser = await chromium.launch({ proxy: { server: 'http://127.0.0.1:9', bypass: '*' }, args: ['--ignore-certificate-errors', `--host-resolver-rules=MAP play.footagent.workers.dev 127.0.0.1:${srv.address().port}`] });
+  try {
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+    await ctx.route(/cloudflareinsights|fonts\.g/, r => r.abort());
+    await ctx.addInitScript(() => { try { localStorage.setItem('football_agent_settings', JSON.stringify({ guideSeen: true })); } catch (e) { /* */ } });
+    const page = await ctx.newPage();
+    await page.goto('https://play.footagent.workers.dev/');
+    await page.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 20000 });
+    for (const lang of ['fr', 'en', 'es']) {
+      await page.click(`.start-langs [data-lang="${lang}"]`);
+      await page.click('#startNew'); await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+      await page.evaluate(() => openSettingsModal());
+      const [legal] = await Promise.all([ctx.waitForEvent('page'), page.click('a[href^="confidentialite"]')]);
+      await legal.waitForLoadState('domcontentloaded');
+      assert.match(await legal.title(), /Mentions et confidentialité/, 'page ouverte (' + lang + ')');
+      await legal.close();
+      await page.evaluate(() => { closeModal(); goStartMenu(); });
+    }
+    // ancienne adresse de la page d'accueil : redirigée, le jeu s'affiche
+    await page.goto('https://play.footagent.workers.dev/index.html');
+    await page.waitForSelector('#startContinue, #startNew', { timeout: 20000 });
+  } finally { await browser.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
+});
