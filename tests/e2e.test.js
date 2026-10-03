@@ -26,7 +26,9 @@ async function withGame(viewport, fn, settings, opts = {}) {
   const ctx = await browser.newContext({ viewport });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort()); // le jeu doit fonctionner sans les polices
   // réglages de départ (ex. portraits « Aucun » pour les parcours qui ne testent pas les visages)
-  if (settings) await ctx.addInitScript(s => { if (!localStorage.getItem('football_agent_settings')) localStorage.setItem('football_agent_settings', s); }, JSON.stringify(settings));
+  // V8.33 : le guide du jeu (ouvert à la première carrière) est considéré comme déjà vu, sauf pour son propre test
+  const startSettings = opts.guide ? (settings || {}) : Object.assign({ guideSeen: true }, settings || {});
+  await ctx.addInitScript(s => { if (!localStorage.getItem('football_agent_settings')) localStorage.setItem('football_agent_settings', s); }, JSON.stringify(startSettings));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -580,4 +582,28 @@ test('V8.27 : crédits, œuf de Pâques (nom du créateur ou blason) et accueil 
     for (let i = 0; i < 7; i++) await page.click('#startCrest');
     assert.match(await page.innerText('.modal'), /trouvé le secret/);
   }, { portraits: 'simple' }, { home: true });
+});
+
+test('V8.33 : guide du jeu à la première carrière, puis à la demande', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch');
+    await page.waitForSelector('.guide', { timeout: 20000 });
+    assert.match(await page.innerText('.guide'), /Vous êtes agent de joueurs/);
+    for (let i = 0; i < 6; i++) await page.click('#guideNext');
+    assert.match(await page.innerText('.guide'), /À vous de jouer/);
+    await page.click('#guideNext');
+    assert.equal(await page.$('.guide'), null, 'guide refermé');
+    assert.ok(await page.evaluate(() => settings.guideSeen), 'vu une fois pour toutes');
+    // ne revient pas tout seul à la carrière suivante, mais reste accessible
+    await page.evaluate(() => navigate('aide'));
+    await page.click('text=Revoir le guide du jeu');
+    await page.waitForSelector('.guide');
+    await page.click('#guideSkip');
+    assert.equal(await page.$('.guide'), null);
+  }, { portraits: 'simple' }, { guide: true });
+  // en anglais
+  await withGame({ width: 1280, height: 900 }, async page => {
+    await page.click('#startGuide');
+    assert.match(await page.innerText('.guide'), /You are a players' agent/);
+  }, { portraits: 'simple', lang: 'en' }, { home: true, guide: true });
 });
