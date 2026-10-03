@@ -34,7 +34,10 @@ async function withRelease(fn, html, extra) {
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
   const browser = await chromium.launch();
-  const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // V8.33 : guide du jeu considéré comme déjà vu (il a son propre test dans e2e)
+  await ctx.addInitScript(() => { try { if (!localStorage.getItem('football_agent_settings')) localStorage.setItem('football_agent_settings', JSON.stringify({ guideSeen: true })); } catch (e) { /* */ } });
+  const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (/Content Security Policy/i.test(m.text())) errors.push('CSP : ' + m.text()); });
@@ -164,6 +167,7 @@ test('V8.28 : l\'application installée reçoit les mises à jour (bandeau, rech
     await ctx.route(/cloudflareinsights|fonts\.g/, r => r.abort());
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
+    await page.addInitScript(() => { try { localStorage.setItem('football_agent_settings', JSON.stringify({ guideSeen: true })); } catch (e) { /* */ } });
     await page.goto('https://play.footagent.workers.dev/');
     await page.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 20000 });
     await page.click('#startNew'); await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
