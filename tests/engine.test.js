@@ -989,3 +989,23 @@ test('V8.30 : réalisme — joueurs du pays dans les petits championnats, étran
   p.seasonStats.apps = 15; p.seasonStats.ratingSum = 15 * 7.2; p.caps = 3;
   assert.ok(E.playerVisibility(s, p) >= 0.5);
 });
+
+test('V8.31 : la confiance du client bouge (moral, transferts, prolongations) et compte (négociation, débauchage)', () => {
+  const s = newGame();
+  const p = Object.values(s.players).find(x => x.club && !x.agentId && s.clubs[x.club].tier <= 3);
+  p.agentId = 'player'; s.agent.portfolio.push(p.id); p.agentTrust = 50;
+  p.morale = 90; playMonths(s, 6);
+  assert.ok(p.agentTrust > 55, 'un client heureux vous fait davantage confiance : ' + p.agentTrust);
+  const before = p.agentTrust;
+  E.nudgeTrust(s, p, -8, 'Promesse de temps de jeu non tenue');
+  assert.equal(p.agentTrust, before - 8);
+  assert.equal(p.trustLog[p.trustLog.length - 1].text, 'Promesse de temps de jeu non tenue', 'raison gardée pour la fiche');
+  // effet : débauchage plus ou moins probable
+  p.agentTrust = 90; const low = E.trustFactor(p); p.agentTrust = 20; const high = E.trustFactor(p);
+  assert.ok(low < 1 && high > 1);
+  // effet : un client confiant suit davantage vos choix en négociation
+  const offer = { targetClubId: p.club, salary: p.wage, years: 3, roleProm: 'rotation', commissionPct: 10, signingBonus: 0, fee: 0 };
+  p.agentTrust = 90; const a = E.evaluateOffer(s, p, offer).score;
+  p.agentTrust = 10; const b = E.evaluateOffer(s, p, offer).score;
+  assert.ok(a > b, `score ${a} > ${b}`);
+});
