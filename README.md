@@ -32,6 +32,7 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
   (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
   histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
+- **8.36** : « Mentions et confidentialité » s'ouvre de nouveau sur le site (le service worker cassait la redirection de l'hébergeur, aussi pour l'ancienne adresse index.html) ; libellé de spécialité traduit à la création.
 - **8.35** : 113 nouveaux visages photo (550 au total), joueurs métis et d'Amérique latine (Amérique du Sud, Mexique, Amérique centrale, Caraïbes).
 - **8.34** : 143 nouveaux visages photo (437 au total) — Maghreb et Moyen-Orient, Europe du Sud et Amérique latine, Asie de l'Est et joueurs métis, vétérans de 30 à 37 ans ; les visages trop proches de vrais joueurs ont été écartés.
 - **8.33** : guide du jeu en 7 étapes à la première carrière (le métier, le temps, les clients, la négociation à plusieurs, le recrutement, l'agence, le premier pas), à revoir depuis l'accueil, les Paramètres et « Comment jouer ».
