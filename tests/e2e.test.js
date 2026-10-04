@@ -649,3 +649,31 @@ test('V8.38 : suivre un joueur depuis sa fiche, liste « Suivis », vue Attribut
     assert.match(await page.innerText('.filter-bar'), /Suivis/i);
   }, { portraits: 'simple' });
 });
+
+test('V8.41 : scores à découvrir, regarder le match, carte président et recrutement propriétaire', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    const cid = await page.evaluate(() => { G.pendingEvent = null; closeModal(); const c = Object.values(G.clubs).find(x => x.league === 'L1' && x.tier === 3); G.agent.stakes[c.id] = { pct: 60, cost: 0 }; G.agent.careerTier = 3; while (!MATCH_MONTHS.includes(calMonth(G))) G.date.absMonth++; renderPage(); return c.id; });
+    // une semaine : le match de votre club est masqué, on le regarde, puis le bilan révèle le reste
+    let found = false;
+    for (let i = 0; i < 4 && !found; i++) {
+      await page.click('#fabAdvance'); await page.waitForTimeout(400);
+      found = !!(await page.$('.watch-btn'));
+      if (!found) { const c = await page.$('.modal .btn-primary.btn-block'); if (c) await c.click(); }
+    }
+    assert.ok(found, 'un match à découvrir');
+    assert.match(await page.innerText('.modal'), /\? - \?/);
+    await page.click('.watch-btn');
+    await page.click('#liveSkip');
+    await page.click('text=Retour au bilan');
+    assert.doesNotMatch(await page.innerText('.modal'), /\? - \?/, 'le score est découvert');
+    await page.click('text=Continuer');
+    // carte président dans l'agence, recrutement depuis une fiche joueur
+    await page.evaluate(() => navigate('agency'));
+    assert.ok(await page.$('#closeAgencyBtn'), 'proposition de fermer l\'agence');
+    await page.evaluate(id => { while (!isMercatoOpen(G)) G.date.absMonth++; G.clubs[id].budget = 5e8; const t = Object.values(G.players).find(x => x.club && x.club !== id && !x.agentId && x.age > 23 && clubWantsLevel(G, G.clubs[id], x)); openPlayerDetail(t.id, 'dashboard'); }, cid);
+    assert.ok(await page.$('#ownerRecruitBtn'), 'bouton « Faire une offre »');
+    await page.evaluate(id => openClubDetail(id, 'dashboard'), cid);
+    assert.ok(await page.$('#clubStaffCard'), 'entraîneur, sponsor et comptes');
+  }, { portraits: 'simple', step: 'week', spoilers: 'hide' });
+});

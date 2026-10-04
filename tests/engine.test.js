@@ -1110,3 +1110,55 @@ test('V8.40 : pas d\'intérêt spontané avant que le joueur se montre, ni juste
   // l'agent peut toujours démarcher ou prêter : le club juge alors sur le profil (clubInterestScore)
   assert.ok(Object.values(s.clubs).some(c => c.id !== p.club && E.clubInterestScore(s, p, c)));
 });
+
+test('V8.41 : président à plein temps, recruter pour son club, entraîneur, sponsor, prolonger, rôle, reconversion', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  // sans club possédé, impossible de fermer l'agence
+  assert.equal(E.closeAgency(s, []).ok, false);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  assert.ok(E.isClubOwner(s, club.id));
+  // recrutement au nom du club : mercato fermé puis ouvert, niveau exigé, budget
+  const target = Object.values(s.players).find(p => p.club && p.club !== club.id && s.clubs[p.club].tier === 3 && p.age >= 22 && p.age <= 29 && !p.agentId && E.clubWantsLevel(s, club, p));
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  club.budget = 500e6;
+  const chk = E.ownerRecruitCheck(s, club, target);
+  assert.ok(chk.ok, chk.reason);
+  const weak = Object.values(s.players).find(p => p.club && p.ovr < 55 && p.age > 24);
+  assert.equal(E.ownerRecruitCheck(s, club, weak).ok, false, 'un joueur trop faible est refusé');
+  let signed = 0;
+  for (const p of Object.values(s.players).filter(p => p.club && p.club !== club.id && !p.agentId && p.age >= 22 && E.ownerRecruitCheck(s, club, p).ok).slice(0, 12)) if (E.ownerRecruit(s, club.id, p.id, []).ok) { signed++; assert.equal(p.club, club.id); }
+  assert.ok(signed >= 1, 'au moins un joueur accepte le projet');
+  // entraîneur : meilleur que prévu = équipe renforcée
+  const before = E.coachEffect(club);
+  const cands = E.coachCandidates(s, club);
+  const best = cands.reduce((bi, c, i) => c.quality > cands[bi].quality ? i : bi, 0);
+  assert.ok(E.hireCoach(s, club.id, best, []).ok);
+  assert.ok(E.coachEffect(club).atk + E.coachEffect(club).def >= before.atk + before.def);
+  // sponsor maillot
+  assert.ok(E.signSponsor(s, club.id, 2, []).ok);
+  assert.equal(E.signSponsor(s, club.id, 0, []).ok, false, 'un seul contrat à la fois');
+  // prolongation d'un joueur en fin de contrat
+  const exp = s.players[club.squad.find(id => s.players[id] && !s.players[id].agentId)];
+  exp.contractUntil = s.date.absMonth >= 0 ? 2026 : 2026;
+  const ext = E.ownerExtendCheck(s, exp);
+  assert.ok(ext.ok || /contrat/.test(ext.reason));
+  // rôle dans l'équipe
+  assert.ok(['Titulaire', 'Rotation', 'Remplaçant', 'Blessé'].includes(E.playerTeamRole(s, exp).label));
+  // fermer l'agence : clients libérés, plus de loyer
+  const n = s.agent.portfolio.length;
+  assert.ok(E.closeAgency(s, []).ok);
+  assert.equal(s.agent.portfolio.length, 0); assert.ok(n >= 0);
+  assert.equal(s.agent.presidentOnly, true);
+  // reconversion d'un ancien client en entraîneur
+  E.noteClientRetirement(s, { id: 'x1', name: 'Ancien Client', ovr: 80, wage: 50000, nat: 'FR', careerApps: 300, trophies: [] });
+  assert.ok(E.resolveRetirementChoice(s, 0, 'coach', club.id, []).ok);
+  assert.equal(club.coach.name, 'Ancien Client');
+  E.noteClientRetirement(s, { id: 'x2', name: 'Autre Client', ovr: 70, wage: 20000, nat: 'FR', careerApps: 200, trophies: [] });
+  assert.ok(E.resolveRetirementChoice(s, 0, 'consultant', null, []).ok);
+  assert.ok(E.consultantsIncome(s) > 0);
+  assert.ok(E.reopenAgency(s, []).ok || s.agent.cash < 50000);
+  // quelques mois joués sans erreur avec entraîneur et sponsor
+  for (let i = 0; i < 3; i++) { if (s.pendingEvent) E.resolveEvent(s, 0); E.advanceMonth(s); }
+  assert.ok(isFinite(club.budget));
+});
