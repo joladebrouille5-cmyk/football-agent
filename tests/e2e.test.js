@@ -749,3 +749,55 @@ test('V8.43 : mode président — navigation dédiée, tableau de bord du club, 
     assert.equal(await page.$('#app.president-mode'), null);
   }, { portraits: 'simple' });
 });
+
+test('V8.44 : offres reçues, contre-offre, négociation, prêt, tactique et directeur sportif', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      const c = Object.values(G.clubs).find(x => x.league === 'L1' && x.tier === 3); G.agent.stakes[c.id] = { pct: 60, cost: 0 }; G.agent.careerTier = 3; c.budget = 6e7;
+      while (!isMercatoOpen(G)) G.date.absMonth++;
+      const p = c.squad.map(id => G.players[id]).sort((a, b) => b.value - a.value)[2];
+      const buyer = Object.values(G.clubs).find(x => x.id !== c.id && x.budget > p.value * 3 && x.tier >= 3);
+      makeClubBid(G, p, buyer, p.value);
+      setViewMode('president');
+    });
+    // offres reçues : la liste « À faire » y mène
+    assert.match(await page.innerText('#presActions'), /offre/i);
+    await page.evaluate(() => { navigate('market'); setMerc({ tab: 'offres' }); });
+    assert.ok(await page.$('.bid-card'), 'carte d\'offre');
+    assert.match(await page.innerText('.bid-card'), /Veut y aller|Hésite|Préfère rester/);
+    await page.click('.bid-card >> text=Contre-offre');
+    await page.click('#counterSubmit');
+    assert.match(await page.innerText('.modal'), /accepte|monte|retire/i);
+    await page.evaluate(() => closeModal());
+    // négocier un recrutement : trois parties
+    await page.evaluate(() => setMerc({ tab: 'cibles' }));
+    await page.click('#mercTargets >> text=Négocier');
+    await page.waitForSelector('#ownNegSubmit');
+    assert.ok((await page.$$('.modal .neg-party')).length >= 2, 'joueur et club vendeur');
+    await page.click('#ownNegSubmit');
+    await page.waitForTimeout(200);
+    await page.evaluate(() => closeModal());
+    // fiche d'un joueur du club : prolonger, prêter, capitaine
+    await page.evaluate(() => { const c = myClub(); const p = c.squad.map(id => G.players[id]).find(x => !x.agentId && !x.parentClub && x.age <= 23); p.contractUntil = seasonStartYear(G) + 1; p.lastRenewalMonth = null; p.lastTransferMonth = null; openPlayerDetail(p.id, 'monclub'); });
+    assert.ok(await page.$('#ownerPlayerCard'));
+    assert.equal(await page.$('text=Proposer un contrat d\'agent'), null, 'pas d\'action d\'agent en mode président');
+    await page.click('#ownerExtendBtn');
+    await page.waitForSelector('#ownExtSubmit');
+    await page.evaluate(() => closeModal());
+    await page.click('#ownerLoanOutBtn');
+    assert.match(await page.innerText('.modal'), /Salaire payé par le club d.accueil/);
+    await page.evaluate(() => closeModal());
+    // Mon club : tactique et directeur sportif
+    await page.evaluate(() => openMyClub(myClub().id, 'tactique'));
+    assert.ok(await page.$('#tacticsCard') && await page.$('#startersCard'));
+    await page.click('#tacticsCard >> text=Offensif');
+    assert.equal(await page.evaluate(() => clubOwnerPolicy(myClub()).tactic), 'offensif');
+    await page.evaluate(() => openMyClub(myClub().id, 'staff'));
+    await page.click('#sdCard >> text=Nommer >> nth=1');
+    assert.ok(await page.evaluate(() => !!myClub().sportingDirector));
+    await page.evaluate(() => openMyClub(myClub().id, 'gestion'));
+    assert.ok(await page.$('#ownerFinanceCard'));
+  }, { portraits: 'simple' });
+});
