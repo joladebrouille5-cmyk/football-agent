@@ -857,11 +857,14 @@ test('V8.23 : joueurs libres et jeunes jugés sur leur niveau, intérêt du club
   weak.age = 26;
   weak.agentId = 'player'; s.agent.portfolio.push(weak.id);
   for (const c of big) assert.match(E.evaluateClubTransferAcceptance(s, c, weak, { fee: 0 }).reason, /en-deçà/);
-  // un jeune : jugé à mi-chemin entre niveau et potentiel — une vraie pépite passe, un jeune moyen non
+  // un jeune : jugé sur son niveau, un peu sur ce qu'il promet (V8.39) — une pépite déjà solide passe, un jeune moyen non,
+  // et un gros potentiel encore trop tendre non plus
   const y = Object.values(s.players).find(p => p.club && p.age < 21 && s.clubs[p.club].tier <= 2);
   y.ovr = 66; y.pot = 70;
   assert.equal(E.evaluateClubTransferAcceptance(s, big[0], y, { fee: 0 }).ok, false);
   y.pot = 94;
+  assert.equal(E.evaluateClubTransferAcceptance(s, big[0], y, { fee: 0 }).ok, false, 'trop tendre pour un géant');
+  y.ovr = 76;
   assert.equal(E.evaluateClubTransferAcceptance(s, big[0], y, { fee: 0 }).ok, true);
   // l'intérêt du club pèse dans la négociation
   const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 2);
@@ -1067,4 +1070,29 @@ test('V8.38 : suivre un joueur (liste plafonnée, actualité, retraités retiré
   assert.equal(r.ok, false, 'plafond de joueurs suivis');
   others[0].retired = true;
   assert.equal(E.followedPlayers(s).length, E.FOLLOW_MAX - 1, 'un retraité disparaît de la liste');
+});
+
+test('V8.39 : potentiels réalistes, potentiel évolutif, recrutement cohérent avec l\'effectif', () => {
+  const s = newGame();
+  const young = Object.values(s.players).filter(p => p.age <= 21);
+  const share = young.filter(p => p.pot >= 85).length / young.length;
+  assert.ok(share < 0.07, `pépites à 85+ rares (${(share * 100).toFixed(1)} %)`);
+  // un joueur faible ne signe pas dans un grand club
+  const big = Object.values(s.clubs).find(c => c.tier === 5);
+  const weak = Object.values(s.players).find(p => p.club && p.age >= 24 && p.ovr <= 60 && !p.retired);
+  assert.equal(E.clubWantsLevel(s, big, weak), false);
+  assert.equal(E.evaluateClubTransferAcceptance(s, big, weak, { fee: weak.value }).ok, false);
+  const starOfBig = big.squad.map(id => s.players[id]).sort((a, b) => b.ovr - a.ovr)[0];
+  assert.equal(E.clubWantsLevel(s, big, starOfBig), true, 'un joueur au niveau est accepté');
+  // potentiel évolutif : une saison pleine et brillante le fait grimper, une saison blanche l'érode
+  const kids = Object.values(s.players).filter(p => p.age >= 18 && p.age <= 21 && p.pot < 90 && p.pot > p.ovr + 3).slice(0, 40);
+  let up = 0, down = 0;
+  for (const p of kids.slice(0, 20)) { const b = p.pot; E.seasonPotentialChange(s, p, 30, 7.6); if (p.pot > b) up++; }
+  for (const p of kids.slice(20)) { const b = p.pot; E.seasonPotentialChange(s, p, 1, 6.0); if (p.pot < b) down++; }
+  assert.equal(up, 20, 'chaque jeune qui brille progresse');
+  assert.ok(down >= 5, `des jeunes sans temps de jeu reculent (${down}/20)`);
+  // une grave blessure laisse souvent des séquelles, jamais sous le niveau actuel
+  let hit = 0;
+  for (const p of Object.values(s.players).filter(p => p.age <= 25 && p.pot > p.ovr + 5).slice(0, 30)) { if (E.injuryPotentialHit(s, p, 7) < 0) hit++; assert.ok(p.pot >= p.ovr); }
+  assert.ok(hit >= 15, `séquelles fréquentes après 7 mois d'arrêt (${hit}/30)`);
 });
