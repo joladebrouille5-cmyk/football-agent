@@ -1162,3 +1162,28 @@ test('V8.41 : président à plein temps, recruter pour son club, entraîneur, sp
   for (let i = 0; i < 3; i++) { if (s.pendingEvent) E.resolveEvent(s, 0); E.advanceMonth(s); }
   assert.ok(isFinite(club.budget));
 });
+
+test('V8.42 : avantages de départ débloqués par objectifs, un seul par partie ; avis du joueur sur une offre', () => {
+  // déblocage d'après le Panthéon
+  assert.deepEqual(E.unlockedStartPerks([]), []);
+  const un = E.unlockedStartPerks([{ seasons: 11, commissions: 2e6, tier: 'Agent national', transfers: 30, agentOfYear: 1, everOwner: true, scnResult: 'won', scnHard: true }]);
+  assert.equal(un.length, E.START_PERKS.length, 'tous les objectifs remplis');
+  assert.deepEqual(E.unlockedStartPerks([{ seasons: 1, commissions: 0, tier: 'Agent local' }]), ['carnet']);
+  // application : un seul avantage, effets visibles
+  const base = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'reseau' });
+  const rich = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'reseau', perk: 'tresor' });
+  assert.equal(rich.agent.cash - base.agent.cash, 150000);
+  assert.equal(rich.agent.startPerk, 'tresor');
+  const kid = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'reseau', perk: 'pepite' });
+  assert.equal(kid.agent.portfolio.length, base.agent.portfolio.length + 1);
+  const deal = E.createNewGame({ agentName: 'A', agency: 'A', nationality: 'FR', specialty: 'reseau', perk: 'deal' });
+  assert.equal(E.agentPerks(deal).negoScore - E.agentPerks(base).negoScore, 4);
+  // avis du joueur sur une offre reçue
+  const s = newGame();
+  const p = s.players[s.agent.portfolio[0]];
+  const club = Object.values(s.clubs).find(c => c.id !== p.club && c.tier === 2);
+  const good = E.offerPlayerStance(s, { playerId: p.id, clubId: club.id, fee: 0, wage: Math.max(p.wage * 2, 20000) });
+  const bad = E.offerPlayerStance(s, { playerId: p.id, clubId: club.id, fee: 0, wage: Math.round(p.wage * 0.5) });
+  assert.ok(['go', 'hesitant', 'stay'].includes(good.key));
+  assert.ok(good.score > bad.score, 'un meilleur salaire le tente davantage');
+});
