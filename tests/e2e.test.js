@@ -713,3 +713,39 @@ test('V8.42 : fiche d\'une offre reçue (avis du joueur, négocier), avantages d
     await page.waitForSelector('#perkGrid');
   }, { portraits: 'simple' }, { home: true });
 });
+
+test('V8.43 : mode président — navigation dédiée, tableau de bord du club, Mon club, mercato du club', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); const c = Object.values(G.clubs).find(x => x.league === 'L1' && x.tier === 3); G.agent.stakes[c.id] = { pct: 60, cost: 0 }; G.agent.careerTier = 3; c.budget = 3e7; while (!isMercatoOpen(G)) G.date.absMonth++; renderPage(); });
+    // propriétaire : le tableau de bord agent propose de basculer
+    assert.ok(await page.$('#modeSwitch-inline'), 'bascule vers le mode président');
+    assert.ok(await page.$('.tab-item[data-tab="myplayers"]'));
+    await page.click('#modeSwitch-inline');
+    // barre du bas : plus de « Joueurs » ni d'« Agence », mais le club et le mercato
+    assert.equal(await page.$('.tab-item[data-tab="myplayers"]'), null);
+    assert.equal(await page.$('.tab-item[data-tab="agency"]'), null);
+    assert.ok(await page.$('.tab-item[data-tab="monclub"]'));
+    assert.ok(await page.$('#app.president-mode'));
+    assert.ok(await page.$('.club-hero'), 'carte du club');
+    assert.ok(await page.$('#presActions'), 'liste « À faire »');
+    // Mon club : onglets
+    await page.click('.tab-item[data-tab="monclub"]');
+    assert.match(await page.innerText('.page-title'), /Mon club/i);
+    await page.click('text=Effectif');
+    assert.ok(await page.$('.need-chips'));
+    await page.click('text=Staff');
+    assert.ok(await page.$('#clubStaffCard'));
+    // mercato du club : cibles recrutables
+    await page.click('.tab-item[data-tab="market"]');
+    await page.waitForSelector('#mercTargets');
+    assert.ok((await page.$$('#mercTargets .merc-row')).length > 0);
+    assert.ok(await page.$('#mercTargets button.btn-primary'), 'offre en un geste');
+    // le choix est gardé dans la sauvegarde, puis retour au mode agent
+    assert.equal(await page.evaluate(() => G.agent.viewMode), 'president');
+    await page.evaluate(() => openMoreSheet());
+    await page.click('#modeSwitch-sheet');
+    assert.ok(await page.$('.tab-item[data-tab="myplayers"]'));
+    assert.equal(await page.$('#app.president-mode'), null);
+  }, { portraits: 'simple' });
+});
