@@ -1049,3 +1049,22 @@ test('V8.32 : vraie négociation à plusieurs — joueur, club payeur et club ve
   assert.deepEqual(ren.map(x => x.id).sort(), ['club', 'player']);
   assert.ok(E.NEG_MAX_ROUNDS >= 3);
 });
+
+test('V8.38 : suivre un joueur (liste plafonnée, actualité, retraités retirés)', () => {
+  const s = newGame();
+  const others = Object.values(s.players).filter(p => p.club && p.agentId !== 'player' && !p.retired);
+  const p = others.find(x => !E.isFollowed(s, x.id) && x.ovr < 60);
+  assert.ok(Array.isArray(s.followed) && s.followed.length === 0);
+  assert.deepEqual(E.toggleFollow(s, p.id), { ok: true, followed: true });
+  assert.ok(E.isFollowed(s, p.id));
+  // un joueur modeste suivi fait désormais l'actualité
+  const news = []; const to = Object.values(s.clubs).find(c => c.id !== p.club);
+  E.executeTransfer(s, p, to, 100000, news, { silent: false });
+  assert.ok(news.some(n => n.playerId === p.id), 'transfert d\'un joueur suivi annoncé');
+  assert.deepEqual(E.toggleFollow(s, p.id), { ok: true, followed: false });
+  for (const x of others.slice(0, E.FOLLOW_MAX)) E.toggleFollow(s, x.id);
+  const r = E.toggleFollow(s, others[E.FOLLOW_MAX + 1].id);
+  assert.equal(r.ok, false, 'plafond de joueurs suivis');
+  others[0].retired = true;
+  assert.equal(E.followedPlayers(s).length, E.FOLLOW_MAX - 1, 'un retraité disparaît de la liste');
+});
