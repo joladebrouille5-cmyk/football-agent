@@ -632,3 +632,20 @@ test('V8.37 : récapitulatif des nouveautés après une mise à jour, une seule 
     assert.equal(await page.$('.whatsnew'), null);
   }, { portraits: 'simple' }, { home: true });
 });
+
+test('V8.38 : suivre un joueur depuis sa fiche, liste « Suivis », vue Attributs', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); const p = Object.values(G.players).find(x => x.club && x.agentId !== 'player' && x.ovr > 75); openPlayerDetail(p.id, 'dashboard'); });
+    await page.click('#followBtn');
+    assert.match(await page.innerText('#followBtn'), /Suivi/);
+    await page.evaluate(() => navigate('myplayers'));
+    await page.click('#tabFollowed');
+    assert.equal(await page.$$eval('.player-card', els => els.length), 1, 'le joueur suivi est listé');
+    await page.click('#viewAttrs');
+    assert.equal(await page.$$eval('.player-card-attrs > div', els => els.length), 6, 'six attributs sur la carte');
+    // filtre des actualités
+    await page.evaluate(() => navigate('news'));
+    assert.match(await page.innerText('.filter-bar'), /Suivis/i);
+  }, { portraits: 'simple' });
+});

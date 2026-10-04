@@ -32,6 +32,7 @@ Détails et licences : [portraits/README.md](portraits/README.md).
   Moments forts : dernier jour du mercato (offres de dernière minute), cérémonie de fin de saison, jalons des joueurs
   (`checkMilestones`), enjeu des matchs à venir, confettis. Profondeur : pépites rares au scouting, ennemi juré,
   histoire de chaque client (`p.story`), Panthéon des carrières avec héritage, scénarios de départ (`SCENARIOS`).
+- **8.38** (retours de Will) : suivre n'importe quel joueur (☆ Suivre sur sa fiche, 30 au plus) — onglet « Suivis » dans Mes joueurs, filtre « Suivis » dans les actualités, leurs transferts et blessures font l'actualité ; vue rapide « Attributs » (ATT, DÉF, TEC, MEN, PHY, VIT) à côté des performances sur les cartes.
 - **8.37** : 479 nouveaux visages photo (1 029 au total) ; fenêtre « Quoi de neuf ? » après chaque mise à jour (une fois, pour les joueurs qui ont déjà une partie) et « Nouveautés » dans les Paramètres — chaque version ajoute son entrée à `CHANGELOG` (vérifié par les tests).
 - **8.36** : « Mentions et confidentialité » s'ouvre de nouveau sur le site (le service worker cassait la redirection de l'hébergeur, aussi pour l'ancienne adresse index.html) ; libellé de spécialité traduit à la création.
 - **8.35** : 113 nouveaux visages photo (550 au total), joueurs métis et d'Amérique latine (Amérique du Sud, Mexique, Amérique centrale, Caraïbes).
