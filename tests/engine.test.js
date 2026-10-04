@@ -1187,3 +1187,29 @@ test('V8.42 : avantages de départ débloqués par objectifs, un seul par partie
   assert.ok(['go', 'hesitant', 'stay'].includes(good.key));
   assert.ok(good.score > bad.score, 'un meilleur salaire le tente davantage');
 });
+
+test('V8.43 : mode président — besoins de l\'effectif et cibles de recrutement du club', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  const needs = E.clubSquadNeeds(s, club);
+  assert.deepEqual(Object.keys(needs), ['GK', 'DF', 'MF', 'FW']);
+  assert.equal(needs.GK.have + needs.DF.have + needs.MF.have + needs.FW.have, club.squad.filter(id => s.players[id] && !s.players[id].retired).length);
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  club.budget = 40e6;
+  const t0 = Date.now();
+  const list = E.ownerTargets(s, club);
+  assert.ok(Date.now() - t0 < 1500, 'calcul rapide');
+  assert.ok(list.length > 0 && list.length <= 25);
+  for (const x of list) {
+    assert.notEqual(x.p.club, club.id);
+    assert.ok(x.fee <= club.budget, 'indemnité dans le budget');
+    assert.ok(E.clubWantsLevel(s, club, x.p), 'niveau de l\'effectif');
+    assert.ok(x.wage > 0);
+  }
+  // filtres : ligne et joueurs libres
+  assert.ok(E.ownerTargets(s, club, { line: 'GK' }).every(x => x.p.posLine === 'GK'));
+  assert.ok(E.ownerTargets(s, club, { free: true }).every(x => !x.p.club && x.fee === 0));
+  // les cibles proposées sont réellement recrutables (le joueur peut encore refuser le projet)
+  assert.ok(list.slice(0, 5).some(x => E.ownerRecruitCheck(s, club, x.p).ok));
+});
