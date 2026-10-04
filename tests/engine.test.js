@@ -1213,3 +1213,117 @@ test('V8.43 : mode président — besoins de l\'effectif et cibles de recrutemen
   // les cibles proposées sont réellement recrutables (le joueur peut encore refuser le projet)
   assert.ok(list.slice(0, 5).some(x => E.ownerRecruitCheck(s, club, x.p).ok));
 });
+
+test('V8.44 : le club du président ne vit plus sans lui (ventes, achats, prêts, pop-ups)', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  assert.ok(E.ownerControls(s, club));
+  // l'IA ne met plus en vente, n'achète plus, ne prête plus pour le club
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  const before = [...club.squad];
+  for (let i = 0; i < 20; i++) { E.runAIClubSquadManagement(s, [], true); E.runAIClubTransfers(s, [], true); E.runAIClubLoans(s, [], true); }
+  assert.deepEqual([...club.squad].sort(), before.sort(), 'effectif inchangé sans décision du président');
+  assert.ok(!(s.transferListed || []).some(id => club.squad.includes(id)), 'aucun joueur mis en vente par l\'IA');
+  // délégation : seulement avec un directeur sportif
+  club.ownerPolicy = { recruit: 'delegue' };
+  assert.ok(E.ownerControls(s, club), 'pas de délégation sans directeur sportif');
+  assert.ok(E.hireSportingDirector(s, club.id, 1, []).ok);
+  assert.equal(E.ownerControls(s, club), false);
+  assert.ok(E.delegatedShare(s, club) > 0 && E.delegatedShare(s, club) < 1);
+  assert.ok(E.fireSportingDirector(s, club.id).ok);
+  assert.ok(E.ownerControls(s, club));
+  // agence fermée : plus aucun message d'agent, seulement ceux du club
+  assert.ok(E.closeAgency(s, []).ok);
+  const evs = E.applicableEvents(s);
+  assert.ok(evs.every(e => e.scope === 'president'), 'seuls les messages de président restent');
+  // offres reçues : mise en vente → offre, contre-offre, acceptation
+  const p = club.squad.map(id => s.players[id]).filter(x => !x.parentClub).sort((a, b) => b.value - a.value)[3];
+  p.lastTransferMonth = null;
+  const buyer = Object.values(s.clubs).find(c => c.id !== club.id && c.budget > p.value * 3 && c.tier >= club.tier);
+  const bid = E.makeClubBid(s, p, buyer, p.value);
+  assert.ok(bid && E.clubBidsFor(s, club.id).some(b => b.id === bid.id));
+  const st = E.bidStance(s, bid);
+  assert.ok(['go', 'hesitant', 'stay'].includes(st.key));
+  const c1 = E.counterClubBid(s, bid.id, bid.maxFee * 10);
+  assert.ok(c1.withdrawn, 'une exigence démesurée fait fuir l\'acheteur');
+  const bid2 = E.makeClubBid(s, p, buyer, p.value);
+  const c2 = E.counterClubBid(s, bid2.id, bid2.maxFee);
+  assert.ok(c2.agreed && bid2.fee === bid2.maxFee);
+  const budgetBefore = club.budget;
+  const r = E.acceptClubBid(s, bid2.id, []);
+  if (r.ok) { assert.equal(p.club, buyer.id); assert.ok(club.budget > budgetBefore); assert.equal(s.agent.careerStats.presSales, 1); }
+  else assert.ok(r.refused, 'le joueur peut refuser de partir');
+});
+
+test('V8.44 : négocier un recrutement, une prolongation, des prêts, et gérer le club', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  club.budget = 300e6;
+  const target = Object.values(s.players).find(p => p.club && p.club !== club.id && p.age >= 22 && p.age <= 29 && !p.agentId && E.ownerRecruitCheck(s, club, p).ok);
+  const t = E.ownerNegoPreset(s, club, target);
+  assert.ok(t.fee > 0 && t.wage > 0);
+  const parties = E.ownerNegotiationEval(s, club, target, t);
+  assert.ok(parties.some(x => x.id === 'player') && parties.some(x => x.id === 'seller'));
+  // une offre au rabais fait tiquer le club vendeur
+  const low = E.ownerNegotiationEval(s, club, target, Object.assign({}, t, { fee: t.fee * 0.4 }));
+  assert.ok(low.find(x => x.id === 'seller').score < parties.find(x => x.id === 'seller').score);
+  // offre généreuse : au plus trois tentatives par mois
+  const rich = Object.assign({}, t, { fee: t.fee * 1.3, wage: t.wage * 1.5, bonus: t.wage * 3, years: 3, role: 'titulaire' });
+  let res, n = 0;
+  do { res = E.ownerNegotiate(s, club.id, target.id, rich, []); n++; } while (!res.ok && res.parties && n < 5);
+  assert.ok(n <= 3);
+  if (res.ok) { assert.equal(target.club, club.id); assert.equal(target.contractUntil, E.seasonStartYear(s) + 3); }
+  // prolongation négociée
+  const mine = club.squad.map(id => s.players[id]).find(p => p && p.id !== target.id && !p.agentId);
+  mine.contractUntil = E.seasonStartYear(s) + 1; mine.lastRenewalMonth = null;
+  const ep = E.ownerExtendPreset(s, mine);
+  const er = E.ownerExtendNegotiate(s, mine.id, { wage: ep.wage * 1.6, years: 3, bonus: ep.wage * 2 }, []);
+  assert.ok(er.ok || er.party, 'réponse du joueur');
+  // prêt sortant avec part du salaire
+  const young = club.squad.map(id => s.players[id]).find(p => p && p.age <= 23 && !p.parentClub && p.id !== target.id);
+  young.lastTransferMonth = null;
+  const dests = E.ownerLoanDestinations(s, young);
+  if (dests.length) {
+    const lo = E.ownerLoanOut(s, young.id, dests[0].id, 6, 0, []);
+    if (lo.ok) { assert.equal(young.parentClub, club.id); assert.equal(young.loanWageShare, 0); }
+  }
+  // prêt entrant avec option d'achat
+  const loanee = Object.values(s.players).find(p => p.club && p.club !== club.id && !p.parentClub && p.age <= 21 && !p.agentId && E.ownerLoanInCheck(s, club, p).ok);
+  if (loanee) {
+    let li = E.ownerLoanIn(s, club.id, loanee.id, { months: 6, share: 1, option: true }, []);
+    if (!li.ok && li.refused) li = E.ownerLoanIn(s, club.id, loanee.id, { months: 6, share: 1, option: true }, []);
+    if (li.ok) {
+      assert.equal(loanee.club, club.id); assert.ok(loanee.loanBuyOption && loanee.loanBuyOption.fee > 0);
+      s.date.absMonth++; loanee.loanUntil = s.date.absMonth; E.checkLoanReturns(s, []);
+      assert.ok((s.loanOptions || []).some(o => o.playerId === loanee.id), 'option d\'achat à lever');
+      const ex = E.exerciseLoanOption(s, loanee.id, []);
+      assert.ok(ex.ok); assert.equal(loanee.club, club.id); assert.equal(loanee.parentClub, null);
+    }
+  }
+  // terrain : capitaine, titulaires imposés, tactique
+  const cap = club.squad[0];
+  assert.ok(E.setClubCaptain(s, club.id, cap).ok);
+  assert.ok(E.toggleClubStarter(s, club.id, cap).on);
+  club.ownerPolicy = Object.assign({}, club.ownerPolicy, { tactic: 'offensif', winBonus: 'forte' });
+  const xi = club.squad.slice(0, 11).map(id => s.players[id]);
+  const fx = E.ownerMatchEffect(s, club, xi);
+  assert.ok(fx.atk > fx.def, 'tactique offensive');
+  const b0 = club.budget; assert.ok(E.payWinBonus(s, club, xi) > 0 && club.budget < b0);
+  // finances : naming, prêt bancaire, boutique
+  assert.ok(E.signNaming(s, club.id, []).ok); assert.ok(club.naming.perSeason > 0);
+  const amount = E.bankLoanOptions(club)[0];
+  assert.ok(E.takeBankLoan(s, club.id, amount, []).ok); assert.equal(E.takeBankLoan(s, club.id, amount, []).ok, false);
+  assert.ok(E.upgradeShop(s, club.id).ok); assert.ok(E.shopIncome(club) > 0);
+  const left = club.bankLoan.left;
+  E.monthlyClubFinances(s);
+  assert.ok(club.bankLoan.left < left, 'remboursement mensuel');
+  assert.ok(club.lastIncomeBreakdown.naming > 0 && club.lastIncomeBreakdown.shop > 0);
+  // carrière de président : défis dédiés
+  assert.ok(E.closeAgency(s, []).ok);
+  E.generateSeasonGoals(s);
+  assert.ok(s.seasonGoals.length === 3 && s.seasonGoals[0].id === 'pres_objectif');
+  for (const g of s.seasonGoals) { const v = E.goalProgress(s, g); assert.ok(v >= 0 && v <= 100); }
+});
