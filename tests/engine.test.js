@@ -162,6 +162,7 @@ test('8.4 : la négociation garde une part d\'échec (contre-offre à risque)', 
     p.agentId = 'player';
     // V8.32 : négociation à trois — on vise un club réellement intéressé (un club pris au hasard qui ne cherchait pas
     // ce profil refuse le plus souvent, comme en vrai)
+    Object.assign(p.seasonStats, { apps: 12, ratingSum: 12 * 7.2 }); // V8.40 : il s'est montré
     const ic = E.computeInterestedClubs(s, p).find(x => x.club.budget > p.value * 2);
     const c = ic && ic.club;
     if (c) {
@@ -1021,6 +1022,7 @@ test('V8.32 : vraie négociation à plusieurs — joueur, club payeur et club ve
   const players = Object.values(s.players).filter(p => p.club && p.value > 2e6 && p.age < 29);
   let checked = 0, compromises = 0;
   for (const p of players.slice(0, 60)) {
+    Object.assign(p.seasonStats, { apps: 12, ratingSum: 12 * 7.2 }); // V8.40 : il s'est montré
     const ic = E.computeInterestedClubs(s, p).find(x => x.club.budget > p.value * 2 && x.club.id !== p.club);
     if (!ic) continue;
     const c = ic.club;
@@ -1095,4 +1097,16 @@ test('V8.39 : potentiels réalistes, potentiel évolutif, recrutement cohérent 
   let hit = 0;
   for (const p of Object.values(s.players).filter(p => p.age <= 25 && p.pot > p.ovr + 5).slice(0, 30)) { if (E.injuryPotentialHit(s, p, 7) < 0) hit++; assert.ok(p.pot >= p.ovr); }
   assert.ok(hit >= 15, `séquelles fréquentes après 7 mois d'arrêt (${hit}/30)`);
+});
+
+test('V8.40 : pas d\'intérêt spontané avant que le joueur se montre, ni juste après son arrivée', () => {
+  const s = newGame();
+  const p = Object.values(s.players).find(x => x.club && x.age >= 22 && x.age <= 27 && s.clubs[x.club].tier === 3);
+  assert.equal(E.computeInterestedClubs(s, p).length, 0, 'aucun match joué : personne ne s\'y intéresse encore');
+  Object.assign(p.seasonStats, { apps: 14, ratingSum: 14 * 7.4 });
+  assert.ok(E.computeInterestedClubs(s, p).length > 0, 'après de bons matchs, des clubs suivent');
+  p.lastTransferMonth = s.date.absMonth - 2;
+  assert.equal(E.computeInterestedClubs(s, p).length, 0, 'tout juste arrivé dans son club');
+  // l'agent peut toujours démarcher ou prêter : le club juge alors sur le profil (clubInterestScore)
+  assert.ok(Object.values(s.clubs).some(c => c.id !== p.club && E.clubInterestScore(s, p, c)));
 });
