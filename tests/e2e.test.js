@@ -677,3 +677,39 @@ test('V8.41 : scores à découvrir, regarder le match, carte président et recru
     assert.ok(await page.$('#clubStaffCard'), 'entraîneur, sponsor et comptes');
   }, { portraits: 'simple', step: 'week', spoilers: 'hide' });
 });
+
+test('V8.42 : fiche d\'une offre reçue (avis du joueur, négocier), avantages de départ, Panthéon cliquable', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    const oid = await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      while (!isMercatoOpen(G)) G.date.absMonth++;
+      const p = Object.values(G.players).find(x => isClient(G, x.id) && x.club) || Object.values(G.players).find(x => x.club && !x.agentId && x.ovr > 65 && x.age < 28); p.agentId = 'player'; G.agent.clients = G.agent.clients || []; if (!G.agent.clients.includes(p.id)) G.agent.clients.push(p.id);
+      p.lastTransferMonth = null; p.lastPermanentMove = null;
+      const c = Object.values(G.clubs).filter(x => x.id !== p.club).sort((a, b) => b.tier - a.tier)[0];
+      const r = createIncomingOffer(G, p, c, 5e6, Math.round(p.wage * 1.4));
+      renderPage(); return r.offer.id;
+    });
+    await page.evaluate(id => openOfferDetail(id), oid);
+    const txt = await page.innerText('.modal');
+    assert.match(txt, /Veut y aller|Hésite|Préfère rester/, 'avis du joueur');
+    assert.match(txt, /commission/i);
+    await page.click('#offerNegotiate');
+    assert.ok(await page.$('.modal'), 'négociation ouverte depuis l\'offre');
+    assert.equal(await page.evaluate(() => ui.negotiation && ui.negotiation.fromOfferId), oid);
+  }, { portraits: 'simple' });
+  // accueil : avantages et Panthéon cliquable
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.waitForSelector('#startPerks');
+    await page.click('#startPerks');
+    assert.match(await page.innerText('.modal'), /Carnet d.adresses|un seul/i);
+    await page.evaluate(() => closeModal());
+    await page.evaluate(() => localStorage.setItem(PANTHEON_KEY, JSON.stringify([{ agency: 'Agence Test', seasons: 3, commissions: 2e6, tierName: 'Bureau', transfers: 12, clients: [{ name: 'Jean Test', ovr: 82 }], clubs: [{ name: 'Lyon', pct: 30 }], achievements: 4 }])));
+    await page.reload(); await page.waitForSelector('.pantheon-row');
+    await page.click('.pantheon-row');
+    await page.waitForSelector('.modal h3'); assert.match(await page.innerText('.modal h3'), /Agence Test/i, 'détail du Panthéon');
+    await page.evaluate(() => closeModal());
+    await page.click('#startNew');
+    await page.waitForSelector('#perkGrid');
+  }, { portraits: 'simple' }, { home: true });
+});
