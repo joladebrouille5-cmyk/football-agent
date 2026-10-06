@@ -918,3 +918,30 @@ test('V8.48 : promesse depuis la fiche d\'un client (échéance, conservée au r
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
+
+test('V8.49 : « Depuis votre dernière connexion », relations entre joueurs, mémoire du club et du monde', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    await page.evaluate(() => { for (let i = 0; i < 2; i++) { G.pendingEvent = null; advanceMonth(G); } G.pendingEvent = null; closeModal(); G.news.unshift({ text: 'Une grande nouvelle du mois', breaking: true, season: seasonLabel(G), month: calMonth(G) }); });
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    const before = await page.evaluate(() => serializeState(G));
+    await page.reload(); await resume(page); await page.waitForTimeout(600);
+    const wb = await page.textContent('#welcomeBack');
+    assert.match(wb, /Depuis votre dernière connexion/); assert.match(wb, /Mois joués/); assert.match(wb, /Une grande nouvelle du mois/);
+    assert.equal(await page.evaluate(() => serializeState(G)), before, 'le récapitulatif ne modifie pas la partie');
+    await page.click('#welcomeBack button[aria-label="Fermer"]');
+    assert.equal(await page.$('#welcomeBack'), null);
+    // relations sur la fiche (onglet Profil)
+    await page.evaluate(() => { const c = Object.values(G.clubs).find(x => x.squad.length > 5); const [a, b, d] = c.squad.map(id => G.players[id]); a.friends = [b.id]; b.friends = [a.id]; a.rival = d.id; d.rival = a.id; openPlayerDetail(a.id, 'world'); ui.playerTab = 'profil'; renderPage(); });
+    const rel = await page.textContent('#relationsCard');
+    assert.match(rel, /Ami :/); assert.match(rel, /Rival :/);
+    // mémoire du club et du monde
+    await page.evaluate(() => { const c = Object.values(G.clubs)[0]; c.recordBuy = { name: 'Test Record', fee: 12e6, season: '2026-27' }; c.hallOfFame = [{ name: 'Vieux Sage', nat: 'FR', seasons: 10, apps: 300, goals: 40 }]; rememberWorld(G, { kind: 'retour', clubId: c.id, text: 'Un ancien revient à la maison.' }); openClubDetail(c.id, 'world'); });
+    const mem = await page.textContent('#clubMemory');
+    assert.match(mem, /Record d.achat/); assert.match(mem, /Vieux Sage/); assert.match(mem, /Un ancien revient/);
+    await page.evaluate(() => { ui.worldTab = 'records'; navigate('world'); });
+    assert.match(await page.textContent('#worldMemory'), /Un ancien revient/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
