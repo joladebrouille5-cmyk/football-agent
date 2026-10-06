@@ -1462,3 +1462,41 @@ test('V8.47 : marché vivant — profils de clubs, prix négociés, approches, b
   E.seasonClubSpending(s);
   assert.ok(rich.budget < E.clubBudgetScale(rich) * 4.1 && rich.budget > E.clubBudgetScale(rich) * 2);
 });
+
+test('V8.48 : promesses datées (tenues, non tenues, crédit de la parole) et scouting en fourchette avec confiance et risques', () => {
+  const s = newGame();
+  const clients = Object.values(s.players).filter(x => x.club && !x.agentId && !x.retired).slice(0, 3);
+  for (const c of clients) { c.agentId = 'player'; s.agent.portfolio.push(c.id); c.agentTrust = 50; }
+  const [a, b] = clients;
+  // salaire : promise, puis tenue quand le salaire monte de 10 %
+  const r = E.makePromise(s, a.id, 'salaire', []);
+  assert.ok(r.ok && a.agentTrust > 50, 'la promesse rassure');
+  assert.equal(E.promiseCheck(s, a, 'temps').ok, false, 'une promesse à la fois par joueur');
+  a.wage = Math.round(a.wage * 1.15);
+  const news = []; E.checkPromises(s, news);
+  assert.equal(s.agent.careerStats.promisesKept, 1); assert.equal(a.promiseRecord.kept, 1);
+  assert.ok(news.some(n => /Promesse tenue/.test(n.text)));
+  // temps de jeu : non tenue à l'échéance
+  const trust0 = b.agentTrust;
+  const pr = E.makePromise(s, b.id, 'temps', []).promise;
+  s.date.absMonth = pr.due; E.checkPromises(s, []);
+  assert.equal(s.agent.careerStats.promisesBroken, 1);
+  assert.ok(b.agentTrust < trust0, 'confiance en baisse'); assert.equal(E.playerPromise(s, b.id), null);
+  // une deuxième trahison : il n'y croit plus
+  E.makePromise(s, b.id, 'temps', []); s.date.absMonth += 5; E.checkPromises(s, []);
+  const t1 = b.agentTrust; const r2 = E.makePromise(s, b.id, 'temps', []);
+  assert.equal(r2.credible, 0); assert.equal(b.agentTrust, t1, 'plus aucun effet');
+  // parole : bonus ou malus de démarchage à partir de 3 promesses
+  assert.equal(E.agentWord(s).total, 3); assert.ok(E.agentWordBonus(s) < 0, 'parole peu fiable');
+  // scouting : le suivi resserre la fourchette et augmente la confiance
+  const q = Object.values(s.players).find(x => !x.agentId && x.age <= 21 && !x.retired);
+  const w0 = E.potentialRange(s, q), c0 = E.scoutConfidence(s, q).pct;
+  s.followed = [q.id]; for (let i = 0; i < 6; i++) E.updateScoutKnowledge(s);
+  const w1 = E.potentialRange(s, q);
+  assert.ok(w1[1] - w1[0] < w0[1] - w0[0], 'fourchette resserrée');
+  assert.ok(E.scoutConfidence(s, q).pct > c0, 'confiance en hausse');
+  assert.ok(w1[0] <= q.pot + 6 && w1[1] >= q.pot - 6, 'fourchette réaliste');
+  // risques : tous visibles pour un client
+  a.ego = 90; a.greed = 90; a.consistency = 0.2;
+  assert.deepEqual(E.scoutRisks(s, a).seen.map(x => x.id).sort(), ['argent', 'ego', 'fragile'].concat(a.age >= 31 ? ['declin'] : []).concat(a.recentInjuryType ? ['blessure'] : []).concat(a.loyalty <= 28 ? ['fidelite'] : []).concat(a.age <= 23 && a.pot - a.ovr <= 2 ? ['plafond'] : []).sort());
+});
