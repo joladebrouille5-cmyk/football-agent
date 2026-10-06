@@ -836,3 +836,46 @@ test('V8.45 : centre de formation, conseil, stade et partenaire, actualités du 
     assert.ok(await page.$('#eventUiAction'), 'bouton « Ouvrir la négociation »');
   }, { portraits: 'simple' });
 });
+
+test('V8.46 : sauvegardes chiffrées (navigateur, IndexedDB, export .fasave) et anciens formats toujours lisibles', async () => {
+  await withGame({ width: 1280, height: 900 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await advanceMonth(page);
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    const stored = await page.evaluate(() => localStorage.getItem('football_agent_save_v3'));
+    assert.ok(stored.startsWith('FAE1:'), 'sauvegarde chiffrée dans le navigateur');
+    // illisible sans la clé : ni JSON, ni gzip (en-tête 1f 8b) une fois décodée
+    const bytes = Buffer.from(stored.slice(5), 'base64');
+    assert.ok(!(bytes[0] === 0x1f && bytes[1] === 0x8b) && !(bytes[12] === 0x1f && bytes[13] === 0x8b), 'pas de gzip en clair');
+    assert.ok(!bytes.toString('latin1').includes('"agent"'), 'aucun texte de la partie');
+    // deux écritures du même état donnent deux contenus différents (vecteur aléatoire)
+    const again = await page.evaluate(async () => packSaveForStorage(serializeState(G)));
+    assert.notEqual(again, await page.evaluate(async () => packSaveForStorage(serializeState(G))));
+    const before = await page.evaluate(() => serializeState(G));
+    await page.reload(); await resume(page); await page.waitForTimeout(800);
+    assert.equal(await page.evaluate(() => serializeState(G)), before, 'partie identique après rechargement');
+    assert.equal(await page.$('#integrityChip'), null, 'partie honnête : pas d\'alerte');
+    // une ancienne sauvegarde (gzip non chiffré, V8.45) se charge toujours, puis est réécrite chiffrée
+    await page.evaluate(async () => { localStorage.setItem('football_agent_save_v3', await gzipToBase64Inline(serializeState(G))); });
+    await page.reload(); await resume(page); await page.waitForTimeout(800);
+    assert.equal(await page.evaluate(() => serializeState(G)), before, 'ancien format relu');
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    assert.ok((await page.evaluate(() => localStorage.getItem('football_agent_save_v3'))).startsWith('FAE1:'), 'réenregistrée chiffrée');
+    // export : fichier .fasave chiffré, réimportable
+    await page.evaluate(() => openSettingsModal());
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('button:has-text("Exporter la sauvegarde")')]);
+    assert.match(dl.suggestedFilename(), /\.fasave$/);
+    const file = fs.readFileSync(await dl.path(), 'utf8');
+    assert.ok(file.startsWith('FAE1:') && !file.includes('"agent"'), 'fichier exporté chiffré');
+    const cash = await page.evaluate(() => G.agent.cash);
+    await page.evaluate(() => { G.agent.cash = 1; });
+    await page.setInputFiles('.modal input[type=file]', { name: 'partie.fasave', mimeType: 'application/octet-stream', buffer: Buffer.from(file) });
+    await page.waitForFunction(c => G.agent.cash === c, cash, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => G.integrity || null), null, 'fichier chiffré : intégrité intacte');
+    // ancien fichier .json (V8.45) : toujours importable
+    await page.evaluate(() => openSettingsModal());
+    await page.evaluate(() => { G.agent.cash = 1; });
+    await page.setInputFiles('.modal input[type=file]', { name: 'ancienne.json', mimeType: 'application/json', buffer: Buffer.from(before) });
+    await page.waitForFunction(() => G.agent.cash !== 1, null, { timeout: 5000 });
+  }, { portraits: 'simple' });
+});

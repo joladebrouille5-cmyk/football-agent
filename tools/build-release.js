@@ -37,7 +37,7 @@ const obf = JavaScriptObfuscator.obfuscate(js, {
   stringArray: true, stringArrayThreshold: 0.25, stringArrayEncoding: ['base64'],
   stringArrayRotate: true, stringArrayShuffle: true, stringArrayWrappersCount: 1, stringArrayWrappersType: 'variable',
   splitStrings: false,
-  forceTransformStrings: ['Kp7vQ2mZ9wR4tL8xB1nJ6sF3'], // clé de signature des sauvegardes : toujours chiffrée
+  forceTransformStrings: ['Kp7vQ2mZ9wR4tL8xB1nJ6sF3', '^fa-save-v1\\|$'], // clé de signature et sel du chiffrement des sauvegardes : toujours chiffrés
   reservedStrings: ['^__CODE_HASH__$'],                  // emplacement de l'empreinte du code, rempli ci-dessous
   controlFlowFlattening: false,    // coûteux pour la simulation : laissé de côté
   deadCodeInjection: false,
