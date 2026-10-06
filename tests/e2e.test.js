@@ -801,3 +801,38 @@ test('V8.44 : offres reçues, contre-offre, négociation, prêt, tactique et dir
     assert.ok(await page.$('#ownerFinanceCard'));
   }, { portraits: 'simple' });
 });
+
+test('V8.45 : centre de formation, conseil, stade et partenaire, actualités du club, binationaux, message qui ouvre la négociation', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      const c = Object.values(G.clubs).find(x => x.league === 'L1' && x.tier === 3); G.agent.stakes[c.id] = { pct: 60, cost: 0 }; G.agent.careerTier = 3;
+      c.academyLevel = 1; academyIntake(G, [], {});
+      setViewMode('president');
+    });
+    assert.match(await page.innerText('.club-hero'), /Confiance du conseil/i);
+    // onglet Formation : jeunes du centre, signer pro
+    await page.evaluate(() => openMyClub(myClub().id, 'formation'));
+    assert.ok(await page.$('#academyCard'));
+    const before = await page.$$eval('#academyList .merc-row', els => els.length);
+    assert.equal(before, 3);
+    await page.click('#academyList >> text=Signer pro >> nth=0');
+    assert.equal(await page.$$eval('#academyList .merc-row', els => els.length), 2);
+    // Gestion : nouveau stade et club partenaire
+    await page.evaluate(() => openMyClub(myClub().id, 'gestion'));
+    assert.ok(await page.$('#stadiumProjectCard') && await page.$('#partnerCard'));
+    await page.click('#partnerCard >> text=Choisir >> nth=0');
+    assert.ok(await page.evaluate(() => !!myClub().partnerClubId));
+    // actualités : onglet « Mon club »
+    await page.evaluate(() => navigate('news'));
+    assert.match(await page.innerText('.filter-bar'), /Mon club/i);
+    // binational : deux drapeaux et la ligne Nationalités
+    await page.evaluate(() => { const p = Object.values(G.players).find(x => x.nat2 && x.club); openPlayerDetail(p.id, 'dashboard'); ui.playerTab = 'profil'; renderPage(); });
+    assert.match(await page.innerText('#content'), /Nationalités/);
+    // un message qui ouvre la négociation
+    await page.evaluate(() => { const c = myClub(); const p = Object.values(G.players).find(x => x.club && x.club !== c.id && x.age >= 27 && !x.parentClub); p.homegrownClub = c.id; const ev = EVENTS.find(e => e.id === 'pres_ancien'); const t = ev.pick(G); G.pendingEvent = { id: ev.id, playerId: t.p.id, rivalId: null, fromClubId: t.club.id, text: ev.text(t, G), choiceLabels: ev.choices.map(x => x.label) }; showEventModal(); });
+    await page.click('.chat-reply-btn >> nth=0');
+    assert.ok(await page.$('#eventUiAction'), 'bouton « Ouvrir la négociation »');
+  }, { portraits: 'simple' });
+});
