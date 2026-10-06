@@ -896,3 +896,25 @@ test('V8.47 : bilan du mercato (Monde > Mercato, tableau de bord) et politique s
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'pas de débordement sur mobile');
   }, { portraits: 'simple' });
 });
+
+test('V8.48 : promesse depuis la fiche d\'un client (échéance, conservée au rechargement), rapport de scouting, parole de l\'agence', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    const pid = await page.evaluate(() => { G.pendingEvent = null; closeModal(); const p = Object.values(G.players).find(x => x.club && !x.agentId && !x.retired); p.agentId = 'player'; G.agent.portfolio.push(p.id); ui.playerTab = 'apercu'; openPlayerDetail(p.id, 'dashboard'); return p.id; });
+    await page.click('#openPromise');
+    await page.click('.promise-opt:has-text("augmentation")');
+    assert.match(await page.textContent('#promiseCard'), /une augmentation · échéance dans \d+ mois/);
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    await page.reload(); await resume(page); await page.waitForTimeout(600);
+    await page.evaluate(id => { ui.playerTab = 'apercu'; openPlayerDetail(id, 'dashboard'); }, pid);
+    assert.match(await page.textContent('#promiseCard'), /Votre promesse/, 'promesse conservée');
+    // tenue : salaire augmenté, mois suivant
+    await page.evaluate(id => { G.players[id].wage = Math.round(G.players[id].wage * 1.2); const n = []; checkPromises(G, n); pushNews(G, n); navigate('agency'); }, pid);
+    assert.match(await page.textContent('#wordCard'), /1\/1/);
+    // un autre joueur : rapport de scouting avec fourchette, confiance et risques
+    await page.evaluate(() => { const q = Object.values(G.players).find(x => !x.agentId && x.club && !x.retired && x.age <= 22); ui.playerTab = 'apercu'; openPlayerDetail(q.id, 'world'); });
+    const rep = await page.textContent('#scoutReport');
+    assert.match(rep, /Potentiel estimé\s*\d+–\d+/); assert.match(rep, /Confiance du rapport/); assert.match(rep, /Risques repérés/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});
