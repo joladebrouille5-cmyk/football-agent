@@ -782,12 +782,16 @@ test('V8.20 : scénarios avec objectif — mise en place, réussite, échec, sui
   const am = mk('amiens');
   assert.ok(am.agent.loan.left < 7e6 && am.agent.loan.left > 1e6);
   am.clubs.amiens.league = 'L1';
+  // V8.45 : la montée ne suffit plus — budget positif et supporters à 50/100 au moins
+  am.clubs.amiens.budget = -1; am.clubs.amiens.fanMood = 60;
+  E.scenarioCheck(am, []); assert.equal(am.scenarioState.status, 'active', 'budget dans le rouge : pas encore réussi');
+  am.clubs.amiens.budget = 1e6;
   const news = [];
   E.scenarioCheck(am, news);
   assert.equal(am.scenarioState.status, 'won'); assert.ok(!am.agent.loan, 'prêt effacé');
   assert.ok(am.scenarioState.announce);
-  // mode difficile : un an de moins
-  assert.equal(mk('amiens', true).scenarioState.deadlineAbs, 48);
+  // mode difficile : deux ans de moins pour Amiens (V8.45)
+  assert.equal(mk('amiens', true).scenarioState.deadlineAbs, 36);
   // Brésil : client au Brasileirão, transfert vers l'Europe compté
   const br = mk('bresil');
   const st = br.players[br.agent.portfolio[0]];
@@ -1326,4 +1330,109 @@ test('V8.44 : négocier un recrutement, une prolongation, des prêts, et gérer 
   E.generateSeasonGoals(s);
   assert.ok(s.seasonGoals.length === 3 && s.seasonGoals[0].id === 'pres_objectif');
   for (const g of s.seasonGoals) { const v = E.goalProgress(s, g); assert.ok(v >= 0 && v <= 100); }
+});
+
+test('V8.45 : équilibre du propriétaire (grille, masse salariale, descente, libres réservés) et défi Amiens', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  club.budget = 300e6;
+  const target = Object.values(s.players).find(p => p.club && p.club !== club.id && p.age >= 22 && p.age <= 29 && !p.agentId && E.ownerRecruitCheck(s, club, p).ok);
+  const t = E.ownerNegoPreset(s, club, target);
+  assert.ok(t.wage <= t.ceiling, 'offre de départ dans la grille');
+  const over = E.ownerNegotiate(s, club.id, target.id, Object.assign({}, t, { wage: t.ceiling * 2 }), []);
+  assert.equal(over.ok, false); assert.match(over.reason, /grille/);
+  const cap = E.wageCapCheck(s, club, E.clubWageCap(club) * 2);
+  assert.equal(cap.ok, false, 'plafond de masse salariale');
+  // un joueur de haut niveau ne descend pas en Ligue 3 de bon cœur, sauf pour rentrer au pays ou en fin de carrière
+  const l3 = Object.values(s.clubs).find(c => c.league === 'L3');
+  const star = Object.values(s.players).find(p => p.club && p.ovr >= 78 && p.age < 30 && p.nat !== 'FR' && !p.nat2);
+  assert.ok(E.stepDownPenalty(s, star, l3) >= 24);
+  const starFr = Object.assign({}, star, { nat: 'FR' });
+  assert.ok(E.stepDownPenalty(s, starFr, l3) < E.stepDownPenalty(s, star, l3), 'le pays natal adoucit la descente');
+  // les libres réservés en début de partie ne signent pas chez le président avant l'hiver
+  const fa = Object.values(s.players).find(p => !p.club && p.reservedUntil > s.date.absMonth && !p.agentId);
+  if (fa) assert.match(E.ownerRecruitCheck(s, club, fa).reason || '', /hiver/);
+  // dépassement de masse salariale payé plein pot
+  const before = club.budget;
+  const normal = E.clubWageNormal(club);
+  const extra = club.squad.map(id => s.players[id])[0]; extra.wage += normal; // dépassement artificiel
+  E.monthlyClubFinances(s);
+  assert.ok(club.lastIncomeBreakdown.wageOver > 0);
+  void before;
+  // prime de montée et parachute
+  const b0 = l3.budget; E.promotionMoney(s, l3, true, []); assert.ok(l3.budget > b0);
+  // Amiens : club en crise, budget médian, deux meilleurs joueurs vendus, mode difficile en 3 saisons
+  const am = E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: 'negociateur', scenario: 'amiens' });
+  const l3b = am.leagues.L3.clubIds.map(id => am.clubs[id].budget).sort((a, b) => a - b);
+  assert.equal(am.clubs.amiens.budget, l3b[Math.floor(l3b.length / 2)]);
+  assert.ok(am.clubs.amiens.fanMood < 50);
+});
+
+test('V8.45 : centre de formation, carrière de président, binationaux, retours au pays et messages', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  club.academyLevel = 2;
+  // journée des jeunes : 4 jeunes au centre, hors du onze
+  const intake = E.academyIntake(s, [], {});
+  const ids = intake.find(x => x.clubId === club.id).ids;
+  assert.equal(ids.length, E.ACADEMY_INTAKE ? 4 : 4);
+  for (const id of ids) { const p = s.players[id]; assert.ok(p.academy && p.homegrownClub === club.id && p.age <= 18); }
+  const xi = E.squadStrength(s, club).xi;
+  assert.ok(!xi.some(p => p.academy), 'les jeunes du centre jouent en réserve');
+  assert.ok(E.promoteAcademyPlayer(s, ids[0], []).ok); assert.equal(s.players[ids[0]].academy, false);
+  assert.ok(E.releaseAcademyPlayer(s, ids[1], []).ok); assert.equal(s.players[ids[1]].club, null);
+  // indemnité de formation : 5 % au club formateur
+  const kid = s.players[ids[2]]; kid.academy = false;
+  const mid = Object.values(s.clubs).find(c => c.id !== club.id && !E.isClubOwner(s, c.id) && c.tier === 2);
+  E.executeTransfer(s, kid, mid, 1e6, [], { silent: true });
+  const buyer = Object.values(s.clubs).find(c => c.id !== club.id && c.id !== mid.id && c.tier >= 3);
+  const fb = club.budget;
+  kid.lastTransferMonth = null;
+  E.executeTransfer(s, kid, buyer, 2e6, [], { silent: true });
+  assert.equal(club.budget - fb, 100000);
+  // conseil, stade, club partenaire
+  const d = E.boardSeasonUpdate(s, club, true); assert.ok(d > 0 && E.boardTrust(club) > 60);
+  club.budget = 1e9;
+  assert.ok(E.startStadiumProject(s, club.id, {}, []).ok);
+  const target = club.stadiumProject.target;
+  s.date.absMonth = club.stadiumProject.until; E.progressStadiumProjects(s, []);
+  assert.equal(club.stadiumCapacity, target);
+  const partner = E.partnerCandidates(s, club)[0];
+  assert.ok(partner && E.setPartnerClub(s, club.id, partner.id, []).ok);
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  const young = club.squad.map(id => s.players[id]).find(p => p && !p.academy && p.age <= 23 && !p.parentClub);
+  young.lastTransferMonth = null;
+  const lo = E.ownerLoanOut(s, young.id, partner.id, 6, 1, []);
+  assert.ok(lo.ok && lo.partner && young.playBoostUntil === young.loanUntil, 'prêt garanti au partenaire');
+  // binationaux
+  const bi = Object.values(s.players).filter(p => p.nat2);
+  assert.ok(bi.length > 300, 'des binationaux dans le monde');
+  assert.ok(bi.every(p => p.nat2 !== p.nat));
+  assert.equal(E.pickSecondNat({ nat: 'SN', origin: 'waf' }), null, 'pas de double nationalité pour l\'origine majoritaire');
+  const squads = E.nationSquads(s);
+  const minOvr = nat => (squads[nat] || []).length >= 23 ? Math.min(...squads[nat].map(x => x.ovr)) : null;
+  const maxOvr = nat => Math.max(...(squads[nat] || [{ ovr: 0 }]).map(x => x.ovr));
+  const cand = bi.find(p => p.age >= 20 && p.age <= 24 && !(p.caps > 0) && !p.intlNat && p.club && minOvr(p.nat2) !== null && minOvr(p.nat) !== null && maxOvr(p.nat2) + 1 < minOvr(p.nat));
+  if (cand) {
+    cand.ovr = maxOvr(cand.nat2); s.date.absMonth++;
+    E.chooseIntlNations(s, []);
+    assert.equal(cand.intlNat, cand.nat2, 'un binational non retenu par son premier pays choisit l\'autre');
+    s.date.absMonth++; assert.ok(E.nationSquads(s)[cand.nat2].includes(cand));
+  }
+  // le pays natal pèse plus : les rêves et les retours
+  const dreams = Array.from({ length: 400 }, () => E.pickDreamCountry('TR'));
+  assert.ok(dreams.filter(n => n === 'TR').length > 20, 'un Turc rêve aussi de la Süper Lig');
+  // messages : variantes, suites, nouveaux messages
+  for (const id of ['famille_pere', 'journaliste_rumeur', 'pret_demande', 'choix_selection', 'pres_maire', 'pres_conference', 'pres_conseil', 'fu_banc', 'fu_augmentation', 'fu_renfort']) assert.ok(E.EVENTS.some(e => e.id === id), id);
+  const p = Object.values(s.players).find(x => x.personality === 'Arrogant');
+  const texts = new Set(); for (let m = 0; m < 30; m++) { s.date.absMonth = m; texts.add(E.eventVariantText('conflit_entraineur', p, s, 'base')); }
+  assert.ok(texts.size >= 2, 'plusieurs formulations');
+  const client = Object.values(s.players).find(x => x.club && x.agentId === 'player') || (() => { const x = Object.values(s.players).find(y => y.club && !y.agentId); x.agentId = 'player'; s.agent.portfolio.push(x.id); return x; })();
+  s.pendingEvent = null;
+  E.pushFollowUp(s, { id: 'fu_banc', due: s.date.absMonth, playerId: client.id, data: { apps: 0 } });
+  assert.ok(E.maybeTriggerFollowUp(s)); assert.equal(s.pendingEvent.id, 'fu_banc');
+  E.resolveEvent(s, 1); assert.equal(s.pendingEvent, null);
 });
