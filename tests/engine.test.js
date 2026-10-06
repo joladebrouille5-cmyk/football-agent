@@ -1436,3 +1436,29 @@ test('V8.45 : centre de formation, carrière de président, binationaux, retours
   assert.ok(E.maybeTriggerFollowUp(s)); assert.equal(s.pendingEvent.id, 'fu_banc');
   E.resolveEvent(s, 1); assert.equal(s.pendingEvent, null);
 });
+
+test('V8.47 : marché vivant — profils de clubs, prix négociés, approches, bilans de mercato, pas de thésaurisation', () => {
+  const s = newGame();
+  const clubs = Object.values(s.clubs);
+  const profs = new Set(clubs.map(c => E.clubAIProfile(c)));
+  for (const k of Object.keys(E.CLUB_AI_PROFILES)) assert.ok(profs.has(k), 'profil présent : ' + k);
+  assert.equal(E.clubAIProfile(clubs[3]), E.clubAIProfile(clubs[3]), 'profil stable');
+  // prix : contrat qui se termine = rabais ; long contrat = prime
+  const p = Object.values(s.players).find(x => x.club && x.age >= 24 && x.age <= 29 && x.value > 1e6);
+  const buyer = clubs.find(c => c.id !== p.club), seller = s.clubs[p.club];
+  const y = s.startYear;
+  const avg = until => { p.contractUntil = until; let t = 0; for (let i = 0; i < 40; i++) t += E.aiTransferFee(s, p, seller, buyer); return t / 40; };
+  assert.ok(avg(y) < avg(y + 4) * 0.7, 'fin de contrat moins chère');
+  // deux saisons : bilans de mercato, volume de transferts, joueurs trop forts approchés
+  playMonths(s, 24);
+  assert.ok((s.marketLog || []).length >= 3, 'un bilan à chaque fermeture');
+  const e = s.marketLog.find(x => x.count > 0);
+  assert.ok(e && e.total > 0 && e.top.length && e.top[0].fee >= e.top[e.top.length - 1].fee, 'bilan cohérent');
+  const paid = s.marketLog.slice(0, 4).reduce((a, x) => a + x.count, 0);
+  assert.ok(paid >= 150, 'marché actif sur deux saisons : ' + paid);
+  // plus de thésaurisation : un club de l'IA très riche dépense une partie de l'excédent chaque été
+  const rich = clubs.find(c => !E.isClubOwner(s, c.id));
+  rich.budget = E.clubBudgetScale(rich) * 5;
+  E.seasonClubSpending(s);
+  assert.ok(rich.budget < E.clubBudgetScale(rich) * 4.1 && rich.budget > E.clubBudgetScale(rich) * 2);
+});

@@ -879,3 +879,20 @@ test('V8.46 : sauvegardes chiffrées (navigateur, IndexedDB, export .fasave) et 
     await page.waitForFunction(() => G.agent.cash !== 1, null, { timeout: 5000 });
   }, { portraits: 'simple' });
 });
+
+test('V8.47 : bilan du mercato (Monde > Mercato, tableau de bord) et politique sportive des clubs', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { for (let i = 0; i < 7; i++) { G.pendingEvent = null; advanceMonth(G); } G.pendingEvent = null; closeModal(); G.date.absMonth = G.marketLog[0].at; navigate('dashboard'); });
+    assert.match(await page.textContent('#content'), /Bilan du mercato/);
+    await page.click('button:has-text("Tout le bilan")');
+    const txt = await page.textContent('#content');
+    assert.match(txt, /Transferts payants/); assert.match(txt, /Plus gros transferts/); assert.match(txt, /Plus gros acheteur/);
+    await page.evaluate(() => openClubDetail(Object.values(G.clubs).find(c => !isClubOwner(G, c.id)).id, 'world'));
+    assert.match(await page.textContent('#content'), /Politique sportive/);
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    await page.reload(); await resume(page); await page.waitForTimeout(600);
+    assert.ok(await page.evaluate(() => G.marketLog.length >= 1), 'bilans conservés au rechargement');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'pas de débordement sur mobile');
+  }, { portraits: 'simple' });
+});
