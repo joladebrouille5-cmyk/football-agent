@@ -1500,3 +1500,50 @@ test('V8.48 : promesses datées (tenues, non tenues, crédit de la parole) et sc
   a.ego = 90; a.greed = 90; a.consistency = 0.2;
   assert.deepEqual(E.scoutRisks(s, a).seen.map(x => x.id).sort(), ['argent', 'ego', 'fragile'].concat(a.age >= 31 ? ['declin'] : []).concat(a.recentInjuryType ? ['blessure'] : []).concat(a.loyalty <= 28 ? ['fidelite'] : []).concat(a.age <= 23 && a.pot - a.ovr <= 2 ? ['plafond'] : []).sort());
 });
+
+test('V8.49 : relations entre joueurs, mémoire du monde et récapitulatif de session', () => {
+  const s = newGame();
+  // relations : deux coéquipiers installés du même pays finissent amis ; mêmes poste, niveau et gros ego : rivaux
+  const club = Object.values(s.clubs).find(c => c.squad.length >= 20);
+  const sq = club.squad.map(id => s.players[id]);
+  for (const p of sq) p.lastPermanentMove = -50;
+  const [a, b] = sq.filter(p => p.posLine !== 'GK');
+  b.nat = a.nat; a.friends = null; b.friends = null;
+  const one = { players: s.players, clubs: { [club.id]: club }, date: s.date }; // un seul club : boucle rapide
+  for (let i = 0; i < 1500 && !E.areFriends(a, b); i++) { a.friends = null; b.friends = null; E.updatePlayerRelations(one, []); }
+  assert.ok(E.areFriends(a, b) && E.areFriends(b, a), 'amitié réciproque');
+  // un ami dans le club visé : le joueur est plus facile à convaincre
+  const other = Object.values(s.clubs).find(c => c.id !== club.id && c.tier === club.tier);
+  const offer = { targetClubId: other.id, salary: a.wage, years: 3, signingBonus: 0, roleProm: 'rotation' };
+  b.club = other.id; other.squad.push(b.id); club.squad = club.squad.filter(id => id !== b.id);
+  const fr0 = a.friends; a.friends = null;
+  const before = E.playerSide(s, a, offer).score; // même situation, sans l'amitié
+  a.friends = fr0;
+  const after = E.playerSide(s, a, offer);
+  assert.ok(after.score > before || before >= 100, 'un ami attire : ' + before + ' -> ' + after.score); assert.ok(after.reactions.some(r => /ami/.test(r)));
+  // départ d'un ami : le moral de celui qui reste baisse
+  const c2 = Object.values(s.clubs).find(c => c.id !== club.id && c.id !== other.id);
+  const m0 = a.morale; b.club = club.id; club.squad.push(b.id); other.squad = other.squad.filter(id => id !== b.id);
+  E.executeTransfer(s, b, c2, 1e6, []);
+  assert.ok(a.morale < m0, 'le départ d\'un ami pèse');
+  // mémoire : record d'achat, retour dans un ancien club, légende à la retraite
+  const p = Object.values(s.players).find(x => x.club && x.club !== club.id && !x.agentId && x.age < 30);
+  p.career = [{ season: '2020-21', club: club.id, apps: 30, goals: 5 }];
+  const rec0 = club.recordBuy;
+  const news = []; E.executeTransfer(s, p, club, 9e7, news);
+  assert.equal(club.recordBuy.fee, 9e7);
+  assert.ok(news.some(n => /Retour aux sources/.test(n.text)), 'retour annoncé');
+  assert.ok(s.worldMemory.some(e => e.kind === 'retour' && e.clubId === club.id));
+  if (rec0) assert.ok(s.worldMemory.some(e => e.kind === 'record'));
+  const vet = Object.values(s.players).find(x => x.club && x.age >= 30 && !x.agentId);
+  vet.career = Array.from({ length: 9 }, (_, i) => ({ season: `20${10 + i}-${11 + i}`, club: vet.club, apps: 30, goals: 4 }));
+  const vc = s.clubs[vet.club];
+  E.retirePlayer(s, vet);
+  assert.ok((vc.hallOfFame || []).some(h => h.name === vet.name && h.seasons === 9), 'légende du club');
+  // session : récapitulatif depuis le repère
+  const mark = E.startSession(s);
+  s.agent.cash += 250000; s.date.absMonth += 3; s.news.unshift({ text: 'Grosse nouvelle', breaking: true });
+  const r = E.sessionRecap(s, mark, Date.now() - 86400000);
+  assert.equal(r.months, 3); assert.equal(r.cash, 250000); assert.equal(r.news[0].text, 'Grosse nouvelle');
+  assert.equal(E.sessionRecap(s, Object.assign({}, mark, { id: 'autre|2000' })), null, 'repère d\'une autre partie ignoré');
+});
