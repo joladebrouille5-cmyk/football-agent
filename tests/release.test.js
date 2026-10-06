@@ -57,22 +57,33 @@ async function advance(page) {
     break;
   }
 }
-// sauvegarde compressée du navigateur : lecture / réécriture (ce que ferait un tricheur)
-const readSave = page => page.evaluate(async () => {
-  const b64 = localStorage.getItem('football_agent_save_v3'); const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  return await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
-});
-const writeSave = (page, str) => page.evaluate(async str => {
-  const b = new Uint8Array(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+// sauvegarde du navigateur : lecture / réécriture (ce que ferait un tricheur). V8.46 : elle est chiffrée ; le
+// tricheur simulé ici a même extrait la clé du code source, la signature doit encore le trahir.
+const SEED = fs.readFileSync(require('./load-engine').GAME_FILE, 'utf8').match(/const SAVE_SIG_SEED = '([^']+)'/)[1];
+const readSave = page => page.evaluate(async seed => {
+  const s = localStorage.getItem('football_agent_save_v3');
+  if (!s.startsWith('FAE1:')) throw new Error('sauvegarde non chiffrée');
+  const key = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', new TextEncoder().encode('fa-save-v1|' + seed)), 'AES-GCM', false, ['decrypt']);
+  const all = Uint8Array.from(atob(s.slice(5)), c => c.charCodeAt(0));
+  const gz = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.subarray(0, 12) }, key, all.subarray(12));
+  return await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}, SEED);
+const writeSave = (page, str, encrypt) => page.evaluate(async ([str, seed, encrypt]) => {
+  let b = new Uint8Array(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  if (encrypt) {
+    const key = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', new TextEncoder().encode('fa-save-v1|' + seed)), 'AES-GCM', false, ['encrypt']);
+    const iv = crypto.getRandomValues(new Uint8Array(12)), ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, b));
+    b = new Uint8Array(12 + ct.length); b.set(iv); b.set(ct, 12);
+  }
   let bin = ''; for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
-  localStorage.setItem('football_agent_save_v3', btoa(bin));
-}, str);
+  localStorage.setItem('football_agent_save_v3', (encrypt ? 'FAE1:' : '') + btoa(bin));
+}, [str, SEED, encrypt]);
 
 test('Version protégée : partie jouée par l\'interface, état inaccessible depuis la console, sauvegarde trafiquée détectée', { skip: !fs.existsSync(DIST) && 'dist absent : npm run build' }, async () => {
   await withRelease(async page => {
     // le code est obfusqué : ni noms internes, ni commentaires
     const src = fs.readFileSync(DIST, 'utf8');
-    for (const word of ['saveSignature', 'serializeState', 'SAVE_SIG_K', 'chasse aux tricheries', 'function advanceMonth']) assert.ok(!src.includes(word), 'visible dans la page : ' + word);
+    for (const word of ['saveSignature', 'serializeState', 'SAVE_SIG_K', SEED, 'fa-save-v1', 'chasse aux tricheries', 'function advanceMonth']) assert.ok(!src.includes(word), 'visible dans la page : ' + word);
     // console : l'état de la partie et la signature ne sont pas atteignables
     assert.deepEqual(await page.evaluate(() => [typeof G, typeof saveSignature, typeof serializeState, typeof saveGame, typeof advanceMonth]), ['undefined', 'undefined', 'undefined', 'undefined', 'undefined']);
     // une vraie partie, par les boutons
@@ -88,12 +99,12 @@ test('Version protégée : partie jouée par l\'interface, état inaccessible de
     // tricheur 1 : trésorerie modifiée dans la sauvegarde
     const save = await readSave(page);
     assert.ok(save.startsWith('{"_sig":"'), 'sauvegarde signée');
-    await writeSave(page, save.replace(/"cash":-?[\d.]+/, '"cash":999999999'));
+    await writeSave(page, save.replace(/"cash":-?[\d.]+/, '"cash":999999999'), true); // rechiffrée avec la clé volée
     await page.reload(); await page.click('#startContinue'); await page.waitForSelector('#integrityChip');
     assert.match(await page.textContent('#integrityChip'), /modifiée/i);
     assert.match(await page.textContent('#topbarStats'), /1000M|999/);
     // tricheur 2 : signature retirée en espérant passer pour une ancienne sauvegarde
-    await writeSave(page, save.replace(/^\{"_sig":"[^"]+",/, '{').replace(/"cash":-?[\d.]+/, '"cash":999999999'));
+    await writeSave(page, save.replace(/^\{"_sig":"[^"]+",/, '{').replace(/"cash":-?[\d.]+/, '"cash":999999999'), false); // ancien format
     await page.reload(); await page.click('#startContinue'); await page.waitForSelector('#integrityChip');
     assert.match(await page.textContent('#integrityChip'), /modifiée/i);
     // la marque reste même après une sauvegarde par le jeu
