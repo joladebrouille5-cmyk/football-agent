@@ -17,6 +17,8 @@
   "analytics_engine_datasets": [
     { "binding": "STATS", "dataset": "football_agent" }
   ],
+  // garde les variables et secrets ajoutés dans le tableau de bord (STATS_KEY, CF_API_TOKEN) à chaque déploiement
+  "keep_vars": true,
   "vars": {
     "CF_ACCOUNT_ID": "675db9e6f495a2bb0eed3ad0ae606a0c"
   }
