@@ -945,3 +945,28 @@ test('V8.49 : « Depuis votre dernière connexion », relations entre joueurs, m
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
+
+test('V8.50 : agence — prévisions, préavis dans « À traiter », garde-fou avant agrandissement, réemménagement à moitié prix', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); G.date.absMonth = 24; G.agent.officeLevel = 3; G.agent.reputation = 70; G.agent.cash = 5.2e6; navigate('agency'); });
+    assert.match(await page.textContent('#forecastCard'), /Solde mensuel sans transfert/);
+    assert.match(await page.textContent('#forecastCard'), /tient/);
+    // agrandir avec à peine de quoi payer : avertissement
+    await page.click('#upgradeOfficeBtn');
+    assert.match(await page.textContent('.modal'), /Agrandir, vraiment/);
+    await page.click('.modal-close');
+    assert.equal(await page.evaluate(() => G.agent.officeLevel), 3, 'rien acheté sans confirmation');
+    // préavis puis déménagement : action urgente, puis moitié prix
+    await page.evaluate(() => { G.agent.cash = -2e6; monthlyAgencyIncomeExpense(G, []); navigate('dashboard'); });
+    assert.match(await page.textContent('#content'), /Déménagement le mois prochain/);
+    await page.evaluate(() => { G.date.absMonth++; monthlyAgencyIncomeExpense(G, []); G.agent.cash = 2e7; G.agent.debtMonths = 0; navigate('agency'); });
+    assert.equal(await page.evaluate(() => G.agent.officeLevel), 2);
+    assert.match(await page.textContent('#upgradeOfficeBtn'), /moitié prix/);
+    assert.match(await page.textContent('#forecastCard'), /Réemménagement à moitié prix/);
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    await page.reload(); await resume(page); await page.waitForTimeout(600);
+    assert.equal(await page.evaluate(() => officeUpgradeCost(G)), 600000, 'remise conservée au rechargement');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  }, { portraits: 'simple' });
+});

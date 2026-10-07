@@ -1547,3 +1547,41 @@ test('V8.49 : relations entre joueurs, mémoire du monde et récapitulatif de se
   assert.equal(r.months, 3); assert.equal(r.cash, 250000); assert.equal(r.news[0].text, 'Grosse nouvelle');
   assert.equal(E.sessionRecap(s, Object.assign({}, mark, { id: 'autre|2000' })), null, 'repère d\'une autre partie ignoré');
 });
+
+test('V8.50 : agence — préavis, un seul niveau perdu puis répit, rachat à moitié prix, faillite moins brutale, prévisions', () => {
+  const s = newGame();
+  s.date.absMonth = 24;
+  const ps = Object.values(s.players).filter(p => p.club && !p.agentId && p.ovr >= 72).slice(0, 14);
+  for (const p of ps) { p.agentId = 'player'; s.agent.portfolio.push(p.id); }
+  const a = s.agent;
+  a.officeLevel = 4; a.cash = -2e6; a.reputation = 70;
+  // frais de suivi plafonnés : 6 000 € par client au plus
+  assert.ok(E.clientFollowUpCost(s) <= 14 * 6000);
+  // 1er mois : préavis seulement
+  let news = []; E.monthlyAgencyIncomeExpense(s, news);
+  assert.equal(a.officeLevel, 4); assert.ok(news.some(n => /Préavis/.test(n.text)));
+  // 2e mois : un niveau perdu, rachat à moitié prix ouvert
+  s.date.absMonth++; news = []; E.monthlyAgencyIncomeExpense(s, news);
+  assert.equal(a.officeLevel, 3); assert.ok(news.some(n => /déménage/.test(n.text)));
+  assert.equal(a.officeRebuy.level, 4);
+  // répit : pas d'autre déménagement pendant 6 mois, même très endetté (faillite neutralisée pour ce test)
+  for (let i = 0; i < 5; i++) { s.date.absMonth++; a.debtMonths = 0; a.cash = -2e6; E.monthlyAgencyIncomeExpense(s, []); }
+  assert.equal(a.officeLevel, 3, 'un seul niveau perdu');
+  // rachat à moitié prix
+  a.cash = 1e7; a.debtMonths = 0;
+  assert.equal(E.officeUpgradeCost(s), E.OFFICE_LEVELS[3].cost / 2);
+  assert.ok(E.upgradeOffice(s).ok); assert.equal(a.officeLevel, 4); assert.equal(a.cash, 1e7 - E.OFFICE_LEVELS[3].cost / 2);
+  assert.equal(a.officeRebuy, null);
+  // la trésorerie remonte : plus de préavis
+  a.officeWarnedAt = s.date.absMonth; E.monthlyAgencyIncomeExpense(s, []); assert.equal(a.officeWarnedAt, null);
+  // prévisions cohérentes
+  const fc = E.agencyForecast(s);
+  assert.equal(fc.costs, fc.rent + fc.staff + fc.clients + fc.invest + fc.loan);
+  assert.ok(fc.rent === 70000 * 1 || fc.rent > 0); assert.ok(fc.months > 0);
+  assert.ok(E.agencyForecast(s, 5).costs > fc.costs, 'le niveau supérieur coûte plus');
+  // faillite : un niveau de moins, on garde la capacité de ce niveau
+  a.cash = -1e6; a.debtMonths = 5; a.stakes = {}; a.officeMovedAt = s.date.absMonth;
+  news = []; E.monthlyAgencyIncomeExpense(s, news);
+  assert.equal(a.officeLevel, 3); assert.equal(a.portfolio.length, E.OFFICE_LEVELS[2].cap);
+  assert.ok(news.some(n => /Faillite/.test(n.text)));
+});
