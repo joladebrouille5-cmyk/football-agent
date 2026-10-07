@@ -147,6 +147,11 @@ test('V8.26 : dist/ est un site complet (accueil, manifeste, service worker, con
   for (const ref of [...page.matchAll(/<link[^>]+href="([^"]+)"/g)].map(m => m[1]).filter(h => !/^https?:/.test(h)))
     assert.ok(fs.existsSync(path.join(dir, ref)), 'fichier référencé par la page présent : ' + ref);
   assert.ok(fs.existsSync(path.join(dir, 'confidentialite.html')), 'page Mentions et confidentialité');
+  // V8.51 : tableau de bord privé des statistiques, non référencé, et confidentialité à jour
+  const st = fs.readFileSync(path.join(dir, 'stats.html'), 'utf8');
+  assert.match(st, /noindex/); assert.match(st, /\/api\/stats/);
+  assert.match(fs.readFileSync(path.join(dir, 'confidentialite.html'), 'utf8'), /Statistiques anonymes du jeu/);
+  assert.match(siteHeaders()['content-security-policy'], /connect-src 'self'/, 'envoi des statistiques au site lui-même');
   assert.match(siteHeaders()['content-security-policy'] || '', /default-src 'self'/, 'politique de sécurité du contenu');
   assert.match(fs.readFileSync(path.join(dir, '_redirects'), 'utf8'), /football-agent-8-2-20\.html\s+\/\s+301/, 'ancienne adresse redirigée');
   assert.ok(!fs.readdirSync(dir).some(f => /football-agent-8-2-20|\.src\.js$/.test(f)), 'aucun code source lisible publié');

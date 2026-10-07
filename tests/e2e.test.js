@@ -970,3 +970,48 @@ test('V8.50 : agence — prévisions, préavis dans « À traiter », garde-fou 
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
   }, { portraits: 'simple' });
 });
+
+test('V8.51 : statistiques anonymes (session, écrans, fonctions, erreurs, signalement), désactivables', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    const sent = [];
+    await page.route('**/api/e', async route => { try { sent.push(...JSON.parse(route.request().postData() || '[]')); } catch (e) { /* */ } await route.fulfill({ status: 204 }); });
+    // hors du vrai site : rien n'est envoyé
+    await page.click('text=Lancer ma carrière');
+    await page.waitForTimeout(300);
+    assert.equal(sent.length, 0, 'aucun envoi en local');
+    // site simulé : session, écrans, fonctions, erreur, fin de session
+    await page.evaluate(() => { localStorage.setItem('football_agent_tm_force', '1'); });
+    assert.equal(await page.evaluate(() => saveGame()), true);
+    await page.reload(); await resume(page); await page.waitForTimeout(400);
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); navigate('market'); navigate('agency'); navigate('market'); openReportModal(); closeModal(); window.dispatchEvent(new ErrorEvent('error', { message: 'boom test' })); });
+    await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(400);
+    const by = t => sent.filter(e => e.t === t);
+    const ses = by('session')[0];
+    assert.ok(ses && ses.u && ses.v && ses.l === 'fr' && ses.d === 'mobile' && ses.m === 'agent', 'début de session');
+    assert.equal(ses.a, 'new'); assert.equal(ses.b, 'nouveau', 'premier passage avec les statistiques');
+    assert.ok(!JSON.stringify(sent).includes(await page.evaluate(() => G.agent.name)), 'jamais le nom de l\'agent');
+    assert.equal(by('screen').find(e => e.a === 'market').n[0], 2, 'écrans comptés');
+    assert.ok(by('screen').some(e => e.a === '_total'), 'durée de session');
+    assert.ok(by('feature').some(e => e.a === 'signalement'), 'fonctions utilisées');
+    assert.ok(by('error').some(e => e.a === 'boom test'), 'erreur remontée');
+    // signalement sans sauvegarde
+    await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true }); openSettingsModal(); });
+    await page.click('#openReport');
+    await page.fill('#reportText', 'Mon agence a perdu des places');
+    await page.uncheck('#reportSave');
+    await page.click('#reportSend');
+    await page.waitForTimeout(300);
+    const rep = by('report')[0];
+    assert.ok(rep && rep.a === 'Mon agence a perdu des places' && /^[A-Z0-9]{6}$/.test(rep.b), 'signalement envoyé avec une référence');
+    // nouvelle visite le même jour : joueur qui revient
+    await page.reload(); await resume(page); await page.waitForTimeout(400);
+    assert.equal(by('session').length, 2); assert.equal(by('session')[1].b, 'meme_jour');
+    assert.equal(by('session')[1].u, ses.u, 'même identifiant aléatoire');
+    // désactivées : plus rien
+    const n = sent.length;
+    await page.evaluate(() => { setSetting('stats', 'off'); navigate('dashboard'); tmEndSession(); tmError('après coupure'); });
+    await page.waitForTimeout(300);
+    assert.equal(sent.length, n, 'plus aucun envoi une fois désactivées');
+  }, { portraits: 'simple' });
+});
