@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Football Agent — Statistiques</title>
+<style>
+:root { --bg:#05080a; --card:#0d1418; --line:#1f2b31; --ink:#e8f0ec; --muted:#8fa29b; --bar:#c6f135; --bar-soft:#3b4a1a; --bad:#ff6b6b; }
+@media (prefers-color-scheme: light) { :root { --bg:#eef2f0; --card:#ffffff; --line:#d5dfda; --ink:#0d1a14; --muted:#5b6d66; --bar:#4d7c0f; --bar-soft:#dbe7c6; --bad:#c62828; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+main { max-width:1100px; margin:0 auto; padding:16px; }
+h1 { font-size:22px; margin:8px 0 2px; letter-spacing:.02em; }
+.muted { color:var(--muted); font-size:13px; }
+.bar-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+input, select, button { font:inherit; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
+button { cursor:pointer; font-weight:700; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; min-width:0; }
+.card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:0 0 10px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:12px; }
+.kpi b { display:block; font-size:28px; font-variant-numeric:tabular-nums; }
+.row { display:grid; grid-template-columns:minmax(80px,38%) 1fr auto; gap:8px; align-items:center; font-size:13px; padding:3px 0; }
+.row .lab { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.track { height:10px; border-radius:0 4px 4px 0; background:transparent; }
+.fill { height:10px; background:var(--bar); border-radius:0 4px 4px 0; min-width:2px; }
+.num { font-variant-numeric:tabular-nums; color:var(--ink); }
+.cols { display:flex; align-items:flex-end; gap:2px; height:140px; border-bottom:1px solid var(--line); }
+.col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; height:100%; position:relative; }
+.col .a { background:var(--bar); border-radius:4px 4px 0 0; }
+.col .n { background:var(--bar-soft); border-radius:4px 4px 0 0; margin-top:2px; }
+.col:hover .a { outline:2px solid var(--ink); }
+.axis { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px; }
+.err { color:var(--bad); font-size:13px; }
+.report { border-top:1px solid var(--line); padding:8px 0; font-size:13px; }
+.report:first-of-type { border-top:0; }
+.legend { display:flex; gap:12px; font-size:12px; color:var(--muted); margin-top:6px; }
+.sw { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:middle; margin-right:4px; }
+#tip { position:fixed; pointer-events:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:12px; display:none; z-index:5; }
+</style>
+</head>
+<body>
+<main>
+<h1>📊 Football Agent — statistiques</h1>
+<p class="muted">Données anonymes envoyées par le jeu depuis play.footagent.workers.dev (joueurs qui ont laissé « Statistiques anonymes » activé). Page privée : mot de passe défini dans le secret STATS_KEY.</p>
+<div class="bar-row">
+  <input id="key" type="password" placeholder="Mot de passe" autocomplete="current-password" aria-label="Mot de passe">
+  <select id="days" aria-label="Période"><option value="7">7 jours</option><option value="30" selected>30 jours</option><option value="90">90 jours</option></select>
+  <button id="go">Afficher</button>
+  <span id="status" class="muted"></span>
+</div>
+<div id="out"></div>
+</main>
+<div id="tip" role="tooltip"></div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  try { $('key').value = localStorage.getItem('fa_stats_key') || ''; } catch (e) {}
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fmt(n) { n = Math.round(+n || 0); return n.toLocaleString('fr-FR'); }
+  var LABELS = { 'new': 'Nouveaux', nouveau: 'Nouveau joueur', meme_jour: 'Revenu le même jour', 'J+1': 'Revenu le lendemain', 'J+2-7': 'Revenu sous une semaine', 'J+8-30': 'Revenu sous un mois', 'J+30+': 'Revenu après un mois',
+    mobile: 'Mobile', tablette: 'Tablette', ordi: 'Ordinateur', agent: 'Agent', president: 'Président à plein temps', 'agent+club': 'Agent avec un club', '': '(inconnu)' };
+  function lab(k) { return LABELS[k] != null ? LABELS[k] : k; }
+  function card(title, body) { return '<div class="card"><h2>' + esc(title) + '</h2>' + body + '</div>'; }
+  function bars(rows, opts) {
+    opts = opts || {};
+    if (!rows) return '<p class="muted">Aucune donnée.</p>';
+    if (rows.error) return '<p class="err">Requête impossible : ' + esc(rows.error) + '</p>';
+    if (!rows.length) return '<p class="muted">Aucune donnée sur la période.</p>';
+    var max = Math.max.apply(null, rows.map(function (r) { return +r.n || 0; })) || 1;
+    return rows.map(function (r) {
+      var k = opts.key ? opts.key(r) : lab(r.k);
+      return '<div class="row" data-tip="' + esc(k + ' : ' + fmt(r.n)) + '"><span class="lab" title="' + esc(k) + '">' + esc(k) + '</span><span class="track"><span class="fill" style="display:block;width:' + Math.max(1, (+r.n / max) * 100) + '%"></span></span><span class="num">' + fmt(r.n) + '</span></div>';
+    }).join('');
+  }
+  function daily(rows) {
+    if (!rows || rows.error) return '<p class="err">' + esc(rows && rows.error || 'Aucune donnée.') + '</p>';
+    if (!rows.length) return '<p class="muted">Aucune session sur la période.</p>';
+    var max = Math.max.apply(null, rows.map(function (r) { return +r.sessions || 0; })) || 1;
+    var cols = rows.map(function (r) {
+      var s = +r.sessions || 0, n = Math.min(s, +r.newcomers || 0);
+      return '<div class="col" data-tip="' + esc(r.day + ' · ' + fmt(s) + ' sessions, dont ' + fmt(n) + ' nouveaux') + '"><div class="a" style="height:' + ((s - n) / max) * 100 + '%"></div><div class="n" style="height:' + (n / max) * 100 + '%"></div></div>';
+    }).join('');
+    return '<div class="cols">' + cols + '</div><div class="axis"><span>' + esc(rows[0].day) + '</span><span>' + esc(rows[rows.length - 1].day) + '</span></div>' +
+      '<div class="legend"><span><span class="sw" style="background:var(--bar)"></span>Joueurs qui reviennent</span><span><span class="sw" style="background:var(--bar-soft)"></span>Nouveaux joueurs</span></div>';
+  }
+  function render(res) {
+    var d = res.data || {};
+    var sessions = (d.daily && d.daily.length) ? d.daily.reduce(function (a, r) { return a + (+r.sessions || 0); }, 0) : 0;
+    var newcomers = (d.daily && d.daily.length) ? d.daily.reduce(function (a, r) { return a + (+r.newcomers || 0); }, 0) : 0;
+    var players = d.players && d.players[0] ? d.players[0].players : null;
+    var dur = d.duration && d.duration[0] ? d.duration[0] : null;
+    var html = '<div class="kpis">' +
+      '<div class="card kpi"><h2>Joueurs</h2><b>' + (players != null ? fmt(players) : '—') + '</b><span class="muted">navigateurs différents</span></div>' +
+      '<div class="card kpi"><h2>Sessions</h2><b>' + fmt(sessions) + '</b><span class="muted">sur ' + res.days + ' jours</span></div>' +
+      '<div class="card kpi"><h2>Nouveaux</h2><b>' + fmt(newcomers) + '</b><span class="muted">premières parties</span></div>' +
+      '<div class="card kpi"><h2>Durée moyenne</h2><b>' + (dur ? fmt(dur.minutes) + ' min' : '—') + '</b><span class="muted">' + (dur ? fmt(dur.months) + ' mois de jeu par session' : '') + '</span></div></div>';
+    html += '<div class="card" style="margin-bottom:12px"><h2>Sessions par jour</h2>' + daily(d.daily) + '</div>';
+    html += '<div class="grid">' +
+      card('Fidélité (sessions)', bars(d.returning)) +
+      card('Pays', bars(d.countries)) +
+      card('Appareils', bars(d.devices)) +
+      card('Langues', bars(d.langs)) +
+      card('Versions', bars(d.versions)) +
+      card('Modes de jeu', bars(d.modes)) +
+      card('Scénarios', bars(d.scenarios)) +
+      card('Écrans les plus vus', bars(d.screens)) +
+      card('Fonctions utilisées', bars(d.features)) +
+      card('Saisons atteintes', bars(d.seasons, { key: function (r) { return 'Saison ' + r.k; } })) +
+      card('Moments clés', bars(d.moments)) +
+      card('Erreurs les plus fréquentes', bars(d.errors, { key: function (r) { return r.k + ' (v' + r.v + ')'; } })) +
+      '</div>';
+    var rep = d.reports;
+    html += '<div class="card" style="margin-top:12px"><h2>Signalements</h2>' + (!rep || rep.error ? '<p class="err">' + esc(rep && rep.error || 'Aucun.') + '</p>' : !rep.length ? '<p class="muted">Aucun signalement sur la période.</p>' :
+      rep.map(function (r) { return '<div class="report"><div class="muted">' + esc(r.at) + ' · réf. ' + esc(r.ref) + ' · v' + esc(r.v) + ' · ' + esc(lab(r.dev)) + ' · ' + esc(r.country) + '</div>' + esc(r.text) + '</div>'; }).join('')) + '</div>';
+    $('out').innerHTML = html;
+  }
+  function load() {
+    var key = $('key').value.trim();
+    if (!key) { $('status').textContent = 'Entrez le mot de passe.'; return; }
+    try { localStorage.setItem('fa_stats_key', key); } catch (e) {}
+    $('status').textContent = 'Chargement…';
+    fetch('/api/stats?days=' + $('days').value, { headers: { 'x-stats-key': key }, cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (x) {
+        if (x.s === 401) { $('status').textContent = 'Mot de passe incorrect.'; return; }
+        if (x.j.error === 'setup') { $('status').textContent = 'Configuration incomplète : ajoutez le secret ' + x.j.missing + ' dans Cloudflare (Workers > play > Paramètres > Variables et secrets).'; return; }
+        if (x.s !== 200) { $('status').textContent = 'Erreur ' + x.s; return; }
+        $('status').textContent = ''; render(x.j);
+      }).catch(function () { $('status').textContent = 'Impossible de joindre le serveur.'; });
+  }
+  $('go').addEventListener('click', load);
+  $('key').addEventListener('keydown', function (e) { if (e.key === 'Enter') load(); });
+  var tip = $('tip');
+  document.addEventListener('mousemove', function (e) {
+    var t = e.target.closest && e.target.closest('[data-tip]');
+    if (!t) { tip.style.display = 'none'; return; }
+    tip.textContent = t.getAttribute('data-tip'); tip.style.display = 'block';
+    tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+  });
+  if ($('key').value) load();
+})();
+</script>
+</body>
+</html>

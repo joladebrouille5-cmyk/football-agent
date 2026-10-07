@@ -1,12 +1,23 @@
-// Hébergement Cloudflare (Workers + fichiers statiques) — V8.26
-// Cloudflare lance `npm run build` (produit dist/) puis `npx wrangler deploy`, qui publie dist/ tel quel.
+// Hébergement Cloudflare (Workers + fichiers statiques) — V8.26, programme et statistiques anonymes en V8.51
+// Cloudflare lance `npm run build` (produit dist/) puis `npx wrangler deploy`, qui publie dist/ et worker/index.js.
 // Les fichiers dist/_headers (sécurité) et dist/_redirects (anciennes adresses) sont pris en compte.
+// Secrets à créer dans le tableau de bord (Workers > play > Paramètres > Variables et secrets) pour le tableau de
+// bord privé /stats : STATS_KEY (mot de passe de votre choix) et CF_API_TOKEN (jeton « Account Analytics : Read »).
 {
   "name": "play",                 // adresse : https://play.footagent.workers.dev
+  "main": "worker/index.js",
   "workers_dev": true,
   "preview_urls": false,
   "compatibility_date": "2026-09-01",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "analytics_engine_datasets": [
+    { "binding": "STATS", "dataset": "football_agent" }
+  ],
+  "vars": {
+    "CF_ACCOUNT_ID": "675db9e6f495a2bb0eed3ad0ae606a0c"
   }
 }
