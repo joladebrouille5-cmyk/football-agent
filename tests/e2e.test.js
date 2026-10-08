@@ -395,8 +395,9 @@ test('V8.18 : pages regroupées, cérémonie, dernier jour du mercato, scénario
     await page.evaluate(() => { setTimeStep('month'); while (calMonth(G) !== 7) { G.pendingEvent = null; advanceMonth(G); } G.pendingEvent = null; renderPage(); });
     await page.click('#fabAdvance');
     // le passage du mois est asynchrone : attendre le bilan avant de le fermer, puis la cérémonie qui suit
-    await page.waitForFunction(() => document.querySelector('#modalRoot .modal-head'), null, { timeout: 20000 });
-    await page.evaluate(() => continueFromRecap());
+    // juillet (fin de saison) est le mois le plus lourd : jusqu'à 60 s sur une machine de CI lente
+    await page.waitForFunction(() => document.querySelector('#modalRoot .modal-head') || /Cérémonie de fin de saison/i.test((document.getElementById('modalRoot') || {}).innerText || ''), null, { timeout: 60000 });
+    await page.evaluate(() => { if (!/Cérémonie de fin de saison/i.test(document.getElementById('modalRoot').innerText)) continueFromRecap(); });
     await page.waitForFunction(() => /Cérémonie de fin de saison/i.test(document.getElementById('modalRoot').innerText), null, { timeout: 10000 });
     assert.match(await page.innerText('#modalRoot'), /Cérémonie de fin de saison[\s\S]*Ballon d'Or[\s\S]*Agent de l'année/i);
     assert.equal(await page.evaluate(() => readPantheon().length), 1, 'carrière au Panthéon');

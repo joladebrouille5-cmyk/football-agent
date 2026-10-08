@@ -9037,7 +9037,7 @@ function advanceMonth(state, opts = {}) {
   const wasLastMonthOfSeason = (month === 7);
   let seasonSummary = null;
   // traité AVANT l'avancée de la date : les trophées/records/actus de fin de saison portent ainsi le bon millésime
-  if (wasLastMonthOfSeason) { seasonSummary = processEndOfSeason(state, news); state.titleSquads = null; }
+  if (wasLastMonthOfSeason) { seasonSummary = processEndOfSeason(state, news); state.titleSquads = null; ensureGoalkeepers(state, news); } // V8.56 : retraites et fins de contrat de juillet
   advanceDate(state);
   // V8.18 : au mois, le dernier mois d'une fenêtre s'ouvre sur les offres de dernière minute (à la semaine : en 4e semaine)
   if (!opts.fromWeek && isMercatoDeadline(state)) deadlineDayOffers(state, news);
