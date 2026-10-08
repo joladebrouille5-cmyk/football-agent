@@ -74,7 +74,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       assert.ok(await page.evaluate(id => G.players[id].club, sid));
       for (let i = 0; i < 3; i++) await advanceMonth(page);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'pas de débordement horizontal');
-      await page.waitForTimeout(500); // la sauvegarde compressée est asynchrone
+      await page.evaluate(() => saveGame()); // V8.56 : la sauvegarde attend un instant de calme ; on la force ici
       const before = await page.evaluate(() => serializeState(G));
       await page.reload(); await resume(page); await page.waitForTimeout(800);
       assert.equal(await page.evaluate(() => serializeState(G)), before);
@@ -395,8 +395,9 @@ test('V8.18 : pages regroupées, cérémonie, dernier jour du mercato, scénario
     await page.evaluate(() => { setTimeStep('month'); while (calMonth(G) !== 7) { G.pendingEvent = null; advanceMonth(G); } G.pendingEvent = null; renderPage(); });
     await page.click('#fabAdvance');
     // le passage du mois est asynchrone : attendre le bilan avant de le fermer, puis la cérémonie qui suit
-    await page.waitForFunction(() => document.querySelector('#modalRoot .modal-head'), null, { timeout: 20000 });
-    await page.evaluate(() => continueFromRecap());
+    // juillet (fin de saison) est le mois le plus lourd : jusqu'à 60 s sur une machine de CI lente
+    await page.waitForFunction(() => document.querySelector('#modalRoot .modal-head') || /Cérémonie de fin de saison/i.test((document.getElementById('modalRoot') || {}).innerText || ''), null, { timeout: 60000 });
+    await page.evaluate(() => { if (!/Cérémonie de fin de saison/i.test(document.getElementById('modalRoot').innerText)) continueFromRecap(); });
     await page.waitForFunction(() => /Cérémonie de fin de saison/i.test(document.getElementById('modalRoot').innerText), null, { timeout: 10000 });
     assert.match(await page.innerText('#modalRoot'), /Cérémonie de fin de saison[\s\S]*Ballon d'Or[\s\S]*Agent de l'année/i);
     assert.equal(await page.evaluate(() => readPantheon().length), 1, 'carrière au Panthéon');
@@ -1091,10 +1092,26 @@ test('V8.55 : taille du monde choisie à la création, gardée au rechargement e
     assert.ok(await page.$('#worldGrid [data-world="leger"].sel'));
     await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
     assert.equal(await page.evaluate(() => Object.keys(G.leagues).length), 12);
-    await page.waitForTimeout(600);
+    await page.evaluate(() => saveGame());
     await page.reload(); await resume(page); await page.waitForTimeout(800);
     assert.equal(await page.evaluate(() => Object.keys(G.leagues).length), 12, 'pas de championnat ajouté au rechargement');
     await page.evaluate(() => { G.pendingEvent = null; closeModal(); openSettingsModal(); });
     assert.match(await page.innerText('#worldSizeInfo'), /Léger · 12 championnats/);
+  }, { portraits: 'simple' });
+});
+
+test('V8.56 : bulle de découverte aussi dans une fenêtre (Signaler un problème), taille du monde envoyée aux statistiques', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    const sent = [];
+    await page.route('**/api/e', async route => { try { sent.push(...JSON.parse(route.request().postData() || '[]')); } catch (e) { /* */ } await route.fulfill({ status: 204 }); });
+    await page.click('#worldGrid [data-world="leger"]');
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    await page.evaluate(() => { localStorage.setItem('football_agent_tips_force', '1'); localStorage.setItem('football_agent_tm_force', '1'); G.pendingEvent = null; closeModal(); settings.tipsSeen = DISCOVERY_TIPS.map(t => t.id).filter(id => id !== 'report'); openSettingsModal(); });
+    assert.match(await page.textContent('#modalRoot #discTip'), /Signalez-le ici/);
+    await page.click('#discTip >> text=Compris');
+    assert.equal(await page.$('#discTip'), null);
+    await page.evaluate(() => { tmEvent('feature', { a: 'test', n: [1] }); tmFlush(); });
+    for (let i = 0; i < 30 && !sent.length; i++) await page.waitForTimeout(100);
+    assert.ok(sent.length && sent.every(e => e.w === 'leger'), 'taille du monde jointe aux événements');
   }, { portraits: 'simple' });
 });

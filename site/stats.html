@@ -126,6 +126,7 @@ button { cursor:pointer; font-weight:700; }
       card('Versions', bars(d.versions)) +
       card('Modes de jeu', bars(d.modes)) +
       card('Scénarios', bars(d.scenarios)) +
+      card('Taille du monde (joueurs)', bars(Array.isArray(d.worlds) ? d.worlds.map(x => Object.assign({}, x, { k: ({ complet: 'Complet', europe: 'Europe +', leger: 'Léger' })[x.k] || 'Avant la 8.56' })) : d.worlds)) +
       card('Écrans les plus vus', bars(d.screens)) +
       card('Fonctions utilisées', bars(d.features)) +
       card('Saisons atteintes', bars(d.seasons, { key: function (r) { return 'Saison ' + r.k; } })) +
