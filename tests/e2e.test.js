@@ -1015,3 +1015,26 @@ test('V8.51 : statistiques anonymes (session, écrans, fonctions, erreurs, signa
     assert.equal(sent.length, n, 'plus aucun envoi une fois désactivées');
   }, { portraits: 'simple' });
 });
+
+test('V8.52 : signalement avec la partie jointe, envoyée directement au créateur du jeu', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    const sent = [], saves = [];
+    await page.route('**/api/e', async route => { try { sent.push(...JSON.parse(route.request().postData() || '[]')); } catch (e) { /* */ } await route.fulfill({ status: 204 }); });
+    await page.route('**/api/save', async route => { const req = route.request(); saves.push({ ref: req.headers()['x-report-ref'], body: req.postData() || '' }); await route.fulfill({ status: 201, contentType: 'application/json', body: '{"ok":true}' }); });
+    await page.click('text=Lancer ma carrière');
+    await page.evaluate(() => { localStorage.setItem('football_agent_tm_force', '1'); G.pendingEvent = null; closeModal(); openSettingsModal(); });
+    await page.click('#openReport');
+    assert.match(await page.textContent('.modal'), /envoyée chiffrée au créateur du jeu/);
+    await page.fill('#reportText', 'Mon agence a perdu des places');
+    await page.click('#reportSend');
+    for (let i = 0; i < 40 && !saves.length; i++) await page.waitForTimeout(200);
+    await page.waitForFunction(() => /envoyé avec votre partie/.test((document.querySelector('.toast') || document.body).textContent), null, { timeout: 8000 });
+    assert.equal(saves.length, 1, 'partie envoyée');
+    assert.match(saves[0].ref, /^[A-Z0-9]{6}$/);
+    assert.ok(saves[0].body.startsWith('FAE1:') && !saves[0].body.includes('"agent"'), 'partie chiffrée');
+    const rep = sent.find(e => e.t === 'report');
+    assert.ok(rep && rep.b === saves[0].ref + '+save', 'signalement relié à la partie');
+    // la partie envoyée se relit comme une sauvegarde normale
+    assert.ok(await page.evaluate(async b => { const s = deserializeState(await openSaveText(b)); return !!(s.agent && s.players); }, saves[0].body));
+  }, { portraits: 'simple' });
+});
