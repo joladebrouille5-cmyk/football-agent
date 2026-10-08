@@ -18,6 +18,12 @@
   "kv_namespaces": [
     { "binding": "REPORTS" }
   ],
+  // V8.54 : limites de débit par adresse (anti-abus), sans rien stocker ; la période est de 10 ou 60 secondes
+  "ratelimits": [
+    { "name": "LIMIT_EVENTS", "namespace_id": "5401", "simple": { "limit": 120, "period": 60 } },
+    { "name": "LIMIT_SAVES", "namespace_id": "5402", "simple": { "limit": 3, "period": 60 } },
+    { "name": "LIMIT_ADMIN", "namespace_id": "5403", "simple": { "limit": 30, "period": 60 } }
+  ],
   "analytics_engine_datasets": [
     { "binding": "STATS", "dataset": "football_agent" }
   ],

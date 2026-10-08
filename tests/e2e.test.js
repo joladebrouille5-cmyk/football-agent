@@ -59,6 +59,8 @@ async function advanceMonth(page) {
     if (cont && /Continuer/.test(await cont.textContent())) { await cont.click(); continue; }
     break;
   }
+  // une réponse à un message peut ouvrir une fenêtre (recherche de club, négociation…) : on la referme
+  await page.evaluate(() => { if (document.querySelector('#modalRoot .modal')) closeModal(); });
 }
 
 for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
@@ -392,7 +394,10 @@ test('V8.18 : pages regroupées, cérémonie, dernier jour du mercato, scénario
     // fin de saison : cérémonie, puis entrée au Panthéon
     await page.evaluate(() => { setTimeStep('month'); while (calMonth(G) !== 7) { G.pendingEvent = null; advanceMonth(G); } G.pendingEvent = null; renderPage(); });
     await page.click('#fabAdvance');
+    // le passage du mois est asynchrone : attendre le bilan avant de le fermer, puis la cérémonie qui suit
+    await page.waitForFunction(() => document.querySelector('#modalRoot .modal-head'), null, { timeout: 20000 });
     await page.evaluate(() => continueFromRecap());
+    await page.waitForFunction(() => /Cérémonie de fin de saison/i.test(document.getElementById('modalRoot').innerText), null, { timeout: 10000 });
     assert.match(await page.innerText('#modalRoot'), /Cérémonie de fin de saison[\s\S]*Ballon d'Or[\s\S]*Agent de l'année/i);
     assert.equal(await page.evaluate(() => readPantheon().length), 1, 'carrière au Panthéon');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
@@ -1032,9 +1037,48 @@ test('V8.52 : signalement avec la partie jointe, envoyée directement au créate
     assert.equal(saves.length, 1, 'partie envoyée');
     assert.match(saves[0].ref, /^[A-Z0-9]{6}$/);
     assert.ok(saves[0].body.startsWith('FAE1:') && !saves[0].body.includes('"agent"'), 'partie chiffrée');
+    // l'événement « report » part par sendBeacon juste après l'envoi de la partie : il peut arriver un peu après le message
+    for (let i = 0; i < 40 && !sent.some(e => e.t === 'report'); i++) await page.waitForTimeout(100);
     const rep = sent.find(e => e.t === 'report');
     assert.ok(rep && rep.b === saves[0].ref + '+save', 'signalement relié à la partie');
     // la partie envoyée se relit comme une sauvegarde normale
     assert.ok(await page.evaluate(async b => { const s = deserializeState(await openSaveText(b)); return !!(s.agent && s.players); }, saves[0].body));
+  }, { portraits: 'simple' });
+});
+
+test('V8.54 : capacité salariale visible et réglable, résiliation avec indemnités, bulles de découverte', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    await page.evaluate(() => {
+      localStorage.setItem('football_agent_tips_force', '1');
+      G.pendingEvent = null; closeModal();
+      const c = Object.values(G.clubs).find(x => x.league === 'L1' && x.tier === 3); G.agent.stakes[c.id] = { pct: 60, cost: 0 }; G.agent.careerTier = 3; c.budget = 5e7; c.boardTrust = 50;
+      setViewMode('president');
+    });
+    // tableau de bord : masse salariale dans la carte du club
+    assert.match(await page.innerText('.club-hero'), /Masse salariale/);
+    // Aperçu : capacité, place restante, bulle de découverte
+    await page.evaluate(() => openMyClub(myClub().id, 'apercu'));
+    assert.match(await page.innerText('#wageCap'), /Place pour recruter|Au-dessus du plafond/);
+    assert.ok(await page.$('#discTip'), 'bulle affichée la première fois');
+    await page.click('#discTip >> text=Compris');
+    await page.evaluate(() => renderPage());
+    assert.equal(await page.$('#discTip'), null, 'bulle vue : plus affichée');
+    // Gestion : régler l'enveloppe (Maximale refusée sans la confiance du conseil)
+    await page.evaluate(() => openMyClub(myClub().id, 'gestion'));
+    const cap0 = await page.evaluate(() => clubWageCap(myClub()));
+    assert.ok(await page.$eval('#wageCapFull >> text=Maximale', b => b.disabled));
+    await page.click('#wageCapFull >> text=Large');
+    assert.ok(await page.evaluate(c0 => clubWageCap(myClub()) > c0 && clubOwnerPolicy(myClub()).wages === 'large', cap0));
+    // fiche d'un remplaçant : résilier à l'amiable
+    const pid = await page.evaluate(() => { const c = myClub(); const p = c.squad.map(id => G.players[id]).filter(x => x && !x.academy && !x.parentClub && x.posLine !== 'GK').sort((a, b) => a.ovr - b.ovr)[0]; p.morale = 30; openPlayerDetail(p.id, 'monclub'); return p.id; });
+    await page.click('#ownerReleaseBtn');
+    assert.match(await page.innerText('.modal'), /Reste du contrat/);
+    const budget0 = await page.evaluate(() => myClub().budget);
+    await page.click('#releaseAmicable');
+    assert.ok(await page.evaluate(([id, b0]) => G.players[id].club === null && myClub().budget < b0 && !myClub().squad.includes(id), [pid, budget0]));
+    // réglage : plus de bulles
+    await page.evaluate(() => { setSetting('tips', 'off'); resetDiscoveryTips(); openMyClub(myClub().id, 'apercu'); });
+    assert.equal(await page.$('#discTip'), null);
   }, { portraits: 'simple' });
 });

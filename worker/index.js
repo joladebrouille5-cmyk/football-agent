@@ -27,7 +27,28 @@ export function toPoint(e, country) {
   };
 }
 
+// V8.54 : anti-abus. Limites de débit par adresse (Workers Rate Limiting, rien n'est stocké) et quotas quotidiens des
+// parties jointes (compteurs dans KV, sous une empreinte irréversible de l'adresse, effacés après 48 h).
+export const SAVE_PER_IP_DAY = 5, SAVE_PER_DAY = 200;
+const clientIp = request => request.headers.get('cf-connecting-ip') || 'local';
+async function limited(limiter, key) {
+  if (!limiter || typeof limiter.limit !== 'function') return false;
+  try { return !(await limiter.limit({ key })).success; } catch (e) { return false; }
+}
+const tooMany = () => new Response(JSON.stringify({ error: 'rate' }), { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '60' } });
+async function ipHash(ip, day) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('fa-quota|' + day + '|' + ip));
+  return [...new Uint8Array(d)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function saveQuota(request, env) {
+  const day = new Date().toISOString().slice(0, 10), mine = 'q:ip:' + (await ipHash(clientIp(request), day)), all = 'q:all:' + day;
+  const [a, b] = await Promise.all([env.REPORTS.get(mine), env.REPORTS.get(all)]);
+  if ((+a || 0) >= SAVE_PER_IP_DAY || (+b || 0) >= SAVE_PER_DAY) return null;
+  return () => Promise.all([env.REPORTS.put(mine, String((+a || 0) + 1), { expirationTtl: 172800 }), env.REPORTS.put(all, String((+b || 0) + 1), { expirationTtl: 172800 })]);
+}
+
 async function ingest(request, env) {
+  if (await limited(env.LIMIT_EVENTS, clientIp(request))) return tooMany();
   const len = +(request.headers.get('content-length') || 0);
   if (len > MAX_BODY) return new Response(null, { status: 413 });
   let body;
@@ -76,16 +97,21 @@ async function receiveSave(request, env) {
   if (!REF_RE.test(ref)) return json({ error: 'ref' }, 400);
   const len = +(request.headers.get('content-length') || 0);
   if (len > SAVE_MAX) return json({ error: 'size' }, 413);
+  if (await limited(env.LIMIT_SAVES, clientIp(request))) return tooMany();
   const body = await request.text();
   if (body.length > SAVE_MAX) return json({ error: 'size' }, 413);
   // seulement une sauvegarde du jeu : chiffrée (FAE1:), compressée (base64) ou JSON signé
   if (!/^(FAE1:|\{"_sig":"|[A-Za-z0-9+/]{40})/.test(body)) return json({ error: 'format' }, 400);
   const key = 'save:' + ref;
   if (await env.REPORTS.get(key, { type: 'stream' })) return json({ error: 'exists' }, 409);
+  const count = await saveQuota(request, env);
+  if (!count) return json({ error: 'quota' }, 429);
   await env.REPORTS.put(key, body, { expirationTtl: SAVE_TTL, metadata: { at: new Date().toISOString(), size: body.length, v: (request.headers.get('x-game-version') || '').slice(0, 12), country: (request.cf && request.cf.country) || '' } });
+  await count();
   return json({ ok: true, ref }, 201);
 }
 async function sendSave(request, env) {
+  if (await limited(env.LIMIT_ADMIN, clientIp(request))) return tooMany();
   if (!env.STATS_KEY || (request.headers.get('x-stats-key') || '') !== env.STATS_KEY) return json({ error: 'key' }, 401);
   if (!env.REPORTS) return json({ error: 'storage' }, 503);
   const ref = (new URL(request.url).searchParams.get('ref') || '').toUpperCase();
@@ -105,6 +131,7 @@ async function sql(env, query) {
 }
 
 async function stats(request, env) {
+  if (await limited(env.LIMIT_ADMIN, clientIp(request))) return tooMany();
   const key = request.headers.get('x-stats-key') || '';
   if (!env.STATS_KEY) return json({ error: 'setup', missing: 'STATS_KEY' }, 503);
   if (key !== env.STATS_KEY) return json({ error: 'key' }, 401);
