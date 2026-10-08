@@ -10269,6 +10269,7 @@ function tmFlush() {
 function tmSession() {
   if (!tmEnabled() || tm.sent) return;
   tm.sent = true; tm.lastAbs = G ? G.date.absMonth : null;
+  tmScreen(ui.page || 'dashboard'); // l'écran d'arrivée compte aussi (il ne passe pas par navigate)
   const u = tmUser(), now = Date.now(), days = u.last ? Math.floor((now - u.last) / 86400000) : -1;
   const back = u.fresh || !u.last ? 'nouveau' : days < 1 ? 'meme_jour' : days <= 1 ? 'J+1' : days <= 7 ? 'J+2-7' : days <= 30 ? 'J+8-30' : 'J+30+';
   u.last = now; tmSaveUser(u);
@@ -14446,7 +14447,7 @@ function renderHelp() {
     <button class="btn btn-primary btn-block" style="margin-bottom:12px" onclick="openGuide(0)">📖 Revoir le guide du jeu</button>
     ${HELP_SECTIONS.map(([t, d]) => `<div class="card"><div class="card-title" style="text-transform:none;letter-spacing:0">${t}</div><p style="margin:0">${d}</p></div>`).join('')}`;
 }
-function openSettingsModal() {
+function openSettingsModal() { tmScreen('parametres');
   renderModal(`
     <div class="modal-head"><h3>Paramètres</h3><button class="modal-close" onclick="closeModal()">${icon('close',16)}</button></div>
     ${G ? `<button class="btn btn-block" style="margin-bottom:12px" onclick="goStartMenu()">${icon('home',15)} Menu principal</button>` : ''}
