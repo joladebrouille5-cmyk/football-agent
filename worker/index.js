@@ -60,7 +60,7 @@ export const STATS_QUERIES = {
   seasons: d => `SELECT double1 AS k, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'season' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY k LIMIT 40`,
   moments: d => `SELECT blob7 AS k, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'moment' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC LIMIT 20`,
   errors: d => `SELECT blob7 AS k, blob2 AS v, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'error' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k, v ORDER BY n DESC LIMIT 20`,
-  reports: d => `SELECT timestamp AS at, blob7 AS text, blob8 AS ref, blob2 AS v, blob4 AS dev, blob9 AS country FROM football_agent WHERE blob1 = 'report' AND timestamp > NOW() - INTERVAL '${d}' DAY ORDER BY timestamp DESC LIMIT 30`,
+  reports: d => `SELECT timestamp, blob7 AS text, blob8 AS ref, blob2 AS v, blob4 AS dev, blob9 AS country FROM football_agent WHERE blob1 = 'report' AND timestamp > NOW() - INTERVAL '${d}' DAY ORDER BY timestamp DESC LIMIT 30`,
 };
 
 // jeton tel que collé dans le tableau de bord : espaces, retours à la ligne, guillemets ou « Bearer » en trop retirés

@@ -113,7 +113,7 @@ button { cursor:pointer; font-weight:700; }
       '</div>';
     var rep = d.reports;
     html += '<div class="card" style="margin-top:12px"><h2>Signalements</h2>' + (!rep || rep.error ? '<p class="err">' + esc(rep && rep.error || 'Aucun.') + '</p>' : !rep.length ? '<p class="muted">Aucun signalement sur la période.</p>' :
-      rep.map(function (r) { return '<div class="report"><div class="muted">' + esc(r.at) + ' · réf. ' + esc(r.ref) + ' · v' + esc(r.v) + ' · ' + esc(lab(r.dev)) + ' · ' + esc(r.country) + '</div>' + esc(r.text) + '</div>'; }).join('')) + '</div>';
+      rep.map(function (r) { return '<div class="report"><div class="muted">' + esc(r.timestamp || r.at) + ' · réf. ' + esc(r.ref) + ' · v' + esc(r.v) + ' · ' + esc(lab(r.dev)) + ' · ' + esc(r.country) + '</div>' + esc(r.text) + '</div>'; }).join('')) + '</div>';
     $('out').innerHTML = html;
   }
   function load() {
