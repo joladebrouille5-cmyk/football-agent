@@ -78,3 +78,30 @@ test('V8.51 : jeton refusé — un message clair, et le jeton collé est nettoy�
     assert.equal(seen.length, 1, 'arrêt après la vérification'); assert.equal(seen[0], 'Bearer tok123');
   } finally { global.fetch = orig; }
 });
+
+test('V8.52 : partie jointe à un signalement — reçue, gardée 60 jours, téléchargeable avec le mot de passe', async () => {
+  const { default: worker, SAVE_TTL } = await load();
+  const store = new Map();
+  const REPORTS = { get: async k => store.has(k) ? store.get(k).v : null, put: async (k, v, o) => store.set(k, { v, o }) };
+  const e = Object.assign(env({ STATS_KEY: 'k' }), { REPORTS });
+  const up = (ref, body) => worker.fetch(new Request('https://play.footagent.workers.dev/api/save', { method: 'POST', body, headers: { 'x-report-ref': ref, 'x-game-version': '8.52' } }), e);
+  const save = 'FAE1:' + 'A'.repeat(500);
+  let r = await up('ABC123', save);
+  assert.equal(r.status, 201);
+  assert.equal(store.get('save:ABC123').o.expirationTtl, SAVE_TTL);
+  assert.equal(store.get('save:ABC123').o.metadata.v, '8.52');
+  assert.equal((await up('ABC123', save)).status, 409, 'une seule partie par signalement');
+  assert.equal((await up('bad', save)).status, 400, 'référence invalide');
+  assert.equal((await up('XYZ999', '<html>pas une partie</html>')).status, 400, 'seulement une sauvegarde du jeu');
+  assert.equal((await up('XYZ998', 'FAE1:' + 'A'.repeat(7 * 1024 * 1024))).status, 413, 'taille limitée');
+  // téléchargement : mot de passe obligatoire
+  const dl = key => worker.fetch(new Request('https://play.footagent.workers.dev/api/save?ref=ABC123', { headers: key ? { 'x-stats-key': key } : {} }), e);
+  assert.equal((await dl()).status, 401);
+  assert.equal((await dl('mauvais')).status, 401);
+  r = await dl('k');
+  assert.equal(r.status, 200); assert.equal(await r.text(), save);
+  assert.match(r.headers.get('content-disposition'), /football-agent-ABC123\.fasave/);
+  assert.equal((await worker.fetch(new Request('https://play.footagent.workers.dev/api/save?ref=NOPE00', { headers: { 'x-stats-key': 'k' } }), e)).status, 404);
+  // sans stockage configuré
+  assert.equal((await worker.fetch(new Request('https://play.footagent.workers.dev/api/save', { method: 'POST', body: save, headers: { 'x-report-ref': 'QQQ111' } }), env())).status, 503);
+});

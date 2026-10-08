@@ -1,6 +1,8 @@
 // Football Agent — petit programme Cloudflare (V8.51) : sert le site (dist/) et reçoit les statistiques anonymes.
 //   POST /api/e      événements anonymes du jeu (session, écrans, saison, moments clés, erreurs, signalements)
 //   GET  /api/stats  tableau de bord privé (stats.html), protégé par le secret STATS_KEY
+//   POST /api/save   sauvegarde jointe à un signalement (si le joueur l'a cochée), gardée 60 jours dans KV
+//   GET  /api/save   téléchargement d'une sauvegarde reçue (tableau de bord, même mot de passe)
 // Les événements vont dans Workers Analytics Engine (jeu de données « football_agent ») : aucune adresse IP, aucun
 // nom ; un identifiant aléatoire tiré par le navigateur sert seulement à compter les joueurs qui reviennent.
 const TYPES = new Set(['session', 'screen', 'feature', 'season', 'moment', 'error', 'report']);
@@ -65,6 +67,34 @@ export const STATS_QUERIES = {
 
 // jeton tel que collé dans le tableau de bord : espaces, retours à la ligne, guillemets ou « Bearer » en trop retirés
 export function cleanToken(t) { return String(t || '').replace(/[\s"'`]+/g, ' ').trim().replace(/^Bearer\s+/i, '').replace(/\s+/g, ''); }
+// ---------- sauvegardes jointes aux signalements (V8.52) ----------
+export const SAVE_MAX = 6 * 1024 * 1024, SAVE_TTL = 60 * 86400;
+const REF_RE = /^[A-Z0-9]{6}$/;
+async function receiveSave(request, env) {
+  if (!env.REPORTS) return json({ error: 'storage' }, 503);
+  const ref = (request.headers.get('x-report-ref') || '').toUpperCase();
+  if (!REF_RE.test(ref)) return json({ error: 'ref' }, 400);
+  const len = +(request.headers.get('content-length') || 0);
+  if (len > SAVE_MAX) return json({ error: 'size' }, 413);
+  const body = await request.text();
+  if (body.length > SAVE_MAX) return json({ error: 'size' }, 413);
+  // seulement une sauvegarde du jeu : chiffrée (FAE1:), compressée (base64) ou JSON signé
+  if (!/^(FAE1:|\{"_sig":"|[A-Za-z0-9+/]{40})/.test(body)) return json({ error: 'format' }, 400);
+  const key = 'save:' + ref;
+  if (await env.REPORTS.get(key, { type: 'stream' })) return json({ error: 'exists' }, 409);
+  await env.REPORTS.put(key, body, { expirationTtl: SAVE_TTL, metadata: { at: new Date().toISOString(), size: body.length, v: (request.headers.get('x-game-version') || '').slice(0, 12), country: (request.cf && request.cf.country) || '' } });
+  return json({ ok: true, ref }, 201);
+}
+async function sendSave(request, env) {
+  if (!env.STATS_KEY || (request.headers.get('x-stats-key') || '') !== env.STATS_KEY) return json({ error: 'key' }, 401);
+  if (!env.REPORTS) return json({ error: 'storage' }, 503);
+  const ref = (new URL(request.url).searchParams.get('ref') || '').toUpperCase();
+  if (!REF_RE.test(ref)) return json({ error: 'ref' }, 400);
+  const body = await env.REPORTS.get('save:' + ref);
+  if (body == null) return json({ error: 'missing' }, 404);
+  return new Response(body, { headers: { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="football-agent-${ref}.fasave"`, 'cache-control': 'no-store' } });
+}
+
 async function sql(env, query) {
   const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${String(env.CF_ACCOUNT_ID).trim()}/analytics_engine/sql`, {
     method: 'POST', headers: { Authorization: `Bearer ${cleanToken(env.CF_API_TOKEN)}` }, body: query,
@@ -95,6 +125,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/api/e') return request.method === 'POST' ? ingest(request, env) : new Response(null, { status: 405 });
     if (url.pathname === '/api/stats') return request.method === 'GET' ? stats(request, env) : new Response(null, { status: 405 });
+    if (url.pathname === '/api/save') return request.method === 'POST' ? receiveSave(request, env) : request.method === 'GET' ? sendSave(request, env) : new Response(null, { status: 405 });
     if (url.pathname.startsWith('/api/')) return new Response(null, { status: 404 });
     return env.ASSETS.fetch(request);
   },

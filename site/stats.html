@@ -113,7 +113,11 @@ button { cursor:pointer; font-weight:700; }
       '</div>';
     var rep = d.reports;
     html += '<div class="card" style="margin-top:12px"><h2>Signalements</h2>' + (!rep || rep.error ? '<p class="err">' + esc(rep && rep.error || 'Aucun.') + '</p>' : !rep.length ? '<p class="muted">Aucun signalement sur la période.</p>' :
-      rep.map(function (r) { return '<div class="report"><div class="muted">' + esc(r.timestamp || r.at) + ' · réf. ' + esc(r.ref) + ' · v' + esc(r.v) + ' · ' + esc(lab(r.dev)) + ' · ' + esc(r.country) + '</div>' + esc(r.text) + '</div>'; }).join('')) + '</div>';
+      rep.map(function (r) {
+        var ref = String(r.ref || ''), code = ref.slice(0, 6), withSave = /\+save$/.test(ref);
+        return '<div class="report"><div class="muted">' + esc(r.timestamp || r.at) + ' · réf. ' + esc(code) + ' · v' + esc(r.v) + ' · ' + esc(lab(r.dev)) + ' · ' + esc(r.country) + '</div>' + esc(r.text) +
+          (withSave ? '<div style="margin-top:6px"><button class="dl" data-ref="' + esc(code) + '">⬇️ Télécharger la partie (' + esc(code) + '.fasave)</button></div>' : /save_locale/.test(ref) ? '<div class="muted">Partie gardée par le joueur (envoi impossible)</div>' : '') + '</div>';
+      }).join('')) + '</div>';
     $('out').innerHTML = html;
   }
   function load() {
@@ -132,6 +136,15 @@ button { cursor:pointer; font-weight:700; }
       }).catch(function () { $('status').textContent = 'Impossible de joindre le serveur.'; });
   }
   $('go').addEventListener('click', load);
+  // téléchargement d'une partie jointe à un signalement (V8.52)
+  $('out').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('button.dl'); if (!b) return;
+    var ref = b.getAttribute('data-ref'); b.disabled = true; b.textContent = 'Téléchargement…';
+    fetch('/api/save?ref=' + encodeURIComponent(ref), { headers: { 'x-stats-key': $('key').value.trim() }, cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status === 404 ? 'Partie introuvable (plus de 60 jours ?)' : 'Erreur ' + r.status); return r.blob(); })
+      .then(function (blob) { var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'football-agent-' + ref + '.fasave'; document.body.appendChild(a); a.click(); a.remove(); b.textContent = '✅ Téléchargée — Paramètres > Importer dans le jeu'; })
+      .catch(function (err) { b.disabled = false; b.textContent = '⚠️ ' + err.message; });
+  });
   $('key').addEventListener('keydown', function (e) { if (e.key === 'Enter') load(); });
   var tip = $('tip');
   document.addEventListener('mousemove', function (e) {
