@@ -1585,3 +1585,27 @@ test('V8.50 : agence — préavis, un seul niveau perdu puis répit, rachat à m
   assert.equal(a.officeLevel, 3); assert.equal(a.portfolio.length, E.OFFICE_LEVELS[2].cap);
   assert.ok(news.some(n => /Faillite/.test(n.text)));
 });
+
+test('V8.53 : vitesse — plancher de recrutement mis en cache mais à jour, sauvegarde compactée relue à l\'identique', () => {
+  const s = newGame();
+  playMonths(s, 14);
+  const club = Object.values(s.clubs).find(c => c.squad.length > 20);
+  const f1 = E.clubLevelFloor(s, club);
+  assert.equal(E.clubLevelFloor(s, club), f1, 'même résultat depuis le cache');
+  // effectif modifié : le plancher est recalculé
+  const best = club.squad.map(id => s.players[id]).sort((a, b) => b.ovr - a.ovr);
+  for (const p of best.slice(0, 6)) { club.squad = club.squad.filter(id => id !== p.id); }
+  const fresh = club.squad.map(id => s.players[id].ovr).sort((a, b) => b - a);
+  assert.equal(E.clubLevelFloor(s, club), fresh[Math.min(17, fresh.length - 1)] - 4, 'cache invalidé');
+  for (const p of best.slice(0, 6)) club.squad.push(p.id);
+  // sauvegarde : statistiques de saison et carrières compactées, relues sans perte
+  const p = Object.values(s.players).find(x => x.career && x.career.length && x.pos !== 'GK' && x.seasonStats.apps);
+  const g = Object.values(s.players).find(x => x.pos === 'GK' && x.seasonStats.apps);
+  const json = E.serializeState(s);
+  const back = E.deserializeState(json);
+  assert.deepEqual(back.players[p.id].seasonStats, p.seasonStats);
+  assert.deepEqual(back.players[g.id].seasonStats, g.seasonStats);
+  assert.equal(back.players[p.id].career.length, p.career.length);
+  assert.equal(back.players[p.id].career[0].apps, p.career[0].apps);
+  assert.equal(E.serializeState(back), json, 'sauvegarde identique après relecture');
+});
