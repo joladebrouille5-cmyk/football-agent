@@ -1529,6 +1529,7 @@ test('V8.49 : relations entre joueurs, mémoire du monde et récapitulatif de se
   // mémoire : record d'achat, retour dans un ancien club, légende à la retraite
   const p = Object.values(s.players).find(x => x.club && x.club !== club.id && !x.agentId && x.age < 30);
   p.career = [{ season: '2020-21', club: club.id, apps: 30, goals: 5 }];
+  if (!E.isFollowed(s, p.id)) E.toggleFollow(s, p.id); // joueur suivi : son retour fait toujours l'actualité (sinon tirage selon sa notoriété)
   const rec0 = club.recordBuy;
   const news = []; E.executeTransfer(s, p, club, 9e7, news);
   assert.equal(club.recordBuy.fee, 9e7);
@@ -1608,4 +1609,76 @@ test('V8.53 : vitesse — plancher de recrutement mis en cache mais à jour, sau
   assert.equal(back.players[p.id].career.length, p.career.length);
   assert.equal(back.players[p.id].career[0].apps, p.career[0].apps);
   assert.equal(E.serializeState(back), json, 'sauvegarde identique après relecture');
+});
+
+test('V8.54 : masse salariale réglable par le président et résiliation avec indemnités', () => {
+  const s = newGame();
+  const club = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 2);
+  s.agent.stakes[club.id] = { pct: 60, cost: 0 };
+  // capacité : ce que couvrent les revenus, plafond, place restante
+  const w0 = E.clubWageCapacity(s, club);
+  assert.equal(w0.cap, E.clubWageCap(club));
+  assert.equal(w0.room, Math.max(0, w0.cap - w0.bill));
+  // le plafond suit l'enveloppe choisie ; le conseil refuse les réglages élevés sans sa confiance
+  club.boardTrust = 30;
+  assert.equal(E.setWageEnvelope(s, club.id, 'large').ok, false);
+  assert.ok(E.setWageEnvelope(s, club.id, 'serree').ok);
+  assert.ok(E.clubWageCap(club) < w0.cap);
+  club.boardTrust = 70;
+  assert.ok(E.setWageEnvelope(s, club.id, 'maximale').ok);
+  assert.ok(E.clubWageCap(club) > w0.cap);
+  assert.equal(E.setWageEnvelope(s, club.id, 'nimporte').ok, false);
+  // un club qui n'est pas le vôtre garde l'enveloppe normale
+  const other = Object.values(s.clubs).find(c => c.id !== club.id && c.tier === 2);
+  assert.equal(E.clubWageEnvelope(other), E.WAGE_ENVELOPES.normale);
+  assert.equal(E.setWageEnvelope(s, other.id, 'serree').ok, false);
+  // résiliation : indemnité = reste du contrat, à l'amiable si le joueur joue peu ou n'est pas heureux
+  const squad = club.squad.map(id => s.players[id]).filter(p => p && !p.academy && !p.parentClub && p.posLine !== 'GK');
+  const p = squad.find(x => E.playerTeamRole(s, x).key === 'bench') || squad[squad.length - 1];
+  p.morale = 30;
+  const t = E.releaseTerms(s, p);
+  assert.ok(t.ok, t.reason);
+  assert.equal(t.months, E.contractMonthsLeft(s, p));
+  assert.ok(t.full >= p.wage && Math.abs(t.full - p.wage * t.months) <= 1000);
+  assert.ok(t.amicable != null && t.amicable < t.full);
+  club.budget = 0;
+  assert.equal(E.releaseClubPlayer(s, p.id, true, []).ok, false, 'budget insuffisant');
+  club.budget = 100e6;
+  const bill0 = E.clubWageBill(s, club), news = [];
+  const r = E.releaseClubPlayer(s, p.id, true, news);
+  assert.ok(r.ok, r.reason);
+  assert.equal(club.budget, 100e6 - t.amicable);
+  assert.equal(p.club, null);
+  assert.ok(!club.squad.includes(p.id) && s.freeAgents.includes(p.id));
+  assert.equal(E.clubWageBill(s, club), bill0 - p.wage);
+  assert.ok(news.some(n => /résilie/.test(n.text)));
+  // un joueur heureux et titulaire refuse l'amiable
+  const happy = club.squad.map(id => s.players[id]).find(x => x && !x.academy && !x.parentClub && x.posLine !== 'GK' && E.playerTeamRole(s, x).key === 'starter' && x.age < 33);
+  happy.morale = 80;
+  assert.equal(E.releaseTerms(s, happy).amicable, null);
+  assert.equal(E.releaseClubPlayer(s, happy.id, true, []).ok, false);
+  // garde-fous : deux gardiens minimum, effectif minimum, pas le club d'un autre
+  const gks = club.squad.map(id => s.players[id]).filter(x => x && x.posLine === 'GK');
+  if (gks.length <= 2) assert.equal(E.releaseTerms(s, gks[0]).ok, false);
+  const foreign = s.players[other.squad[0]];
+  assert.equal(E.releaseTerms(s, foreign).ok, false);
+  while (club.squad.length > 18) club.squad.pop();
+  assert.equal(E.releaseTerms(s, s.players[club.squad.find(id => s.players[id].posLine !== 'GK')]).ok, false);
+});
+
+test('V8.54 : aucun club ne finit le mois sans gardien', () => {
+  const s = newGame();
+  for (let m = 0; m < 14; m++) {
+    playMonths(s, 1);
+    const none = Object.values(s.clubs).filter(c => E.clubGoalkeepers(s, c) === 0);
+    assert.equal(none.length, 0, none.map(c => c.name).join(', '));
+  }
+});
+
+test('V8.54 : le tout premier client trouve toujours des clubs intéressés', () => {
+  for (let i = 0; i < 12; i++) {
+    const s = newGame();
+    const offers = E.findInterestedClubs(s, s.onboarding.starterPlayerId);
+    assert.ok(offers.length >= 1 && offers.length <= 4, 'offres : ' + offers.length);
+  }
 });

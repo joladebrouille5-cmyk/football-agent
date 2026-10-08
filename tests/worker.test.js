@@ -105,3 +105,28 @@ test('V8.52 : partie jointe à un signalement — reçue, gardée 60 jours, tél
   // sans stockage configuré
   assert.equal((await worker.fetch(new Request('https://play.footagent.workers.dev/api/save', { method: 'POST', body: save, headers: { 'x-report-ref': 'QQQ111' } }), env())).status, 503);
 });
+
+test('V8.54 : anti-abus — limites de débit et quota quotidien des parties jointes', async () => {
+  const { default: worker, SAVE_PER_IP_DAY } = await load();
+  const store = new Map();
+  const REPORTS = { get: async k => store.has(k) ? store.get(k).v : null, put: async (k, v, o) => store.set(k, { v, o }) };
+  const hits = {};
+  const limiter = max => ({ limit: async ({ key }) => { hits[key] = (hits[key] || 0) + 1; return { success: hits[key] <= max }; } });
+  const e = Object.assign(env({ STATS_KEY: 'k' }), { REPORTS, LIMIT_EVENTS: limiter(2) });
+  const ev = { t: 'feature', u: 'a', a: 'x', n: [1] };
+  const send = ip => worker.fetch(post(ev, { 'cf-connecting-ip': ip }), e);
+  assert.equal((await send('1.1.1.1')).status, 204);
+  assert.equal((await send('1.1.1.1')).status, 204);
+  assert.equal((await send('1.1.1.1')).status, 429, 'trop d’envois depuis la même adresse');
+  assert.equal((await send('2.2.2.2')).status, 204, 'les autres adresses ne sont pas gênées');
+  // limiteur en panne : on laisse passer
+  assert.equal((await worker.fetch(post(ev), Object.assign({}, e, { LIMIT_EVENTS: { limit: async () => { throw new Error('x'); } } }))).status, 204);
+  // parties jointes : quota par adresse et par jour, compteur sous empreinte (pas d'adresse en clair)
+  const up = (ref, ip) => worker.fetch(new Request('https://play.footagent.workers.dev/api/save', { method: 'POST', body: 'FAE1:' + 'A'.repeat(100), headers: { 'x-report-ref': ref, 'cf-connecting-ip': ip } }), e);
+  for (let i = 0; i < SAVE_PER_IP_DAY; i++) assert.equal((await up('AAAA0' + i, '3.3.3.3')).status, 201);
+  assert.equal((await up('AAAA09', '3.3.3.3')).status, 429);
+  assert.equal((await up('AAAA10', '4.4.4.4')).status, 201);
+  const keys = [...store.keys()].filter(k => k.startsWith('q:'));
+  assert.ok(keys.length >= 3 && keys.every(k => !k.includes('3.3.3.3')));
+  assert.ok(keys.every(k => store.get(k).o.expirationTtl === 172800));
+});
