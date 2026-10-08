@@ -1682,3 +1682,40 @@ test('V8.54 : le tout premier client trouve toujours des clubs intéressés', ()
     assert.ok(offers.length >= 1 && offers.length <= 4, 'offres : ' + offers.length);
   }
 });
+
+test('V8.55 : taille du monde au choix — léger, Europe +, complet, sans retour des championnats exclus', () => {
+  const mk = (worldSize, scenario) => E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: 'negociateur', worldSize, scenario });
+  // complet : rien ne change (et une ancienne partie sans worldLeagues reste complète)
+  const full = mk('complet');
+  assert.equal(full.worldLeagues, undefined);
+  assert.equal(Object.keys(full.leagues).length, E.LEAGUES.length);
+  assert.equal(E.worldSizeOf(full), 'complet');
+  // léger : les 12 championnats choisis, rien d'autre
+  const s = mk('leger');
+  assert.deepEqual(Object.keys(s.leagues).sort(), [...E.LIGHT_WORLD].sort());
+  assert.ok(Object.values(s.clubs).every(c => E.LIGHT_WORLD.includes(c.league)));
+  assert.equal(E.worldSizeOf(s), 'leger');
+  // Europe + : tous les championnats européens et 4 grands championnats hors d'Europe
+  const eu = mk('europe');
+  const euIds = Object.keys(eu.leagues);
+  assert.ok(E.LEAGUES.filter(l => l.zone === 'europe').every(l => euIds.includes(l.id)));
+  assert.ok(['BSA', 'LPF', 'MLS', 'SPL'].every(id => euIds.includes(id)) && !euIds.includes('J1') && !euIds.includes('BOT'));
+  // le scénario « Aventure au Brésil » garde son championnat
+  const br = mk('leger', 'bresil');
+  assert.ok(br.leagues.BSA && br.scenario === 'bresil');
+  // rêves et promesse « pays » limités aux pays présents
+  const nats = E.worldNats(s);
+  assert.ok(Object.values(s.players).filter(p => p.club).every(p => !p.dreamCountry || nats.has(p.dreamCountry)));
+  // les championnats exclus ne reviennent ni au chargement ni à l'intersaison
+  assert.equal(E.integrateMissingLeagues(s), null);
+  assert.equal(E.addMissingLeagues(s, []), 0);
+  const back = E.deserializeState(E.serializeState(s));
+  assert.deepEqual(back.worldLeagues, s.worldLeagues);
+  assert.equal(E.integrateMissingLeagues(back), null);
+  // une saison complète : promotions, coupes, Europe et sélections fonctionnent avec 12 championnats
+  for (let m = 0; m < 13; m++) { if (s.pendingEvent) E.resolveEvent(s, 0); E.advanceMonth(s); }
+  assert.equal(Object.keys(s.leagues).length, E.LIGHT_WORLD.length);
+  assert.ok(Object.keys(s.cups || {}).length >= 5);
+  assert.ok((s.intl && s.intl.history || []).length >= 1);
+  assert.ok(Object.values(s.clubs).every(c => E.clubGoalkeepers(s, c) > 0));
+});

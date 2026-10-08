@@ -1082,3 +1082,19 @@ test('V8.54 : capacité salariale visible et réglable, résiliation avec indemn
     assert.equal(await page.$('#discTip'), null);
   }, { portraits: 'simple' });
 });
+
+test('V8.55 : taille du monde choisie à la création, gardée au rechargement et rappelée dans les Paramètres', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    assert.ok(await page.$('#worldGrid [data-world="complet"].sel'), 'complet par défaut');
+    assert.match(await page.textContent('#worldGrid'), /Léger · 12 championnats/);
+    await page.click('#worldGrid [data-world="leger"]');
+    assert.ok(await page.$('#worldGrid [data-world="leger"].sel'));
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    assert.equal(await page.evaluate(() => Object.keys(G.leagues).length), 12);
+    await page.waitForTimeout(600);
+    await page.reload(); await resume(page); await page.waitForTimeout(800);
+    assert.equal(await page.evaluate(() => Object.keys(G.leagues).length), 12, 'pas de championnat ajouté au rechargement');
+    await page.evaluate(() => { G.pendingEvent = null; closeModal(); openSettingsModal(); });
+    assert.match(await page.innerText('#worldSizeInfo'), /Léger · 12 championnats/);
+  }, { portraits: 'simple' });
+});
