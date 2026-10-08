@@ -22,7 +22,7 @@ export function toPoint(e, country) {
   const d = Array.isArray(e.n) ? e.n : [];
   return {
     indexes: [clip(e.u, 32) || 'anon'],
-    blobs: [e.t, clip(e.v, 12), clip(e.l, 5), clip(e.d, 10), clip(e.m, 12), clip(e.s, 20), clip(e.a, e.t === 'report' || e.t === 'error' ? 500 : 60), clip(e.b, e.t === 'error' ? 300 : 60), clip(country, 4)],
+    blobs: [e.t, clip(e.v, 12), clip(e.l, 5), clip(e.d, 10), clip(e.m, 12), clip(e.s, 20), clip(e.a, e.t === 'report' || e.t === 'error' ? 500 : 60), clip(e.b, e.t === 'error' ? 300 : 60), clip(country, 4), clip(e.w, 10)], // blob10 (V8.56) : taille du monde
     doubles: [num(d[0]), num(d[1]), num(d[2])],
   };
 }
@@ -76,6 +76,7 @@ export const STATS_QUERIES = {
   langs: d => `SELECT blob3 AS k, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'session' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC`,
   versions: d => `SELECT blob2 AS k, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'session' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC LIMIT 8`,
   modes: d => `SELECT blob5 AS k, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'session' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC`,
+  worlds: d => `SELECT blob10 AS k, COUNT(DISTINCT index1) AS n FROM football_agent WHERE blob1 = 'session' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC`, // V8.56
   scenarios: d => `SELECT blob6 AS k, SUM(_sample_interval) AS n FROM football_agent WHERE blob1 = 'session' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC LIMIT 15`,
   duration: d => `SELECT SUM(_sample_interval * double1) / SUM(_sample_interval) AS minutes, SUM(_sample_interval * double2) / SUM(_sample_interval) AS months FROM football_agent WHERE blob1 = 'screen' AND blob7 = '_total' AND timestamp > NOW() - INTERVAL '${d}' DAY`,
   screens: d => `SELECT blob7 AS k, SUM(_sample_interval * double1) AS n FROM football_agent WHERE blob1 = 'screen' AND blob7 != '_total' AND timestamp > NOW() - INTERVAL '${d}' DAY GROUP BY k ORDER BY n DESC LIMIT 20`,

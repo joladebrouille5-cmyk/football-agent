@@ -1719,3 +1719,34 @@ test('V8.55 : taille du monde au choix — léger, Europe +, complet, sans retou
   assert.ok((s.intl && s.intl.history || []).length >= 1);
   assert.ok(Object.values(s.clubs).every(c => E.clubGoalkeepers(s, c) > 0));
 });
+
+test('V8.56 : gardien blessé remplacé, résiliation sans retour immédiat ni conflit d’intérêts, plafond du directeur sportif', () => {
+  const s = E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: 'negociateur', worldSize: 'leger' });
+  // un club dont le seul gardien est blessé en signe un en urgence
+  const club = Object.values(s.clubs)[4];
+  const gks = club.squad.map(id => s.players[id]).filter(p => p.posLine === 'GK');
+  for (const g of gks.slice(1)) { club.squad = club.squad.filter(id => id !== g.id); g.club = null; }
+  gks[0].injuredUntil = s.date.absMonth + 3;
+  E.ensureGoalkeepers(s, []);
+  assert.ok(club.squad.map(id => s.players[id]).some(p => p.posLine === 'GK' && !(p.injuredUntil > s.date.absMonth)), 'gardien disponible');
+  // résiliation : pas de re-signature avant un an, ni par le président ni par l'IA
+  const own = Object.values(s.clubs).find(c => c.league === 'L1' && c.tier === 3);
+  s.agent.stakes[own.id] = { pct: 60, cost: 0 }; own.budget = 1e8;
+  while (!E.isMercatoOpen(s)) s.date.absMonth++;
+  const p = own.squad.map(id => s.players[id]).filter(x => !x.academy && x.posLine !== 'GK')[2];
+  assert.ok(E.releaseClubPlayer(s, p.id, false, []).ok);
+  assert.ok(E.releasedRecently(s, p, own));
+  assert.equal(E.ownerRecruitCheck(s, own, p).ok, false);
+  assert.ok(!E.releasedRecently(s, p, Object.values(s.clubs).find(c => c.id !== own.id)), 'les autres clubs peuvent le signer');
+  s.date.absMonth += E.RELEASE_RESIGN_MONTHS;
+  assert.ok(!E.releasedRecently(s, p, own), 'possible un an plus tard');
+  assert.deepEqual(E.deserializeState(E.serializeState(s)).players[p.id].releasedFrom, p.releasedFrom, 'gardé dans la sauvegarde');
+  // pas de résiliation de son propre client
+  const cl = own.squad.map(id => s.players[id]).filter(x => !x.academy && x.posLine !== 'GK')[3];
+  cl.agentId = 'player'; s.agent.portfolio.push(cl.id);
+  assert.match(E.releaseTerms(s, cl).reason, /conflit d’intérêts/);
+  // le directeur sportif ne dépasse pas le plafond fixé par le président
+  assert.equal(E.ownerWageBlocks(s, own, 1), false);
+  assert.equal(E.ownerWageBlocks(s, own, E.clubWageCap(own) * 2), true);
+  assert.equal(E.ownerWageBlocks(s, Object.values(s.clubs).find(c => !E.isClubOwner(s, c.id)), 1e9), false, 'clubs de l’IA non concernés');
+});

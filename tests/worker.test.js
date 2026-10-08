@@ -21,6 +21,8 @@ test('V8.51 : le programme reçoit les événements anonymes et les range dans A
   assert.deepEqual(e.points[0].indexes, ['abc123']);
   assert.deepEqual(e.points[0].blobs.slice(0, 8), ['session', '8.51', 'fr', 'mobile', 'agent', 'classique', 'new', 'nouveau']);
   assert.deepEqual(e.points[0].doubles, [3, 2, 7]);
+  // V8.56 : taille du monde en blob10
+  e.points.length = 0; await worker.fetch(post({ t: 'session', u: 'w', w: 'leger' }), e); assert.equal(e.points[0].blobs[9], 'leger');
   // champs tronqués, valeurs numériques sûres
   e.points.length = 0;
   await worker.fetch(post({ t: 'report', u: 'x'.repeat(100), a: 'y'.repeat(2000), n: ['oops', null, 5] }), e);
