@@ -3,7 +3,7 @@
   "private": true,
   "description": "Football Agent - jeu de gestion et carrière d'agent de football (un seul fichier HTML)",
   "scripts": {
-    "test": "node --test tests/engine.test.js tests/portraits.test.js tests/i18n.test.js tests/worker.test.js",
+    "test": "node --test tests/engine.test.js tests/portraits.test.js tests/i18n.test.js tests/worker.test.js tests/reports.test.js",
     "test:e2e": "node --test tests/e2e.test.js",
     "build": "node tools/build-release.js",
     "test:release": "node --test tests/release.test.js"
