@@ -59,6 +59,8 @@ async function advanceMonth(page) {
     if (cont && /Continuer/.test(await cont.textContent())) { await cont.click(); continue; }
     break;
   }
+  // une réponse à un message peut ouvrir une fenêtre (recherche de club, négociation…) : on la referme
+  await page.evaluate(() => { if (document.querySelector('#modalRoot .modal')) closeModal(); });
 }
 
 for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
