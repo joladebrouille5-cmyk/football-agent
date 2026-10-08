@@ -150,6 +150,7 @@ test('V8.26 : dist/ est un site complet (accueil, manifeste, service worker, con
   // V8.51 : tableau de bord privé des statistiques, non référencé, et confidentialité à jour
   const st = fs.readFileSync(path.join(dir, 'stats.html'), 'utf8');
   assert.match(st, /noindex/); assert.match(st, /\/api\/stats/);
+  assert.match(st, /report-summary\.js/); assert.ok(fs.existsSync(path.join(dir, 'report-summary.js')), 'synthèse des signalements publiée');
   assert.match(fs.readFileSync(path.join(dir, 'confidentialite.html'), 'utf8'), /Statistiques anonymes du jeu/);
   assert.match(siteHeaders()['content-security-policy'], /connect-src 'self'/, 'envoi des statistiques au site lui-même');
   assert.match(siteHeaders()['content-security-policy'] || '', /default-src 'self'/, 'politique de sécurité du contenu');
