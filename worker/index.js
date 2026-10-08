@@ -63,12 +63,14 @@ export const STATS_QUERIES = {
   reports: d => `SELECT timestamp AS at, blob7 AS text, blob8 AS ref, blob2 AS v, blob4 AS dev, blob9 AS country FROM football_agent WHERE blob1 = 'report' AND timestamp > NOW() - INTERVAL '${d}' DAY ORDER BY timestamp DESC LIMIT 30`,
 };
 
+// jeton tel que collé dans le tableau de bord : espaces, retours à la ligne, guillemets ou « Bearer » en trop retirés
+export function cleanToken(t) { return String(t || '').replace(/[\s"'`]+/g, ' ').trim().replace(/^Bearer\s+/i, '').replace(/\s+/g, ''); }
 async function sql(env, query) {
-  const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`, {
-    method: 'POST', headers: { Authorization: `Bearer ${env.CF_API_TOKEN}` }, body: query,
+  const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${String(env.CF_ACCOUNT_ID).trim()}/analytics_engine/sql`, {
+    method: 'POST', headers: { Authorization: `Bearer ${cleanToken(env.CF_API_TOKEN)}` }, body: query,
   });
   const txt = await r.text();
-  if (!r.ok) throw new Error(txt.slice(0, 200));
+  if (!r.ok) { const e = new Error(txt.slice(0, 200)); e.status = r.status; e.auth = r.status === 401 || r.status === 403 || /"code":\s*(9106|9109|10000|10001)\b/.test(txt); throw e; }
   return JSON.parse(txt).data || [];
 }
 
@@ -78,6 +80,9 @@ async function stats(request, env) {
   if (key !== env.STATS_KEY) return json({ error: 'key' }, 401);
   if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) return json({ error: 'setup', missing: !env.CF_API_TOKEN ? 'CF_API_TOKEN' : 'CF_ACCOUNT_ID' }, 503);
   const days = Math.max(1, Math.min(90, Math.round(+new URL(request.url).searchParams.get('days') || 30)));
+  // un premier appel vérifie le jeton : s'il est refusé, un seul message clair plutôt que seize erreurs
+  try { await sql(env, "SELECT count() AS n FROM football_agent WHERE timestamp > NOW() - INTERVAL '1' DAY"); }
+  catch (e) { if (e.auth) return json({ error: 'token', status: e.status || 0, detail: String(e.message || e).slice(0, 200), length: cleanToken(env.CF_API_TOKEN).length }, 502); }
   const out = {};
   await Promise.all(Object.entries(STATS_QUERIES).map(async ([k, q]) => {
     try { out[k] = await sql(env, q(days)); } catch (e) { out[k] = { error: String(e.message || e) }; }

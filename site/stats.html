@@ -125,6 +125,7 @@ button { cursor:pointer; font-weight:700; }
       .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
       .then(function (x) {
         if (x.s === 401) { $('status').textContent = 'Mot de passe incorrect.'; return; }
+        if (x.j.error === 'token') { $('status').textContent = 'Cloudflare refuse le jeton CF_API_TOKEN (' + x.j.length + ' caractères reçus ; un jeton fait environ 40 caractères). Recréez un jeton personnalisé avec la permission Compte > Account Analytics > Lecture, copiez-le avec le bouton « Copier » juste après sa création, remplacez le secret CF_API_TOKEN (Rotate) puis appuyez sur Déployer.'; return; }
         if (x.j.error === 'setup') { $('status').textContent = 'Configuration incomplète : le site ne voit pas ' + x.j.missing + '. Dans Cloudflare (Workers & Pages > play > Paramètres > Variables et secrets), ajoutez-le avec le type « Secret » (pas dans les paramètres de build), puis appuyez sur Déployer.'; return; }
         if (x.s !== 200) { $('status').textContent = 'Erreur ' + x.s; return; }
         $('status').textContent = ''; render(x.j);
