@@ -57,9 +57,24 @@ test('V8.51 : tableau de bord privé — mot de passe, configuration manquante, 
     assert.equal(res.status, 200);
     const j = await res.json();
     assert.equal(j.days, 7);
-    assert.equal(calls.length, Object.keys(STATS_QUERIES).length);
-    assert.ok(calls.every(c => c.url === 'https://api.cloudflare.com/client/v4/accounts/acc/analytics_engine/sql' && /INTERVAL '7' DAY/.test(c.q)));
+    assert.equal(calls.length, Object.keys(STATS_QUERIES).length + 1, 'une vérification du jeton, puis une requête par bloc');
+    assert.ok(calls.slice(1).every(c => c.url === 'https://api.cloudflare.com/client/v4/accounts/acc/analytics_engine/sql' && /INTERVAL '7' DAY/.test(c.q)));
     assert.deepEqual(j.data.langs, [{ k: 'fr', n: 3 }]);
     assert.ok(j.data.errors.error, 'erreur isolée');
+  } finally { global.fetch = orig; }
+});
+
+test('V8.51 : jeton refusé — un message clair, et le jeton collé est nettoyé', async () => {
+  const { default: worker, cleanToken } = await load();
+  assert.equal(cleanToken('  Bearer abc_DEF-123 \n'), 'abc_DEF-123');
+  assert.equal(cleanToken('"abc123"'), 'abc123');
+  const orig = global.fetch, seen = [];
+  global.fetch = async (url, init) => { seen.push(init.headers.Authorization); return new Response('{"success":false,"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}', { status: 400 }); };
+  try {
+    const r = await worker.fetch(new Request('https://play.footagent.workers.dev/api/stats', { headers: { 'x-stats-key': 'k' } }), { STATS_KEY: 'k', CF_ACCOUNT_ID: 'acc', CF_API_TOKEN: ' Bearer tok123\n', ASSETS: {} });
+    assert.equal(r.status, 502);
+    const j = await r.json();
+    assert.equal(j.error, 'token'); assert.equal(j.length, 6);
+    assert.equal(seen.length, 1, 'arrêt après la vérification'); assert.equal(seen[0], 'Bearer tok123');
   } finally { global.fetch = orig; }
 });
