@@ -1758,10 +1758,14 @@ test('V8.57 : messages vivants — blessures sérieuses seulement, lien avec l�
   const [a, b] = ps;
   // une petite blessure (1 mois) ne déclenche plus de message ; une sérieuse, souvent (une fois tous les 6 mois au plus)
   let small = 0, big = 0;
-  for (let i = 0; i < 40; i++) { s.pendingEvent = null; if (E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Entorse', duration: 1 }])) small++; }
-  for (let i = 0; i < 40; i++) { s.pendingEvent = null; a.lastInjuryMsgAt = -99; if (E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Fracture', duration: 3 }])) big++; }
+  for (let i = 0; i < 40; i++) { s.pendingEvent = null; s.lastInjuryTalkAt = -99; if (E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Entorse', duration: 1 }])) small++; }
+  for (let i = 0; i < 40; i++) { s.pendingEvent = null; a.lastInjuryMsgAt = -99; s.lastInjuryTalkAt = -99; if (E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Fracture', duration: 3 }])) big++; }
   assert.equal(small, 0); assert.ok(big > 8, 'blessure sérieuse : ' + big);
-  s.pendingEvent = null; a.lastInjuryMsgAt = s.date.absMonth;
+  s.pendingEvent = null; a.lastInjuryMsgAt = s.date.absMonth; s.lastInjuryTalkAt = -99;
+  // et pas plus d'un message de blessure tous les 2 mois pour toute l'agence
+  s.lastInjuryTalkAt = s.date.absMonth; b.lastInjuryMsgAt = -99;
+  assert.equal(E.maybeTriggerInjuryReaction(s, [{ playerId: b.id, playerName: b.name, injuryType: 'Fracture', duration: 3 }]), false, 'limite de l’agence');
+  s.lastInjuryTalkAt = -99;
   assert.equal(E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Fracture', duration: 3 }]), false, 'pas deux fois en 6 mois');
   // le lien se construit avec les réponses (et entraîne la confiance)
   s.pendingEvent = { id: 'injury_contact', playerId: b.id, text: 'x', choiceLabels: ['a', 'b', 'c'] };

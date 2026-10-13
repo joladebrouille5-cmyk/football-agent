@@ -8812,7 +8812,9 @@ function maybeTriggerInjuryReaction(state, candidates) {
   // V8.57 (audit) : deux messages sur trois venaient des blessures — désormais seulement les blessures sérieuses
   // (2 mois ou plus), et pas plus d'un message de blessure par client tous les 6 mois
   const serious = candidates.filter(c => c.duration >= 2 && state.players[c.playerId] && (state.date.absMonth - (state.players[c.playerId].lastInjuryMsgAt ?? -99)) >= 6);
-  if (state.pendingEvent || !serious.length || Math.random() > 0.5) return false;
+  // et, pour toute l'agence, pas plus d'un message de blessure ou de retour tous les 2 mois
+  if (state.pendingEvent || !serious.length || state.date.absMonth - (state.lastInjuryTalkAt ?? -99) < 2 || Math.random() > 0.5) return false;
+  state.lastInjuryTalkAt = state.date.absMonth;
   const c = serious[Math.floor(Math.random() * serious.length)];
   const ev = EVENTS.find(e => e.id === 'injury_contact');
   const pl = state.players[c.playerId]; pl.lastInjuryMsgAt = state.date.absMonth;
@@ -8834,7 +8836,8 @@ function maybeTriggerRecoveryReaction(state, candidates) {
   const rp = state.players[c.playerId]; if (!rp) return false;
   // V8.57 : la conversation reprend surtout si la blessure avait donné lieu à un échange (sinon, rarement)
   const talked = state.date.absMonth - (rp.lastInjuryMsgAt ?? -99) <= 8;
-  if (Math.random() > (talked ? 0.7 : 0.12)) return false;
+  if (state.date.absMonth - (state.lastInjuryTalkAt ?? -99) < 2 || Math.random() > (talked ? 0.6 : 0.1)) return false;
+  state.lastInjuryTalkAt = state.date.absMonth;
   const ev = EVENTS.find(e => e.id === 'recovery_contact');
   state.pendingEvent = {
     id: ev.id, playerId: c.playerId, rivalId: null,
