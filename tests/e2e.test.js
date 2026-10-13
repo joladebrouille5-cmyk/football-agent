@@ -1115,3 +1115,23 @@ test('V8.56 : bulle de découverte aussi dans une fenêtre (Signaler un problèm
     assert.ok(sent.length && sent.every(e => e.w === 'leger'), 'taille du monde jointe aux événements');
   }, { portraits: 'simple' });
 });
+
+test('V8.57 : message avec vrais choix, effets affichés après la réponse, lien avec le client sur sa fiche', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    const pid = await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      const p = Object.values(G.players).find(x => x.club && !x.agentId && x.ovr >= 66 && x.age < 28); p.agentId = 'player'; G.agent.portfolio.push(p.id);
+      const ev = EVENTS.find(e => e.id === 'injury_contact');
+      G.pendingEvent = { id: ev.id, playerId: p.id, text: injuryMessageText(G, p, { playerName: p.name, injuryType: 'Fracture', duration: 3 }), choiceLabels: ev.choices.map(c => c.label) };
+      showEventModal(); return p.id;
+    });
+    assert.match(await page.textContent('.chat-replies'), /Aller le voir[\s\S]*spécialiste[\s\S]*espace/);
+    await page.click('.chat-reply-btn >> nth=0');
+    await page.waitForSelector('#eventEffects');
+    assert.match(await page.textContent('#eventEffects'), /Lien \+[\s\S]*Trésorerie −/);
+    await page.click('text=Continuer');
+    await page.evaluate(id => { openPlayerDetail(id, 'dashboard'); ui.playerTab = 'apercu'; renderPage(); }, pid);
+    assert.match(await page.textContent('#bondRow'), /Lien avec vous/);
+  }, { portraits: 'simple' });
+});
