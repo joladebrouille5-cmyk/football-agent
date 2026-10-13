@@ -1750,3 +1750,49 @@ test('V8.56 : gardien blessé remplacé, résiliation sans retour immédiat ni c
   assert.equal(E.ownerWageBlocks(s, own, E.clubWageCap(own) * 2), true);
   assert.equal(E.ownerWageBlocks(s, Object.values(s.clubs).find(c => !E.isClubOwner(s, c.id)), 1e9), false, 'clubs de l’IA non concernés');
 });
+
+test('V8.57 : messages vivants — blessures sérieuses seulement, lien avec l’agent, vrais choix, nouveaux messages', () => {
+  const s = E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: 'negociateur', worldSize: 'leger' });
+  const ps = Object.values(s.players).filter(p => p.club && !p.agentId && p.age >= 24 && p.age <= 31 && p.ovr >= 66).slice(0, 4);
+  for (const p of ps) { p.agentId = 'player'; s.agent.portfolio.push(p.id); }
+  const [a, b] = ps;
+  // une petite blessure (1 mois) ne déclenche plus de message ; une sérieuse, souvent (une fois tous les 6 mois au plus)
+  let small = 0, big = 0;
+  for (let i = 0; i < 40; i++) { s.pendingEvent = null; if (E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Entorse', duration: 1 }])) small++; }
+  for (let i = 0; i < 40; i++) { s.pendingEvent = null; a.lastInjuryMsgAt = -99; if (E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Fracture', duration: 3 }])) big++; }
+  assert.equal(small, 0); assert.ok(big > 8, 'blessure sérieuse : ' + big);
+  s.pendingEvent = null; a.lastInjuryMsgAt = s.date.absMonth;
+  assert.equal(E.maybeTriggerInjuryReaction(s, [{ playerId: a.id, playerName: a.name, injuryType: 'Fracture', duration: 3 }]), false, 'pas deux fois en 6 mois');
+  // le lien se construit avec les réponses (et entraîne la confiance)
+  s.pendingEvent = { id: 'injury_contact', playerId: b.id, text: 'x', choiceLabels: ['a', 'b', 'c'] };
+  const t0 = b.agentTrust ?? 50, cash0 = s.agent.cash;
+  E.resolveEvent(s, 0);
+  assert.ok(E.clientBond(b) > 0 && (b.agentTrust ?? 50) > t0, 'être présent renforce le lien');
+  assert.ok(s.agent.cash < cash0, 'et coûte un déplacement');
+  b.personality = 'Loyal'; const before = E.clientBond(b);
+  s.pendingEvent = { id: 'injury_contact', playerId: b.id, text: 'x', choiceLabels: ['a', 'b', 'c'] };
+  E.resolveEvent(s, 2);
+  assert.ok(E.clientBond(b) < before, 'l’ignorer l’abîme');
+  assert.equal(E.bondLabel({ bond: 30 }), 'Très fort'); assert.equal(E.bondLabel({ bond: -30 }), 'Abîmé');
+  b.bond = 30; s.date.absMonth = 1;
+  const intro = [0, 1, 2, 3, 4, 5].map(m => { s.date.absMonth = m; return E.bondIntro(s, b); }).filter(Boolean);
+  assert.ok(intro.length > 0, 'un lien fort se ressent dans les messages');
+  // tous les nouveaux messages s'affichent et chaque réponse s'applique sans erreur
+  for (const e of E.V857_EVENTS) {
+    const p = ps[2]; p.recentInjuryType = 'Entorse';
+    const text = e.scope === 'followup' ? e.text({ p, data: {} }, s) : e.text(p, s);
+    assert.ok(text && text.length > 20, e.id);
+    e.choices.forEach((c, i) => { const news = []; c.effect(s, p, news); assert.ok(news.length, e.id + ' réponse ' + i + ' sans conséquence'); });
+  }
+  // le lien est gardé dans la sauvegarde
+  assert.equal(E.deserializeState(E.serializeState(s)).players[b.id].bond, b.bond);
+  // sur 4 saisons, les blessures ne dominent plus les messages
+  const s2 = E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: 'negociateur', worldSize: 'leger' });
+  const pool = Object.values(s2.players).filter(p => p.club && !p.agentId && p.age >= 19 && p.age <= 30);
+  for (let i = 0; i < 8; i++) { pool[i * 300].agentId = 'player'; s2.agent.portfolio.push(pool[i * 300].id); }
+  const ids = [];
+  for (let m = 0; m < 48; m++) { E.advanceMonth(s2); if (s2.pendingEvent) { ids.push(s2.pendingEvent.id); E.resolveEvent(s2, 0); } }
+  const inj = ids.filter(id => id === 'injury_contact' || id === 'recovery_contact').length;
+  assert.ok(ids.length >= 15 && inj / ids.length < 0.5, `messages ${ids.length}, blessures ${inj}`);
+  assert.ok(new Set(ids).size >= 10, 'variété : ' + new Set(ids).size);
+});
