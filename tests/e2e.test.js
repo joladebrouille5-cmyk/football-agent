@@ -1135,3 +1135,25 @@ test('V8.57 : message avec vrais choix, effets affichés après la réponse, lie
     assert.match(await page.textContent('#bondRow'), /Lien avec vous/);
   }, { portraits: 'simple' });
 });
+
+test('V8.58 : missions du mois, ce qui arrive bientôt, objectif sur la fiche et grand moment sans bloquer les clics', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    const pid = await page.evaluate(() => {
+      G.pendingEvent = null; closeModal();
+      const p = Object.values(G.players).find(x => x.club && !x.agentId && x.ovr >= 62 && x.age < 28); p.agentId = 'player'; G.agent.portfolio.push(p.id);
+      assignPersonalGoal(G, p); p.personalGoal.deadline = G.date.absMonth + 2;
+      G.bigMoments = [{ emoji: '⭐', title: 'Vous êtes désormais Agent reconnu', sub: 'Test' }];
+      ui.page = 'dashboard'; renderPage(); return p.id;
+    });
+    await page.waitForSelector('#missionsCard');
+    assert.match(await page.textContent('#missionsCard'), /Missions du mois/);
+    assert.match(await page.textContent('#upcomingCard'), /Ce qui arrive bientôt[\s\S]*encore 2 mois/);
+    await page.waitForSelector('#bigMoment');
+    assert.match(await page.textContent('#bigMoment'), /Agent reconnu/);
+    // le grand moment ne bloque pas le jeu : un clic passe à travers et le referme
+    await page.click('#fabAdvance', { trial: true });
+    await page.evaluate(id => { openPlayerDetail(id, 'dashboard'); ui.playerTab = 'apercu'; renderPage(); }, pid);
+    assert.match(await page.textContent('#personalGoalBox'), /Objectif[\s\S]*Encore 2 mois[\s\S]*Récompense/);
+  });
+});

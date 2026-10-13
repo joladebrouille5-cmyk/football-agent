@@ -1800,3 +1800,63 @@ test('V8.57 : messages vivants — blessures sérieuses seulement, lien avec l�
   assert.ok(ids.length >= 15 && inj / ids.length < 0.5, `messages ${ids.length}, blessures ${inj}`);
   assert.ok(new Set(ids).size >= 10, 'variété : ' + new Set(ids).size);
 });
+
+test('V8.58 : objectifs personnels avec échéance, missions du mois, surenchères et grands moments', () => {
+  const s = E.createNewGame({ agentName: 'T', agency: 'T', nationality: 'FR', specialty: 'negociateur', worldSize: 'leger' });
+  const ps = Object.values(s.players).filter(p => p.club && !p.agentId && p.age >= 20 && p.age <= 29 && p.ovr >= 62).slice(0, 3);
+  for (const p of ps) { p.agentId = 'player'; s.agent.portfolio.push(p.id); }
+  const [a, b] = ps;
+  // un objectif a une échéance et une récompense ; atteint, il renforce le lien et se fête en grand
+  const g = E.assignPersonalGoal(s, a);
+  assert.ok(g && g.deadline > s.date.absMonth && g.reward.bond > 0, 'objectif daté et récompensé');
+  a.personalGoal = { type: 'ovr', target: a.ovr, start: a.ovr - 3, label: 'Atteindre ' + a.ovr + ' de niveau global', deadline: s.date.absMonth + 5, reward: { bond: 10, morale: 10, rep: 1 } };
+  const bond0 = a.bond || 0, q = [], news = [];
+  s.bigMoments = [];
+  E.checkPersonalGoals(s, q, news);
+  assert.equal(a.personalGoal, null); assert.equal(a.bond, bond0 + 10); assert.equal(q.length, 1);
+  assert.ok(s.bigMoments.some(m => /objectif/.test(m.title)), 'grand moment');
+  // manqué après l'échéance : le client est déçu
+  b.personalGoal = { type: 'caps', target: 1, label: 'Connaître sa première sélection', deadline: s.date.absMonth - 1, reward: { bond: 10, morale: 10, rep: 2 } };
+  b.caps = 0; const bb = b.bond || 0;
+  E.checkPersonalGoals(s, [], news);
+  assert.equal(b.personalGoal, null); assert.equal(b.bond, bb - 6); assert.ok(news.some(n => /n’a pas atteint/.test(n.text)));
+  // le message « objectif confié » fixe l'objectif proposé
+  const ev = E.V858_EVENTS.find(e => e.id === 'objectif_confie');
+  b.lastGoalEndAt = -99; assert.ok(ev.targetCond(b, s));
+  const txt = ev.text(b, s); assert.ok(b.goalDraft && txt.includes(b.goalDraft.label));
+  const n2 = []; ev.choices[0].effect(s, b, n2);
+  assert.ok(b.personalGoal && n2[0].text.includes('Objectif fixé'));
+  // missions du mois : trois tâches, primes et série
+  const ms = E.ensureMissions(s);
+  assert.ok(ms.list.length >= 2 && ms.list.length <= 3);
+  for (const m of ms.list) s.agent.careerStats[m.metric] = (s.agent.careerStats[m.metric] || 0) + m.amount;
+  ms.streak = 2; s.bigMoments = [];
+  const cash0 = s.agent.cash, n3 = [];
+  E.settleMonthlyMissions(s, n3);
+  assert.equal(ms.streak, 3); assert.ok(s.agent.cash > cash0 + ms.list[0].cash * ms.list.length, 'primes + prime de série');
+  assert.ok(s.bigMoments.length === 1 && n3.some(n => /Missions du mois/.test(n.text)));
+  // les actions comptent : répondre à un message
+  const before = s.agent.careerStats.messagesAnswered || 0;
+  s.pendingEvent = { id: 'objectif_confie', playerId: a.id, text: 'x', choiceLabels: ev.choices.map(c => c.label) };
+  a.goalDraft = E.personalGoalOptions(s, a)[0];
+  E.resolveEvent(s, 2);
+  assert.equal(s.agent.careerStats.messagesAnswered, before + 1);
+  // surenchère : un autre club dépasse une offre reçue pendant le mercato
+  let war = false;
+  for (let k = 0; k < 40 && !war; k++) {
+    s.date.absMonth = 11; // juin : la fenêtre d'été ouvre le mois suivant
+    s.incomingOffers = [];
+    const buyer = Object.values(s.clubs).find(c => c.id !== a.club && c.tier >= 2);
+    buyer.budget = 1e9;
+    const r = E.createIncomingOffer(s, Object.assign(a, { lastTransferMonth: null, lastPermanentMove: null }), buyer, 1000000, 5000, s.date.absMonth + 1);
+    if (!r.ok) continue;
+    for (const c of Object.values(s.clubs)) c.budget = Math.max(c.budget, 1e8);
+    const n4 = []; E.biddingWars(s, n4);
+    if (s.incomingOffers.length === 2) { war = true; assert.ok(s.incomingOffers.every(o => o.bidWar)); assert.ok(s.incomingOffers[1].fee > 1000000); assert.match(n4[0].text, /Surenchère/); }
+  }
+  assert.ok(war, 'une surenchère finit par arriver');
+  // ce qui arrive bientôt : l'objectif proche de l'échéance et la surenchère
+  b.personalGoal.deadline = s.date.absMonth + 1;
+  const up = E.computeUpcomingDeadlines(s).map(i => i.text).join(' | ');
+  assert.match(up, /Surenchère en cours/); assert.match(up, new RegExp(b.name));
+});
