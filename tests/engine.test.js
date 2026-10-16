@@ -1857,6 +1857,7 @@ test('V8.58 : objectifs personnels avec échéance, missions du mois, surenchèr
   assert.ok(war, 'une surenchère finit par arriver');
   // ce qui arrive bientôt : l'objectif proche de l'échéance et la surenchère
   b.personalGoal.deadline = s.date.absMonth + 1;
+  for (const p of ps) { p.contractUntil = 2099; if (p !== b) p.personalGoal = null; } // la carte est limitée à 6 lignes
   const up = E.computeUpcomingDeadlines(s).map(i => i.text).join(' | ');
   assert.match(up, /Surenchère en cours/); assert.match(up, new RegExp(b.name));
 });
