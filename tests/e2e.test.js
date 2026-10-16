@@ -1157,3 +1157,34 @@ test('V8.58 : missions du mois, ce qui arrive bientôt, objectif sur la fiche et
     assert.match(await page.textContent('#personalGoalBox'), /Objectif[\s\S]*Encore 2 mois[\s\S]*Récompense/);
   });
 });
+
+test('V8.60 : retour du téléphone, Échap, onglet Offres avec pastille, bouton du temps qui ouvre la décision', async () => {
+  await withGame({ width: 390, height: 844 }, async page => {
+    await page.click('#obLaunch'); await page.waitForSelector('#fabAdvance', { timeout: 20000 });
+    const pid = await page.evaluate(() => { G.pendingEvent = null; closeModal(); const p = Object.values(G.players).find(x => x.club && !x.agentId && x.ovr >= 62); p.agentId = 'player'; G.agent.portfolio.push(p.id); navigate('dashboard'); return p.id; });
+    // retour arrière : de la fiche joueur au tableau de bord
+    await page.evaluate(id => openPlayerDetail(id, 'dashboard'), pid);
+    assert.equal(await page.evaluate(() => ui.page), 'playerdetail');
+    await page.evaluate(() => history.back()); await page.waitForFunction(() => ui.page === 'dashboard');
+    // retour arrière avec une fenêtre ouverte : elle se ferme, on reste sur la page
+    await page.evaluate(() => openSettingsModal()); await page.waitForSelector('.modal');
+    await page.evaluate(() => history.back()); await page.waitForFunction(() => !document.querySelector('#modalRoot .modal'));
+    assert.equal(await page.evaluate(() => ui.page), 'dashboard');
+    // Échap ferme une fenêtre
+    await page.evaluate(() => openSettingsModal()); await page.waitForSelector('.modal');
+    await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('#modalRoot .modal'));
+    // onglet Offres et sa pastille
+    await page.evaluate(id => { const c = Object.values(G.clubs).find(c => c.tier >= 2 && c.id !== G.players[id].club); G.incomingOffers = [{ id: 'o1', playerId: id, clubId: c.id, fee: 1e6, wage: 10000, visibleFrom: G.date.absMonth, expires: G.date.absMonth + 2 }]; renderPage(); }, pid);
+    assert.equal(await page.textContent('.tab-item[data-tab="messages"] .nav-badge'), '1');
+    await page.click('.tab-item[data-tab="messages"]');
+    assert.match(await page.textContent('#content'), /Offres reçues/);
+    // une décision attend : le bouton du temps l'ouvre au lieu d'être grisé
+    await page.evaluate(id => { const p = G.players[id]; const ev = EVENTS.find(e => e.id === 'grande_interview'); G.pendingEvent = { id: ev.id, playerId: p.id, text: ev.text(p, G), choiceLabels: ev.choices.map(c => c.label) }; renderPage(); }, pid);
+    assert.equal(await page.$eval('#fabAdvance', b => b.disabled), false);
+    await page.click('#fabAdvance');
+    await page.waitForSelector('.chat-modal');
+    // « retour » ne ferme pas une décision à trancher
+    await page.evaluate(() => history.back()); await page.waitForTimeout(300);
+    assert.ok(await page.$('.chat-modal'), 'la décision reste ouverte');
+  });
+});
