@@ -87,7 +87,7 @@ manifest.id = './'; manifest.start_url = './';
 fs.writeFileSync(path.join(DIR, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
 // la page d'accueil est mise en cache sous « ./ » : les hébergeurs redirigent /index.html vers /, et une réponse
 // redirigée ne peut pas servir une page hors connexion
-const CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'fonts/inter-latin.woff2', 'fonts/oswald-latin.woff2'];
+const CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'fonts/archivo-latin.woff2'];
 let sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const swParts = [/^const CACHE = .*$/m, /^const CORE = .*$/m, /caches\.match\('football-agent-8-2-20\.html'\)/];
 for (const re of swParts) if (!re.test(sw)) throw new Error('sw.js : motif introuvable ' + re);
